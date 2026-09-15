@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: animbook
+      POSTGRES_USER: animbook
+      POSTGRES_PASSWORD: animbook_local
+    # Windows reserves 55433 + 56380 (SQL Server + WebMatrix); 6000/6001 are
+    # safe on every platform. See AGENTS.md and apps/api/.env.
+    ports:
+      - "6000:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U animbook -d animbook"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - animbook_postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "6001:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - animbook_redis:/data
+
+volumes:
+  animbook_postgres:
+  animbook_redis:

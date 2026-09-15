@@ -1,0 +1,786 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserTier {
+  BASIC
+  PREMIUM
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  INCOMPLETE
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+enum BookVertical {
+  CONSUMER
+  KIDS
+  EDU
+  FAITH
+  DOCS
+  VERSE
+  COMICS
+  BUSINESS
+  WELLNESS
+  LAW
+  TRAVEL
+  ORIGINALS
+}
+
+enum BookStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ExpertReviewStatus {
+  NOT_REQUIRED
+  PENDING
+  IN_REVIEW
+  APPROVED
+  CHANGES_REQUESTED
+}
+
+enum PageStatus {
+  PENDING
+  APPROVED
+  FLAGGED
+  REGENERATING
+}
+
+enum ReadingMode {
+  WATCH
+  BOTH
+  READ
+}
+
+enum InstitutionType {
+  SCHOOL
+  UNIVERSITY
+  CORPORATE
+}
+
+enum StudioProjectStatus {
+  SETUP
+  ANALYZING
+  BRAIN_REVIEW
+  STYLE_SELECTION
+  STYLE_TRAINING
+  GENERATING
+  REVIEW
+  AUDIO
+  READY_TO_PUBLISH
+  PUBLISHED
+  FAILED
+}
+
+enum PipelineStage {
+  MANUSCRIPT_INGESTION
+  BOOK_BRAIN_ANALYSIS
+  VISUAL_STYLE
+  PROMPT_GENERATION
+  VIDEO_GENERATION
+  QUALITY_TRIAGE
+  AUDIO_PRODUCTION
+  ASSEMBLY
+  METADATA_UPLOAD
+  PUBLISH
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  RETRYING
+}
+
+model User {
+  id                     String               @id @default(cuid())
+  clerkId                String               @unique @map("clerk_id")
+  email                  String               @unique
+  name                   String
+  tier                   UserTier             @default(BASIC)
+  roles                  String[]             @default([])
+  subscriptionStatus     SubscriptionStatus?  @map("subscription_status")
+  stripeCustomerId       String?              @unique @map("stripe_customer_id")
+  createdAt              DateTime             @default(now()) @map("created_at")
+  updatedAt              DateTime             @updatedAt @map("updated_at")
+  libraryEntries         LibraryEntry[]
+  subscriptions          Subscription[]
+  checkpointResponses    CheckpointResponse[]
+  administeredInstitutions Institution[]      @relation("InstitutionAdmin")
+  studioProjects         StudioProject[]
+  stageRoundsAuthored    StageRound[]       @relation("StageRoundLead")
+  achievements           Achievement[]
+  reviewsAuthored        ReviewDecision[]     @relation("ReviewAuthor")
+  creatorRoyalties       RoyaltyEntry[]       @relation("CreatorPayee")
+  memoryProfile          MemoryProfile?
+  apiKeys               ApiKey[]
+  pageSignalEvents      PageSignalEvent[]
+  classroomsTeaching    Classroom[]          @relation("ClassroomTeacher")
+  classroomMemberships  ClassroomMembership[] @relation("ClassroomStudent")
+
+  @@map("users")
+}
+
+model Publisher {
+  id                  String   @id @default(cuid())
+  name                String
+  contactEmail        String   @map("contact_email")
+  licenseAgreementUrl String?  @map("license_agreement_url")
+  revenueSharePct     Float    @default(0) @map("revenue_share_pct")
+  createdAt           DateTime @default(now()) @map("created_at")
+  books               Book[]
+
+  @@map("publishers")
+}
+
+model Book {
+  id                   String             @id @default(cuid())
+  slug                 String             @unique
+  title                String
+  author               String
+  synopsis             String             @db.Text
+  isbn                 String?            @unique
+  publisherId          String?            @map("publisher_id")
+  vertical             BookVertical
+  status               BookStatus         @default(DRAFT)
+  styleId              String?            @map("style_id")
+  totalPages           Int                @default(0) @map("total_pages")
+  genreTags            String[]           @default([]) @map("genre_tags")
+  moodTags             String[]           @default([]) @map("mood_tags")
+  ageRating            String?            @map("age_rating")
+  language             String             @default("en")
+  narrationLanguages   String[]           @default([]) @map("narration_languages")
+  coverUrl              String?            @map("cover_url")
+  requiresExpertReview Boolean            @default(false) @map("requires_expert_review")
+  expertReviewStatus   ExpertReviewStatus @default(NOT_REQUIRED) @map("expert_review_status")
+  iconographicNotes    String?            @map("iconographic_notes") @db.Text
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+  publisher            Publisher?         @relation(fields: [publisherId], references: [id], onDelete: SetNull)
+  pages                Page[]
+  libraryEntries       LibraryEntry[]
+  brain                BookBrain?
+  studioProject        StudioProject?
+  reviewDecisions      ReviewDecision[]
+  royaltyEntries       RoyaltyEntry[]
+  oracleTrees          OracleTree[]
+  liveSessions         LiveSession[]
+  worldMembership      WorldMember?
+  archiveProject       ArchiveProject?
+
+  @@index([vertical, status])
+  @@index([title])
+  @@index([status, language])
+  @@index([status, vertical, updatedAt])
+  @@map("books")
+}
+
+model Page {
+  id                    String       @id @default(cuid())
+  bookId                String       @map("book_id")
+  pageNum               Int          @map("page_num")
+  chapter               String?
+  textExcerpt           String       @map("text_excerpt") @db.Text
+  sourceTextSha256      String       @map("source_text_sha256")
+  animationPrompt       String?      @map("animation_prompt") @db.Text
+  negativePrompt        String?      @map("negative_prompt") @db.Text
+  videoUrl              String?      @map("video_url")
+  posterUrl             String?      @map("poster_url")
+  audioUrl              String?      @map("audio_url")
+  vttUrl                 String?      @map("vtt_url")
+  qualityScore          Float?       @map("quality_score")
+  status                PageStatus   @default(PENDING)
+  directionNote         String?      @map("direction_note") @db.Text
+  regenerationCount     Int          @default(0) @map("regeneration_count")
+  sceneType             String?      @map("scene_type")
+  emotionalRegister     String?      @map("emotional_register")
+  cameraAngle           String?      @map("camera_angle")
+  speakerName           String?      @map("speaker_name")
+  createdAt             DateTime     @default(now()) @map("created_at")
+  updatedAt             DateTime     @updatedAt @map("updated_at")
+  book                  Book         @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  checkpoints           Checkpoint[]
+
+  @@unique([bookId, pageNum])
+  @@index([bookId, status])
+  @@map("pages")
+}
+
+model LibraryEntry {
+  id                String      @id @default(cuid())
+  userId            String      @map("user_id")
+  bookId            String      @map("book_id")
+  progressPage      Int         @default(1) @map("progress_page")
+  lastRead          DateTime    @default(now()) @map("last_read")
+  mode              ReadingMode @default(BOTH)
+  completed         Boolean     @default(false)
+  downloadedAt      DateTime?   @map("downloaded_at")
+  narrationLanguage String      @default("en") @map("narration_language")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book              Book        @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([userId, lastRead])
+  @@map("libraries")
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String             @map("user_id")
+  plan                 String
+  status               SubscriptionStatus
+  stripeSubscriptionId String             @unique @map("stripe_subscription_id")
+  expiresAt            DateTime?          @map("expires_at")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("subscriptions")
+}
+
+model BookBrain {
+  id                String    @id @default(cuid())
+  bookId            String    @unique @map("book_id")
+  genre             String[]  @default([])
+  culturalOrigin    String?   @map("cultural_origin")
+  targetAudience    String?   @map("target_audience")
+  styleSelected     String?   @map("style_selected")
+  narratorVoiceId   String?   @map("narrator_voice_id")
+  rawJson           Json      @map("raw_json")
+  approvedAt        DateTime? @map("approved_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  book              Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@map("book_brain")
+}
+
+model Checkpoint {
+  id                    String               @id @default(cuid())
+  pageId                String               @map("page_id")
+  question              String               @db.Text
+  options               String[]             @default([])
+  correctIndex          Int?                 @map("correct_index")
+  correctText           String?              @map("correct_text") @db.Text
+  explanation           String               @db.Text
+  questionType          String               @map("question_type")
+  curriculumTags        String[]             @default([]) @map("curriculum_tags")
+  difficultyScore       Int                  @default(3) @map("difficulty_score")
+  misconceptionTargets  String[]             @default([]) @map("misconception_targets")
+  createdAt             DateTime             @default(now()) @map("created_at")
+  page                  Page                 @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  responses             CheckpointResponse[]
+
+  @@index([pageId])
+  @@map("checkpoints")
+}
+
+model CheckpointResponse {
+  id               String     @id @default(cuid())
+  userId           String     @map("user_id")
+  checkpointId     String     @map("checkpoint_id")
+  selectedIndex    Int?       @map("selected_index")
+  responseText     String?    @map("response_text") @db.Text
+  isCorrect        Boolean    @map("is_correct")
+  timeTakenSeconds Int        @map("time_taken_seconds")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checkpoint       Checkpoint @relation(fields: [checkpointId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([checkpointId])
+  @@index([createdAt])
+  @@map("checkpoint_responses")
+}
+
+model Achievement {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  code       String
+  title      String
+  description String  @db.Text
+  awardedAt  DateTime @default(now()) @map("awarded_at")
+  metadata   Json?
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, code])
+  @@index([userId, awardedAt])
+  @@map("achievements")
+}
+
+model ReviewDecision {
+  id             String              @id @default(cuid())
+  bookId         String              @map("book_id")
+  reviewerId     String              @map("reviewer_id")
+  framework      String
+  status         ExpertReviewStatus
+  notes          String              @db.Text
+  iconographicConcerns String[]      @default([]) @map("iconographic_concerns")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  book           Book                @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  reviewer       User                @relation("ReviewAuthor", fields: [reviewerId], references: [id], onDelete: Restrict)
+
+  @@index([bookId, createdAt])
+  @@index([reviewerId, createdAt])
+  @@map("review_decisions")
+}
+
+model RoyaltyEntry {
+  id           String   @id @default(cuid())
+  bookId       String   @map("book_id")
+  payeeId      String   @map("payee_id")
+  amountCents  Int      @map("amount_cents")
+  currency     String   @default("USD")
+  periodStart  DateTime @map("period_start")
+  periodEnd    DateTime @map("period_end")
+  notes        String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  book         Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  payee        User     @relation("CreatorPayee", fields: [payeeId], references: [id], onDelete: Restrict)
+
+  @@index([payeeId, periodEnd])
+  @@map("royalty_entries")
+}
+
+model MemoryProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique @map("user_id")
+  palette         String   @default("default")
+  pacing          String   @default("default")
+  cameraStyle     String   @default("default") @map("camera_style")
+  narrationSpeed  Float    @default(1) @map("narration_speed")
+  fontSize        Int      @default(18) @map("font_size")
+  motionLevel     Float    @default(1) @map("motion_level")
+  lensEnabled     Boolean  @default(false) @map("lens_enabled")
+  echoEnabled     Boolean  @default(false) @map("echo_enabled")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("memory_profiles")
+}
+
+model OracleTree {
+  id        String   @id @default(cuid())
+  bookId    String   @map("book_id")
+  rootPage  Int      @map("root_page")
+  createdAt DateTime @default(now()) @map("created_at")
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  nodes     OracleNode[]
+
+  @@unique([bookId, rootPage])
+  @@map("oracle_trees")
+}
+
+model OracleNode {
+  id            String   @id @default(cuid())
+  treeId        String   @map("tree_id")
+  parentNodeId  String?  @map("parent_node_id")
+  promptText    String   @map("prompt_text") @db.Text
+  choiceLabel   String   @map("choice_label")
+  pageNum       Int      @map("page_num")
+  generatedText String   @map("generated_text") @db.Text
+  animationPrompt String @map("animation_prompt") @db.Text
+  speakerName   String?  @map("speaker_name")
+  emotion       String   @default("reflective")
+  createdAt     DateTime @default(now()) @map("created_at")
+  tree          OracleTree @relation(fields: [treeId], references: [id], onDelete: Cascade)
+  parent        OracleNode? @relation("OracleChildren", fields: [parentNodeId], references: [id], onDelete: SetNull)
+  children      OracleNode[] @relation("OracleChildren")
+
+  @@index([treeId, pageNum])
+  @@map("oracle_nodes")
+}
+
+model LiveSession {
+  id          String   @id @default(cuid())
+  bookId      String   @map("book_id")
+  hostId      String   @map("host_id")
+  title       String
+  status      String   @default("LIVE")
+  startedAt   DateTime @default(now()) @map("started_at")
+  endedAt     DateTime? @map("ended_at")
+  currentPage Int      @default(1) @map("current_page")
+  audienceCount Int    @default(0) @map("audience_count")
+  book        Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  events      LiveEvent[]
+
+  @@index([status, startedAt])
+  @@map("live_sessions")
+}
+
+model LiveEvent {
+  id          String   @id @default(cuid())
+  sessionId   String   @map("session_id")
+  type        String
+  payload     Json
+  createdAt   DateTime @default(now()) @map("created_at")
+  session     LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@map("live_events")
+}
+
+model TranslationGloss {
+  id          String   @id @default(cuid())
+  sourceLang  String   @map("source_lang")
+  targetLang  String   @map("target_lang")
+  word        String
+  translation String
+  pronunciation String?
+  exampleSentence String? @map("example_sentence") @db.Text
+  bookId      String?  @map("book_id")
+
+  @@unique([sourceLang, targetLang, word])
+  @@index([bookId])
+  @@map("translation_glosses")
+}
+
+model World {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  synopsis    String   @db.Text
+  accentColor String   @default("#C49A1C") @map("accent_color")
+  styleId     String?  @map("style_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  members     WorldMember[]
+
+  @@map("worlds")
+}
+
+model WorldMember {
+  id           String   @id @default(cuid())
+  worldId      String   @map("world_id")
+  bookId       String   @unique @map("book_id")
+  ordinal      Int      @default(0)
+  sharedCharacters String[] @default([]) @map("shared_characters")
+  world        World    @relation(fields: [worldId], references: [id], onDelete: Cascade)
+  book         Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([worldId, ordinal])
+  @@map("world_members")
+}
+
+model StageRound {
+  id          String   @id @default(cuid())
+  projectId   String   @map("project_id")
+  leadId      String   @map("lead_id")
+  ordinal     Int
+  brief       String   @db.Text
+  status      String   @default("OPEN")
+  opensAt     DateTime @default(now()) @map("opens_at")
+  closesAt    DateTime? @map("closes_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  contributions StageContribution[]
+  project     StudioProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lead        User     @relation("StageRoundLead", fields: [leadId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, ordinal])
+  @@map("stage_rounds")
+}
+
+model StageContribution {
+  id          String   @id @default(cuid())
+  roundId     String   @map("round_id")
+  contributorId String  @map("contributor_id")
+  pageNum     Int      @map("page_num")
+  textExcerpt String   @map("text_excerpt") @db.Text
+  voice       String?
+  approved    Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+  round       StageRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@index([roundId, pageNum])
+  @@map("stage_contributions")
+}
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  ownerId     String   @map("owner_id")
+  name        String
+  prefix      String   @unique
+  secretHash  String   @map("secret_hash")
+  scopes      String[] @default([])
+  rateLimitRpm Int     @default(60) @map("rate_limit_rpm")
+  revokedAt   DateTime? @map("revoked_at")
+  lastUsedAt  DateTime? @map("last_used_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, revokedAt])
+  @@map("api_keys")
+}
+
+model PageSignalEvent {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  bookId      String   @map("book_id")
+  pageNum     Int      @map("page_num")
+  vertical    String
+  dwellMs     Int      @map("dwell_ms")
+  scrolledBack Boolean @default(false) @map("scrolled_back")
+  abandoned   Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([bookId, pageNum])
+  @@index([bookId, createdAt])
+  @@map("page_signal_events")
+}
+
+model Institution {
+  id               String          @id @default(cuid())
+  name             String
+  type             InstitutionType
+  adminUserId      String          @map("admin_user_id")
+  seatCount        Int             @default(0) @map("seat_count")
+  licenseExpiresAt DateTime?       @map("license_expires_at")
+  lmsIntegration   Json?           @map("lms_integration")
+  ssoConfig        Json?           @map("sso_config")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  adminUser        User            @relation("InstitutionAdmin", fields: [adminUserId], references: [id], onDelete: Restrict)
+
+  @@index([adminUserId])
+  @@map("institutions")
+}
+
+model StudioProject {
+  id                    String              @id @default(cuid())
+  ownerId               String              @map("owner_id")
+  bookId                String?             @unique @map("book_id")
+  name                  String
+  vertical              BookVertical
+  status                StudioProjectStatus @default(SETUP)
+  currentStage          PipelineStage       @default(MANUSCRIPT_INGESTION) @map("current_stage")
+  sourceFilename        String?             @map("source_filename")
+  sourceObjectKey       String?             @map("source_object_key")
+  manuscriptSha256      String?             @map("manuscript_sha256")
+  expertReviewRequired  Boolean             @default(false) @map("expert_review_required")
+  approvedForPublishAt  DateTime?           @map("approved_for_publish_at")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+  owner                 User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  book                  Book?               @relation(fields: [bookId], references: [id], onDelete: SetNull)
+  jobs                  GenerationJob[]
+  stageRounds           StageRound[]
+
+  @@index([ownerId, updatedAt])
+  @@index([status, currentStage])
+  @@map("studio_projects")
+}
+
+model GenerationJob {
+  id             String        @id @default(cuid())
+  projectId      String        @map("project_id")
+  queueJobId     String?       @unique @map("queue_job_id")
+  stage          PipelineStage
+  status         JobStatus     @default(QUEUED)
+  progress       Int           @default(0)
+  attempt        Int           @default(0)
+  maxAttempts    Int           @default(3) @map("max_attempts")
+  errorMessage   String?       @map("error_message") @db.Text
+  result         Json?
+  startedAt      DateTime?     @map("started_at")
+  completedAt    DateTime?     @map("completed_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  project        StudioProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([status, stage])
+  @@index([stage, status, createdAt])
+  @@map("generation_jobs")
+}
+
+model ArchiveProject {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  title           String
+  steward         String
+  region          String
+  communityContext String?  @map("community_context") @db.Text
+  sensitivityTier String   @default("MEDIUM") @map("sensitivity_tier")
+  bookId          String?  @unique @map("book_id")
+  partnerOrg      String?  @map("partner_org")
+  partnerUrl       String? @map("partner_url")
+  status          String   @default("DRAFT")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  book            Book?    @relation(fields: [bookId], references: [id], onDelete: SetNull)
+  consents        ArchiveConsent[]
+  culturalNotes   ArchiveCulturalNote[]
+
+  @@index([sensitivityTier, status])
+  @@map("archive_projects")
+}
+
+model ArchiveConsent {
+  id              String   @id @default(cuid())
+  projectId       String   @map("project_id")
+  subjectName     String   @map("subject_name")
+  relationship    String
+  consentText     String   @map("consent_text") @db.Text
+  consentMediaUrl String?  @map("consent_media_url")
+  grantedAt       DateTime @default(now()) @map("granted_at")
+  expiresAt       DateTime? @map("expires_at")
+  scope           String   @default("PUBLICATION")
+  project         ArchiveProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, grantedAt])
+  @@map("archive_consents")
+}
+
+model ArchiveCulturalNote {
+  id           String   @id @default(cuid())
+  projectId    String   @map("project_id")
+  category     String
+  note         String   @db.Text
+  iconographicConcerns String[] @default([]) @map("iconographic_concerns")
+  voiceGuidance String?  @map("voice_guidance") @db.Text
+  reviewerName String?  @map("reviewer_name")
+  createdAt    DateTime @default(now()) @map("created_at")
+  project      ArchiveProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, category])
+  @@map("archive_cultural_notes")
+}
+
+model Classroom {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  teacherId   String   @map("teacher_id")
+  schoolName  String?  @map("school_name")
+  gradeBand   String?  @map("grade_band")
+  libraryBookIds String[] @default([]) @map("library_book_ids")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  teacher     User     @relation("ClassroomTeacher", fields: [teacherId], references: [id], onDelete: Restrict)
+  members     ClassroomMembership[]
+  assignments ClassroomAssignment[]
+
+  @@index([teacherId, updatedAt])
+  @@map("classrooms")
+}
+
+model ClassroomMembership {
+  id           String   @id @default(cuid())
+  classroomId  String   @map("classroom_id")
+  studentId    String   @map("student_id")
+  role         String   @default("STUDENT")
+  joinedAt     DateTime @default(now()) @map("joined_at")
+  classroom    Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  student      User      @relation("ClassroomStudent", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classroomId, studentId])
+  @@index([studentId])
+  @@map("classroom_memberships")
+}
+
+model ClassroomAssignment {
+  id           String   @id @default(cuid())
+  classroomId  String   @map("classroom_id")
+  title        String
+  brief        String   @db.Text
+  rubric       Json?
+  dueAt        DateTime? @map("due_at")
+  status       String   @default("OPEN")
+  createdAt    DateTime @default(now()) @map("created_at")
+  classroom    Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  submissions  ClassroomSubmission[]
+
+  @@index([classroomId, createdAt])
+  @@map("classroom_assignments")
+}
+
+model ClassroomSubmission {
+  id             String   @id @default(cuid())
+  assignmentId   String   @map("assignment_id")
+  studentId      String   @map("student_id")
+  studioProjectId String?  @map("studio_project_id")
+  pageCount      Int      @default(0) @map("page_count")
+  feedbackScore  Float?   @map("feedback_score")
+  submittedAt    DateTime @default(now()) @map("submitted_at")
+  assignment     ClassroomAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@index([assignmentId, submittedAt])
+  @@map("classroom_submissions")
+}
+
+/// AnimBook DREAM — runtime sleep-mode sessions.
+/// One row per WELLNESS-vertical read where the reader stayed in DREAM for
+/// at least one page. Captures dwell time, the ambient track, and whether
+/// the reader fell asleep (no progress events for > 20 minutes).
+model DreamSession {
+  id            String    @id @default(cuid())
+  userId        String    @map("user_id")
+  bookId        String    @map("book_id")
+  ambientTrack  String    @default("ocean_waves") @map("ambient_track")
+  pagesRead     Int       @default(0) @map("pages_read")
+  startedAt     DateTime  @default(now()) @map("started_at")
+  endedAt       DateTime? @map("ended_at")
+  fellAsleepAt  DateTime? @map("fell_asleep_at")
+  exitReason    String?   @map("exit_reason") @db.Text
+
+  @@index([userId, startedAt])
+  @@index([bookId, startedAt])
+  @@index([endedAt])
+  @@map("dream_sessions")
+}
+
+/// AnimBook STUDIO PRO — AR/NFC companion for every published AnimBook.
+/// A CompanionLink mints a marker (QR-scannable) and an NFC tag id; the
+/// web companion reads them to launch the book in AR overlay or pin
+/// directly to a specific page.
+model CompanionLink {
+  id              String   @id @default(cuid())
+  bookId          String   @map("book_id")
+  markerHash      String   @unique @map("marker_hash")
+  nfcTagId        String   @unique @map("nfc_tag_id")
+  experienceMode  String   @default("AR_OVERLAY") @map("experience_mode")
+  anchorPage      Int      @default(1) @map("anchor_page")
+  title           String?
+  companionLabel  String?  @map("companion_label")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  sessions        CompanionSession[]
+
+  @@index([bookId])
+  @@map("companion_links")
+}
+
+/// AnimBook STUDIO PRO — every time a reader opens the book via AR marker
+/// or NFC tag, we log a session so the creator can see lifecycle reach.
+model CompanionSession {
+  id          String   @id @default(cuid())
+  linkId      String   @map("link_id")
+  userId      String   @map("user_id")
+  triggerMode String   @map("trigger_mode")
+  pageReached Int      @default(1) @map("page_reached")
+  startedAt   DateTime @default(now()) @map("started_at")
+  endedAt     DateTime? @map("ended_at")
+  link        CompanionLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  @@index([linkId, startedAt])
+  @@index([userId, startedAt])
+  @@map("companion_sessions")
+}

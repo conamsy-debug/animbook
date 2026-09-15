@@ -1,0 +1,80 @@
+{
+  "expo": {
+    "name": "AnimBook",
+    "slug": "animbook-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": ["animbook", "exp+animbook-mobile"],
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#080c14"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.animbook.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "AnimBook Companion uses your camera to read AnimBook AR markers on the cover of each book.",
+        "NFCReaderUsageDescription": "AnimBook Companion can read NFC tags embedded in AnimBook covers to open the book at the right page.",
+        "UIBackgroundModes": ["audio", "remote-notification"]
+      },
+      "associatedDomains": ["applinks:animbook.com", "applinks:www.animbook.com"]
+    },
+    "android": {
+      "package": "app.animbook.mobile",
+      "permissions": ["CAMERA", "NFC", "VIBRATE", "INTERNET", "POST_NOTIFICATIONS", "SCHEDULE_EXACT_ALARM"],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#080c14"
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            { "scheme": "https", "host": "animbook.com", "pathPrefix": "/m" },
+            { "scheme": "https", "host": "www.animbook.com", "pathPrefix": "/m" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
+    },
+    "tvOS": {
+      "bundleIdentifier": "app.animbook.tv",
+      "userInterfaceStyle": "dark",
+      "icon": "./assets/icon.png",
+      "topShelfImage": "./assets/tv-top-shelf.svg",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        },
+        "UIBackgroundModes": ["audio"],
+        "UIRequiredDeviceCapabilities": ["arm64"],
+        "UIUserInterfaceStyle": "Dark"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/icon.png",
+      "name": "AnimBook Mobile",
+      "shortName": "AnimBook"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "@react-native-tvos/config-tv"
+    ],
+    "experiments": {
+      "tsconfigPaths": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "apiBase": "http://localhost:4000"
+    }
+  }
+}

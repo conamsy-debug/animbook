@@ -1,0 +1,27 @@
+AnimBook v0.14.0 — Phases 1 through 14 production-ready
+
+Monorepo containing the AnimBook platform: API (Express + Prisma + Redis),
+Web (Next.js 14), Mobile (Expo SDK 53), TV (Vite + React 18), and shared
+domain package.
+
+Phases shipped:
+- Phase 1-2: Foundation + 10-language narration + EDU/FAITH review + Creator/Publisher Portals + Offline download + BUSINESS SCORM
+- Phase 3: MEMORY, ORACLE, ECHO, LIVE TRANSLATION, LIVE (next-gen 6/14)
+- Phase 4: WORLDS, STAGE, SIGNAL, NETWORK
+- Phase 5: ARCHIVE + SCHOOL
+- Phase 6: DREAM + STUDIO PRO (next-gen 14/14)
+- Phase 7-8: Mobile (Expo + RN 0.79) + polish (Haptics, Blur, Notifications, Deep linking)
+- Phase 9-10: Apple TV (web + native source)
+- Phase 11: Production hardening (ErrorBoundary, States, Redis cache, rate-limit, 6 hot-path indexes, 19 more AnimBooks, 3 translation packs, ToS/Privacy/Refund/Pricing, GDPR)
+- Phase 12: Deploy readiness (health probes, Sentry, Dockerfiles, docker-compose.prod.yml, Caddyfile, deploy-ready check, DEPLOY.md)
+- Phase 13: Operational maturity (supervisor with status endpoint + healthcheck-driven restart + crash-loop backoff, CI workflow, public API catalogue, Playwright config migration)
+- Phase 14: Production keys wired (Neon Postgres + Upstash Redis + Anthropic Claude + Runway Gen-3 + ElevenLabs + OpenAI + Cloudflare R2, deploy-ready returns 0 hard-fail, 188/190 smokes green)
+
+30 published AnimBooks seeded across 12 verticals (CONSUMER, KIDS, EDU,
+FAITH, DOCS, VERSE, BUSINESS, TRAVEL, ORIGINALS, WELLNESS, Lagos Nights
+trilogy, Voices of the Lagoon archive HIGH).
+
+Production domain: animbook.com (Cloudflare DNS).
+Deploy target: Railway (docs/RAILWAY-DEPLOY.md).
+
+See PHASE-14-SCORECARD.md for the production-keys-wired close-out.

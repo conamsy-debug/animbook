@@ -1,0 +1,9 @@
+Temporarily exclude .github/workflows/ci.yml from initial push
+
+PAT lacks the `workflow` scope GitHub requires to push workflow files.
+The CI workflow file is kept on disk but excluded from the initial push
+(via `git rm --cached`). Re-include it once the PAT is updated with the
+`workflow` scope, or add it via the GitHub web editor.
+
+Render deploy does NOT depend on this workflow — it's only used for CI
+gating on PRs.

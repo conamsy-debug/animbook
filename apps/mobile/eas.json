@@ -1,0 +1,74 @@
+{
+  "cli": {
+    "version": ">= 13.0.0",
+    "appVersionSource": "local",
+    "requireCommit": false
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "simulator": true,
+        "channel": "development"
+      },
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": true,
+        "channel": "preview"
+      },
+      "android": {
+        "buildType": "apk",
+        "channel": "preview"
+      }
+    },
+    "production": {
+      "ios": {
+        "channel": "production",
+        "distribution": "store"
+      },
+      "android": {
+        "buildType": "app-bundle",
+        "channel": "production"
+      }
+    },
+    "production-tvos": {
+      "extends": "production",
+      "ios": {
+        "simulator": false,
+        "channel": "production-tvos",
+        "distribution": "store",
+        "targetName": "tvos"
+      }
+    },
+    "preview-tvos": {
+      "extends": "preview",
+      "ios": {
+        "simulator": true,
+        "targetName": "tvos",
+        "channel": "preview-tvos"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppIdentifier": "app.animbook.mobile"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./google-services.json"
+      }
+    },
+    "production-tvos": {
+      "ios": {
+        "ascAppIdentifier": "app.animbook.tv"
+      }
+    }
+  }
+}

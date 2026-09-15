@@ -1,0 +1,32 @@
+# AnimBook — reverse proxy.
+#
+# Two options: point a Caddy at this Caddyfile, or use your platform's LB.
+# The Caddyfile ships because it's the cleanest single-file TLS terminator
+# that doesn't require a config DSL study.
+#
+# Usage:
+#   caddy run --config Caddyfile
+
+# Public AnimBook site (Next.js) — root + www.
+animbook.com, www.animbook.com {
+  encode zstd gzip
+  reverse_proxy web:3000
+}
+
+# API.
+api.animbook.com {
+  encode zstd gzip
+  reverse_proxy api:4000
+}
+
+# Mobile web shell (Expo static export).
+m.animbook.com {
+  encode zstd gzip
+  reverse_proxy mobile:80
+}
+
+# Apple TV web shell (Vite build).
+tv.animbook.com {
+  encode zstd gzip
+  reverse_proxy tv:80
+}

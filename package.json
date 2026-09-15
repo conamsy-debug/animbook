@@ -1,0 +1,31 @@
+{
+  "name": "animbook",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A book that moves — the AnimBook platform monorepo.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "dev:web": "npm run dev -w @animbook/web",
+    "dev:api": "npm run dev -w @animbook/api",
+    "build": "npm run build -w @animbook/domain && npm run build -w @animbook/api && npm run build -w @animbook/web",
+    "build:api": "npm run build -w @animbook/api",
+    "build:web": "npm run build -w @animbook/web",
+    "start:api": "node apps/api/dist/src/index.js",
+    "start:web": "npm start -w @animbook/web",
+    "typecheck": "npm run typecheck -w @animbook/domain && npm run typecheck -w @animbook/api && npm run typecheck -w @animbook/web",
+    "test": "npm run test --workspaces --if-present",
+    "db:generate": "npm run db:generate -w @animbook/api",
+    "db:migrate": "npm run db:migrate -w @animbook/api",
+    "db:seed": "npm run db:seed -w @animbook/api"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "prisma": "^6.19.3"
+  }
+}

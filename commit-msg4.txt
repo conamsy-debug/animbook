@@ -1,0 +1,12 @@
+Switch deploy target to Railway + consolidate docs
+
+- docs/RAILWAY-DEPLOY.md replaces docs/RENDER-DEPLOY.md (Render is
+  blocked from the founder's network; Railway works everywhere).
+- DEPLOY.md reordered: Railway now Path A (recommended), Render
+  demoted to Path B.
+- README.md updated to point at docs/RAILWAY-DEPLOY.md.
+
+The CI workflow file (`.github/workflows/ci.yml`) is untracked again in
+this repo because the new PAT also lacks the `workflow` scope. Same
+workaround: `git add .github/workflows/ci.yml && git commit && git push`
+once the PAT is upgraded.

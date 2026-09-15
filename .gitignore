@@ -1,0 +1,22 @@
+node_modules/
+.next/
+dist/
+coverage/
+*.log
+*.err
+*.out
+.env
+.env.*
+!.env.example
+!.env.production.example
+.DS_Store
+Thumbs.db
+apps/api/prisma/*.db
+apps/api/prisma/*.db-journal
+# OS / editor scratch
+.vscode/
+.idea/
+
+
+# CI workflow — excluded until PAT has workflow scope
+.github/workflows/ci.yml

@@ -1,0 +1,16 @@
+Rename domain animbook.app → animbook.com
+
+Production domain is animbook.com (registered + Cloudflare DNS). Updated:
+- Caddyfile (root + www + api + m + tv hosts)
+- All .env.production* files (WEB_ORIGIN, NEXT_PUBLIC_API_URL, CLOUDFLARE_CDN_BASE)
+- apps/web/Dockerfile (NEXT_PUBLIC_API_URL)
+- apps/mobile/app.json (Universal Links + intent filters)
+- apps/mobile/BUILDING.md (deep-link docs)
+- README.md, DEPLOY.md, docs/RENDER-DEPLOY.md
+- PHASE-8 / 12 / 14 scorecards
+
+Internal mailboxes (demo@animbook.app, dpo@animbook.app, privacy@animbook.app,
+billing@animbook.app, etc.) and Clerk-frontend hostname (clerk.animbook.app)
+also follow the same rename for consistency.
+
+Also adds root-level start scripts (`start:api`, `start:web`) for Render.

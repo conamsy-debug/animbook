@@ -1,0 +1,41 @@
+{
+  "name": "@animbook/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AnimBook mobile shell — iOS + Android via Expo (React Native).",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "web": "expo start --web",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "tvos": "expo start --tvos",
+    "build:web": "expo export --platform web --output-dir dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@animbook/domain": "*",
+    "@react-native-tvos/config-tv": "^0.1.6",
+    "expo": "~53.0.27",
+    "expo-blur": "~14.1.5",
+    "expo-constants": "~17.1.8",
+    "expo-haptics": "~14.1.4",
+    "expo-linking": "~7.1.7",
+    "expo-notifications": "~0.29.14",
+    "expo-router": "~5.1.11",
+    "expo-splash-screen": "~0.30.10",
+    "expo-status-bar": "~2.2.3",
+    "expo-system-ui": "~5.0.11",
+    "expo-web-browser": "~14.2.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-native": "0.79.6",
+    "react-native-safe-area-context": "5.4.0",
+    "react-native-screens": "~4.11.1",
+    "react-native-web": "~0.20.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.0.10",
+    "typescript": "~5.8.3"
+  }
+}

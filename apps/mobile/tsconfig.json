@@ -1,0 +1,25 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-native",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "allowJs": false,
+    "forceConsistentCasingInFileNames": true,
+    "types": ["react"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@animbook/domain": ["../../packages/domain/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*", "app/**/*", "index.ts", "types/**/*"],
+  "exclude": ["node_modules", ".expo", "dist", "android", "ios"]
+}
