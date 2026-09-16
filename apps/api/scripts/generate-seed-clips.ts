@@ -106,7 +106,7 @@ Return ONLY JSON: {"setting": "...", "characters": [{"name": "...", "description
 
 "setting": one sentence — the real place, era and culture the story happens in.
 "characters": every named person (and any recurring unnamed person) in the text. For each, "description" (max 35 words) fixes how they look in every image: sex, approximate age, ethnicity and skin tone, hair, build, and one signature outfit.
-Base ethnicity on the setting and the names given (for example, Igbo or Yoruba names in Lagos mean Nigerian, Black West African people). Do not invent people who are not in the text. If the text names no people, return an empty list.`;
+Pick ONE specific look for each person — never write 'or' or offer alternatives. Make every character clearly different from the others (hairstyle, outfit colours, build, age). Base ethnicity on the setting and the names given (for example, Igbo or Yoruba names in Lagos mean Nigerian, Black West African people). Do not invent people who are not in the text. If the text names no people, return an empty list.`;
 
 let castCache: Record<string, CastSheet> = {};
 if (!RECAST && existsSync(CAST_FILE)) {
