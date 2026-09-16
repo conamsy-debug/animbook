@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/nextjs";
 import { Topbar } from "@/components/Topbar";
 import { ErrorBoundary, ErrorState } from "@/components/ErrorBoundary";
 import { LoadingState, EmptyState } from "@/components/States";
 import { apiFetch, type BookSummary } from "@/lib/api";
 import { useToastStore } from "@/lib/store";
+
+const HAS_CLERK = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
 const consumerWorlds = ["Otherworlds", "Human Stories", "True Stories", "Deep Dives", "Thrills", "Spirit & Soul", "Young Minds", "The World"];
 
@@ -74,10 +77,32 @@ export default function LibraryPage() {
               Every AnimBook pairs the original manuscript text with a generated animation and a narration you can flip when
               you are ready. Built in Africa for readers everywhere.
             </p>
-            <div style={{ display: "flex", gap: 12 }}>
-              <Link className="btn primary" href="#consumer">
-                Start reading
-              </Link>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <SignedOut>
+                {HAS_CLERK ? (
+                  <>
+                    <SignUpButton mode="modal" forceRedirectUrl="/library">
+                      <button type="button" className="btn primary" aria-label="Create your account">
+                        Get Started
+                      </button>
+                    </SignUpButton>
+                    <SignInButton mode="modal" forceRedirectUrl="/library">
+                      <button type="button" className="btn ghost" aria-label="Sign in">
+                        Sign In
+                      </button>
+                    </SignInButton>
+                  </>
+                ) : (
+                  <Link className="btn primary" href="/pricing">
+                    Get Started
+                  </Link>
+                )}
+              </SignedOut>
+              <SignedIn>
+                <Link className="btn primary" href="#consumer">
+                  Start reading
+                </Link>
+              </SignedIn>
               <Link className="btn" href="/studio">
                 AnimBook Studio
               </Link>

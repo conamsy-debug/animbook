@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 
 const links = [
   { href: "/", label: "Library" },
@@ -20,6 +21,8 @@ const links = [
   { href: "/profile", label: "Profile" }
 ];
 
+const HAS_CLERK = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+
 export function Topbar() {
   const router = useRouter();
   return (
@@ -39,6 +42,40 @@ export function Topbar() {
             </Link>
           ))}
         </nav>
+        <div className="topbar-actions">
+          {HAS_CLERK ? (
+            <>
+              <SignedOut>
+                <SignInButton mode="modal" forceRedirectUrl="/library">
+                  <button type="button" className="btn ghost" aria-label="Sign in">
+                    Sign In
+                  </button>
+                </SignInButton>
+                <SignUpButton mode="modal" forceRedirectUrl="/library">
+                  <button type="button" className="btn primary" aria-label="Create account">
+                    Get Started
+                  </button>
+                </SignUpButton>
+              </SignedOut>
+              <SignedIn>
+                <UserButton
+                  afterSignOutUrl="/"
+                  appearance={{
+                    variables: { colorPrimary: "#C49A1C" },
+                    elements: {
+                      userButtonPopoverCard: { background: "#0F1422", border: "1px solid rgba(196, 154, 28, 0.3)" },
+                      userButtonPopoverText: { color: "#F4E9D8" }
+                    }
+                  }}
+                />
+              </SignedIn>
+            </>
+          ) : (
+            <Link href="/pricing" className="btn primary" aria-label="Get started">
+              Get Started
+            </Link>
+          )}
+        </div>
       </div>
     </header>
   );

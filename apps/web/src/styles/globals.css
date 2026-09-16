@@ -84,6 +84,14 @@ h1 {
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
 }
+.topbar-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-left: 0;
+  padding-right: 0;
+}
 .topbar .brand {
   display: flex;
   align-items: center;
@@ -126,6 +134,26 @@ h1 {
 .topbar nav a.active, .topbar nav button.active {
   color: var(--accent);
   background: rgba(196, 154, 28, 0.1);
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+}
+.topbar-actions .btn {
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  border-radius: 10px;
+}
+.topbar-actions .btn.ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.topbar-actions .btn.ghost:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(196, 154, 28, 0.3);
 }
 
 /* ==== Footer ==== */

@@ -5,6 +5,7 @@ coverage/
 *.log
 *.err
 *.out
+*.tsbuildinfo
 .env
 .env.*
 !.env.example
@@ -18,5 +19,5 @@ apps/api/prisma/*.db-journal
 .idea/
 
 
-# CI workflow — excluded until PAT has workflow scope
+# CI workflow ï¿½ excluded until PAT has workflow scope
 .github/workflows/ci.yml
