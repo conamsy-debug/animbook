@@ -1,8 +1,10 @@
 # Railway deployment — AnimBook
 
-Step-by-step to push AnimBook from `https://github.com/Echad-Group/animbook` to Railway. Two services (API + Web), one Postgres (Neon — already provisioned), one Redis (Upstash — already provisioned). Mobile + TV shells are served from the same Web origin at `/mobile` and `/tv`.
+Step-by-step to push AnimBook from `https://github.com/conamsy-debug/animbook` to Railway. Two services (API + Web), one Postgres (Neon — already provisioned), one Redis (Upstash — already provisioned). Mobile + TV shells are served from the same Web origin at `/mobile` and `/tv`.
 
 **Why Railway over Render?** Railway works in regions where Render is blocked, has a simpler one-platform model (one account, many services), auto-detects Node via Nixpacks, and gives you $5 of credits on the Hobby plan to run the whole stack.
+
+**Monorepo setup:** Each Railway service points at a `railway.json` config in the relevant subdirectory. API uses `apps/api/railway.json`, Web uses `apps/web/railway.json`. Set the **Root Directory** in each service's Settings to `apps/api` or `apps/web` respectively so Railpack picks up the right config.
 
 ---
 
@@ -29,45 +31,81 @@ Step-by-step to push AnimBook from `https://github.com/Echad-Group/animbook` to 
 ## 2. Create the project
 
 1. Dashboard → **New Project** → **Empty Project** → name it `animbook` (or `animbook-prod`).
-2. The project opens with an empty canvas. Click **+ New** → **GitHub Repo** → pick `Echad-Group/animbook`.
-3. Railway auto-detects Node and starts building the repo (will fail because there's no service yet). **Stop the deployment** (right-click the service → Cancel) — we'll configure two distinct services.
+2. The project opens with an empty canvas. Click **+ New** → **GitHub Repo** → pick `conamsy-debug/animbook`.
+3. Railway auto-detects Node and starts building the repo (will likely fail because it's a monorepo with no root `railway.json`). **Stop the deployment** (right-click the service → Cancel) — we'll configure two distinct services from the monorepo.
 
 ---
 
 ## 3. Add the `animbook-api` service
 
-1. Project canvas → **+ New** → **GitHub Repo** → `Echad-Group/animbook` again.
-2. Railway creates a second service. Click on it to open the panel.
+1. Project canvas → **+ New** → **GitHub Repo** → `conamsy-debug/animbook` again.
+2. Railway creates a service. Click on it to open the panel.
 3. **Settings** tab:
    - **Service Name:** `animbook-api`
-   - **Build command:** leave blank (Nixpacks auto-detects, but we'll override below)
-   - **Start command:** `npm run start:api`
+   - **Root Directory:** `apps/api` ← **this is the monorepo fix** — tells Railpack which subdirectory to treat as the service root. Railway will then pick up `apps/api/railway.json` from there.
    - **Watch Paths:** `apps/api/**` *(optional — speeds up rebuilds by ignoring mobile/tv/web changes)*
-4. **Variables** tab → **+ New Variable** → **Raw Editor** → paste the entire `apps/api/.env.production` file (or upload via the JSON editor).
+4. **Variables** tab → **+ New Variable** → **Raw Editor** → paste the entire `apps/api/.env.production` file. See [step 3a below](#3a-environment-variables-for-the-api-service) for the full list.
 5. **Networking** tab → click **Generate Domain** to get a free `*.up.railway.app` URL for now (we'll wire the real domain in step 6).
-6. **Settings → Deploy** → set the build command:
-   - Go back to **Settings** tab → scroll to **Build** section → **Custom Build Command:** `npm install --legacy-peer-deps && npm run build:api`
-   - **Custom Start Command:** `npm run start:api` (replaces the earlier field — Railway uses the latest one you set)
-7. The first deploy takes ~3–5 min (npm install + `prisma generate` + `tsc`). Watch the logs.
-8. Once deployed, click the **Variables** tab → verify `PORT=4000` is set (Railway injects a `PORT` env var automatically — we set our app to use `process.env.PORT || 4000` so it'll pick up Railway's port).
+6. The first deploy takes ~3–5 min (npm install + `prisma generate` + `tsc`). Watch the logs.
+7. Once deployed, click the **Variables** tab → verify `PORT=4000` is set (Railway injects a `PORT` env var automatically — we set our app to use `process.env.PORT || 4000` so it'll pick up Railway's port).
+
+### 3a. Environment variables for the API service
+
+Copy the variables from `apps/api/.env.production` (the local file you maintain, **never commit it**). Paste the whole block into the Railway service's **Variables → Raw Editor** (one-shot). The keys it needs:
+
+| Variable | Where it comes from |
+|---|---|
+| `NODE_ENV` | set to `production` |
+| `PORT` | set to `4000` (Railway also injects a `PORT` automatically — our code uses `process.env.PORT || 4000`) |
+| `WEB_ORIGIN` | `https://animbook.com,https://www.animbook.com,https://api.animbook.com` (add the Railway `*.up.railway.app` temp URLs while DNS is propagating) |
+| `DATABASE_URL` | Neon Postgres pooled connection string (drop `channel_binding=require` — Prisma 6.19 chokes on it; `sslmode=require` is enough) |
+| `REDIS_URL` | Upstash Redis TLS URL (`rediss://...`) |
+| `CLERK_SECRET_KEY` / `CLERK_PUBLISHABLE_KEY` | dashboard.clerk.com → API Keys |
+| `ALLOW_DEMO_AUTH` | `false` in production |
+| `ANTHROPIC_API_KEY` | console.anthropic.com → Settings → API Keys |
+| `ANTHROPIC_BOOK_BRAIN_MODEL` | `claude-sonnet-4-5` |
+| `RUNWAY_API_KEY` | runwayml.com/developers |
+| `ELEVENLABS_API_KEY` | elevenlabs.io → Profile → API Key |
+| `OPENAI_API_KEY` | platform.openai.com → API Keys |
+| `STRIPE_*` | leave empty for v1 (endpoints run in stub mode) |
+| `CLOUDFLARE_ACCOUNT_ID` | dash.cloudflare.com → R2 |
+| `CLOUDFLARE_R2_*` | Cloudflare R2 API token (access key, secret, bucket, endpoint) |
+| `CLOUDFLARE_CDN_BASE` | `https://media.animbook.com` (front the R2 bucket with a Cloudflare Worker / custom CDN) |
+| `SENTRY_DSN` | leave empty (optional — observability off until set) |
+| `SENTRY_TRACES_SAMPLE_RATE` | `0.1` (10% of traces) |
+| `RELEASE` | `animbook-api@0.14.0` |
+
+After paste, hit **Deploy** to trigger a rebuild with the env vars in scope.
 
 ### Health check
 
 Railway reads `/api/health/ready` automatically if you set it. Go to **Settings → Health Check**:
 - **Healthcheck Path:** `/api/health/ready`
-- **Healthcheck Timeout:** `100` seconds (the first boot includes Prisma client init + DB connection)
+- **Healthcheck Timeout:** `120` seconds (the first boot includes Prisma client init + DB connection)
 
 ---
 
 ## 4. Add the `animbook-web` service
 
-1. Project canvas → **+ New** → **GitHub Repo** → `Echad-Group/animbook` again (third service).
+1. Project canvas → **+ New** → **GitHub Repo** → `conamsy-debug/animbook` again (third service).
 2. Click on it → **Settings** tab:
    - **Service Name:** `animbook-web`
-   - **Custom Build Command:** `npm install --legacy-peer-deps && npm run build:web`
-   - **Custom Start Command:** `npm run start:web`
+   - **Root Directory:** `apps/web` ← **monorepo fix**
    - **Watch Paths:** `apps/web/**`
-3. **Variables** tab → **Raw Editor** → paste the contents of `apps/web/.env.production`.
+3. **Variables** tab → **Raw Editor** → paste this:
+
+```env
+NEXT_PUBLIC_API_URL=https://api.animbook.com
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=replace-with-your-clerk-publishable-key
+NEXT_PUBLIC_SENTRY_DSN=
+NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=0.1
+NEXT_PUBLIC_RELEASE=animbook-web@0.14.0
+NEXT_PUBLIC_MOBILE_URL=
+NEXT_PUBLIC_TV_URL=
+```
+
+The exact values for the Clerk key live in your local `apps/web/.env.production` (which is gitignored) and should be pasted verbatim.
+
 4. **Networking** tab → **Generate Domain** → note the temporary URL.
 5. **Settings → Health Check** → **Healthcheck Path:** `/`
 

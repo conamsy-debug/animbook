@@ -1,0 +1,20 @@
+Add railway.json to API + Web services (monorepo fix)
+
+Railway's Railpack builder needs a railway.json config file in each
+service directory to disambiguate which service to deploy from a
+monorepo. Without it, Railpack fails with "0 variables set" because
+it doesn't know which subdirectory/package to target.
+
+Files:
+- apps/api/railway.json — NIXPACKS builder, builds the API with
+  `npm run build:api`, starts with `npm run start:api`, healthchecks
+  `/api/health/ready`.
+- apps/web/railway.json — same pattern for the web service, healthcheck
+  `/`.
+
+Each railway.json uses NIXPACKS (not Docker) for the simplest path;
+override to DOCKER in the JSON to use the apps/api/Dockerfile or
+apps/web/Dockerfile instead.
+
+Updated docs/RAILWAY-DEPLOY.md to point at these configs and walk
+through the "Configure from subdirectory" flow.
