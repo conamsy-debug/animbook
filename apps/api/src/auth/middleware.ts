@@ -1,4 +1,4 @@
-import { type NextFunction, type Request, type Response } from "express";
+import { Request, Response, NextFunction } from 'express';
 import { appEnv, isFeatureEnabled } from "../config/env.js";
 import { prisma } from "../db.js";
 
@@ -21,6 +21,12 @@ export interface AuthedRequest extends Request {
   clerkId: string;
   sessionId?: string;
 }
+
+export type AuthedHandler = (
+  req: AuthedRequest,
+  res: Response,
+  next: NextFunction
+) => void | Promise<void>;
 
 const DEMO_EMAIL = "demo@animbook.com";
 const DEMO_NAME = "AnimBook Reader";
