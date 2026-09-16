@@ -7,7 +7,7 @@
 #             animbook-web:latest
 #
 # Multi-stage:
-#   1. deps    — npm install (root + workspaces)
+#   1. deps    — `npm ci` for just the web + domain workspaces (skip api/mobile/tv)
 #   2. build   — `next build` with `output: "standalone"` → .next/standalone
 #   3. runtime — minimal node:20-alpine + the standalone bundle
 
@@ -16,13 +16,17 @@ FROM node:20-alpine AS deps
 WORKDIR /app
 
 COPY package.json package-lock.json .npmrc ./
-COPY packages/domain/package.json ./packages/domain/
-COPY apps/api/package.json ./apps/api/
-COPY apps/web/package.json ./apps/web/
-COPY apps/mobile/package.json ./apps/mobile/ 2>/dev/null || true
-COPY apps/tv/package.json ./apps/tv/ 2>/dev/null || true
 
-RUN npm install --legacy-peer-deps --prefer-offline --no-audit --no-fund
+# Only the workspaces the Web needs. Skipping apps/api, apps/mobile,
+# apps/tv entirely — they have heavy install steps that conflict with
+# multi-workspace installs (EBUSY on .vite or node_modules).
+COPY packages/domain/package.json ./packages/domain/
+COPY apps/web/package.json ./apps/web/
+
+RUN npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund \
+      --include-workspace-root \
+      --workspace=apps/web \
+      --workspace=packages/domain
 
 # ---- 2. build --------------------------------------------------------------
 FROM deps AS build

@@ -1,0 +1,22 @@
+Skip web/mobile/tv workspaces in API+Web Docker builds
+
+Railway build was failing on the API image with:
+  npm error EBUSY: resource busy or locked,
+  rmdir '/app/apps/tv/node_modules/.vite'
+
+Root cause: `npm ci` at the monorepo root installs ALL workspaces
+(declared in root package.json `workspaces: ["packages/*", "apps/*"]`).
+Vite's postinstall scripts in apps/tv + apps/web hold rmdir locks that
+conflict with parallel workspace installs.
+
+Fix: explicit `--workspace` flags in `npm ci` for each Dockerfile:
+- Dockerfile.api: install only `apps/api` + `packages/domain`
+- Dockerfile.web: install only `apps/web` + `packages/domain`
+Both pass `--ignore-scripts` to skip the vite/expo postinstall scripts
+that hold the file locks.
+
+Also dropped the COPY of apps/{web,mobile,tv}/package.json from
+Dockerfile.api (it never needed them). Dockerfile.web only copies
+apps/web/package.json (no api/mobile/tv).
+
+Result: faster installs, no EBUSY, image stays small.

@@ -8,7 +8,7 @@
 # apps/api/ as the context loses access to packages/domain — the build fails.
 #
 # Multi-stage:
-#   1. deps    — npm install (root + workspaces)
+#   1. deps    — `npm ci` for just the API + domain workspaces (skip web/mobile/tv)
 #   2. build   — `prisma generate` + `tsc`
 #   3. runtime — minimal node:20-alpine + the compiled bundle + domain
 
@@ -19,15 +19,18 @@ WORKDIR /app
 # Root manifests.
 COPY package.json package-lock.json .npmrc ./
 
-# Workspace manifests (so npm knows the shape of each workspace).
+# Only the workspaces the API needs. Skipping apps/web, apps/mobile,
+# apps/tv entirely — they each have heavy install steps (Vite postinstall
+# scripts hold file locks) that conflict with multi-workspace installs.
 COPY packages/domain/package.json ./packages/domain/
 COPY apps/api/package.json ./apps/api/
-COPY apps/web/package.json ./apps/web/ 2>/dev/null || true
-COPY apps/mobile/package.json ./apps/mobile/ 2>/dev/null || true
-COPY apps/tv/package.json ./apps/tv/ 2>/dev/null || true
 
-# Install all workspace deps in one pass (root npm install hoists).
-RUN npm install --legacy-peer-deps --prefer-offline --no-audit --no-fund
+# Install only the API + domain workspaces + root deps. `--ignore-scripts`
+# avoids the vite/expo postinstall scripts that cause EBUSY on rmdir.
+RUN npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund \
+      --include-workspace-root \
+      --workspace=apps/api \
+      --workspace=packages/domain
 
 # ---- 2. build --------------------------------------------------------------
 FROM deps AS build
@@ -38,7 +41,6 @@ COPY packages/domain ./packages/domain
 COPY apps/api ./apps/api
 
 # Prisma client generation + TypeScript compile.
-# (prisma generate must run from apps/api so it picks up prisma/schema.prisma).
 RUN cd apps/api && npx prisma generate && npx tsc -p tsconfig.json
 
 # ---- 3. runtime ------------------------------------------------------------
