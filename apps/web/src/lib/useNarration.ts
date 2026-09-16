@@ -32,8 +32,15 @@ function readStoredVolume(): { volume: number; muted: boolean } {
  * - "speaking" is whether narration for the current page is sounding now.
  * - Pages with a recorded ElevenLabs MP3 play that; others use the browser voice.
  */
-export function useNarration(page: PageRecord | null, rate: number) {
+export function useNarration(page: PageRecord | null, rate: number, options: { onFinished?: () => void } = {}) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Every start/stop bumps the token, so "ended" events from narration we
+  // cancelled ourselves (page flips, pause) are ignored.
+  const tokenRef = useRef(0);
+  const audioTokenRef = useRef(-1);
+  const listeningRef = useRef(false);
+  const onFinishedRef = useRef(options.onFinished);
+  onFinishedRef.current = options.onFinished;
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [volume, setVolumeState] = useState(1);
@@ -46,7 +53,10 @@ export function useNarration(page: PageRecord | null, rate: number) {
     setMutedState(stored.muted);
     const audio = new Audio();
     audio.preload = "auto";
-    audio.addEventListener("ended", () => setSpeaking(false));
+    audio.addEventListener("ended", () => {
+      setSpeaking(false);
+      if (audioTokenRef.current === tokenRef.current && listeningRef.current) onFinishedRef.current?.();
+    });
     audio.addEventListener("pause", () => setSpeaking(false));
     audio.addEventListener("play", () => setSpeaking(true));
     audioRef.current = audio;
@@ -72,6 +82,7 @@ export function useNarration(page: PageRecord | null, rate: number) {
   }, [effectiveVolume]);
 
   const stopAll = useCallback(() => {
+    tokenRef.current += 1;
     audioRef.current?.pause();
     stopSpeaking();
     setSpeaking(false);
@@ -81,6 +92,7 @@ export function useNarration(page: PageRecord | null, rate: number) {
     (fromBeginning: boolean) => {
       if (!page) return;
       const audio = audioRef.current;
+      const token = ++tokenRef.current;
       if (hasRecordedNarration(page) && audio) {
         stopSpeaking();
         if (audio.src !== page.audioUrl) {
@@ -88,6 +100,7 @@ export function useNarration(page: PageRecord | null, rate: number) {
         } else if (fromBeginning || audio.ended) {
           audio.currentTime = 0;
         }
+        audioTokenRef.current = token;
         audio.playbackRate = rate;
         audio.volume = effectiveVolume;
         void audio.play().catch(() => setSpeaking(false));
@@ -97,7 +110,11 @@ export function useNarration(page: PageRecord | null, rate: number) {
         speakWithBrowser(
           page.textExcerpt,
           { voiceId: page.speakerName ?? "narrator", name: page.speakerName ?? "default", rate, volume: effectiveVolume },
-          () => setSpeaking(false)
+          () => {
+            if (token !== tokenRef.current) return;
+            setSpeaking(false);
+            if (listeningRef.current) onFinishedRef.current?.();
+          }
         );
       }
     },
@@ -115,11 +132,13 @@ export function useNarration(page: PageRecord | null, rate: number) {
   }, [page?.id]);
 
   const play = useCallback(() => {
+    listeningRef.current = true;
     setListening(true);
     start(false);
   }, [start]);
 
   const pause = useCallback(() => {
+    listeningRef.current = false;
     setListening(false);
     stopAll();
   }, [stopAll]);

@@ -25,7 +25,16 @@ export const useReaderStore = create<ReaderState>((set, get) => ({
   isFlipping: false,
   flippingDirection: "next",
   setBook(book, pages) {
-    set({ book, pages, pageIndex: 0, isFlipping: false });
+    // Setting the same book again (e.g. a re-render with fresh objects) must
+    // not throw the reader back to page 1.
+    const current = get();
+    const sameBook = current.book.id === book.id && current.pages.length === pages.length;
+    set({
+      book,
+      pages,
+      pageIndex: sameBook ? Math.min(current.pageIndex, Math.max(0, pages.length - 1)) : 0,
+      isFlipping: sameBook ? current.isFlipping : false
+    });
   },
   goTo(index) {
     const { pages } = get();

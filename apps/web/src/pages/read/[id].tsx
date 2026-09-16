@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Topbar } from "@/components/Topbar";
 import { ReaderStage } from "@/components/ReaderStage";
 import { ReaderControls } from "@/components/ReaderControls";
@@ -58,7 +58,11 @@ export default function ReaderPage() {
   const [oracleOpen, setOracleOpen] = useState(false);
   const [translationWord, setTranslationWord] = useState<string | null>(null);
   const { pageIndex, flipNext, flipPrev } = useReaderStore();
-  const library = useLibraryStore();
+  // Select pieces, not the whole store: depending on the store object made the
+  // load effect re-run after every library update, reloading the book and
+  // resetting the reader to page 1.
+  const hydrateLibrary = useLibraryStore((s) => s.hydrate);
+  const libraryEntries = useLibraryStore((s) => s.entries);
   const toast = useToastStore((s) => s.push);
 
   useEffect(() => {
@@ -83,7 +87,7 @@ export default function ReaderPage() {
         setLoading(false);
         try {
           const lib = await apiFetch<{ items: { bookId: string; progressPage: number; mode: string; lastRead: string; completed: boolean; id: string }[] }>("/api/library");
-          library.hydrate(
+          hydrateLibrary(
             lib.items.map((e) => ({
               id: e.id,
               bookId: e.bookId,
@@ -108,7 +112,7 @@ export default function ReaderPage() {
       cancelled = true;
       stopSpeaking();
     };
-  }, [id, library]);
+  }, [id, hydrateLibrary]);
 
   // Open a DREAM session once the book + profile are settled.
   useEffect(() => {
@@ -226,7 +230,50 @@ export default function ReaderPage() {
   const narrationRate =
     (dreamActive ? (dreamProfile?.narrationSpeed ?? 0.7) : (memory?.narrationSpeed ?? 1)) *
     (bedtime && book?.vertical === "KIDS" ? 0.78 : 1);
-  const narration = useNarration(currentPage, narrationRate);
+  // Auto-turn: when narration finishes a page, move on after a short pause.
+  const [autoFlip, setAutoFlip] = useState(true);
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("animbook:autoflip");
+      if (saved !== null) setAutoFlip(saved === "1");
+    } catch {
+      // storage unavailable
+    }
+  }, []);
+  function toggleAutoFlip() {
+    setAutoFlip((on) => {
+      try {
+        window.localStorage.setItem("animbook:autoflip", on ? "0" : "1");
+      } catch {
+        // ignore
+      }
+      return !on;
+    });
+  }
+  const autoFlipTimer = useRef<number | null>(null);
+  const flipStateRef = useRef({ autoFlip, pageIndex, total: pages.length });
+  flipStateRef.current = { autoFlip, pageIndex, total: pages.length };
+  const narration = useNarration(currentPage, narrationRate, {
+    onFinished: () => {
+      const { autoFlip: on, pageIndex: idx, total } = flipStateRef.current;
+      if (!on) return;
+      if (autoFlipTimer.current) window.clearTimeout(autoFlipTimer.current);
+      if (idx >= total - 1) {
+        narrationRef.current?.pause();
+        toast("The end");
+        return;
+      }
+      autoFlipTimer.current = window.setTimeout(() => {
+        autoFlipTimer.current = null;
+        flipNext();
+      }, 1400);
+    }
+  });
+  const narrationRef = useRef(narration);
+  narrationRef.current = narration;
+  useEffect(() => () => {
+    if (autoFlipTimer.current) window.clearTimeout(autoFlipTimer.current);
+  }, []);
   const [userPaused, setUserPaused] = useState(false);
 
   function playNarration() {
@@ -235,6 +282,10 @@ export default function ReaderPage() {
   }
 
   function pauseNarration() {
+    if (autoFlipTimer.current) {
+      window.clearTimeout(autoFlipTimer.current);
+      autoFlipTimer.current = null;
+    }
     setUserPaused(true);
     narration.pause();
   }
@@ -317,7 +368,7 @@ export default function ReaderPage() {
             fontSize={dreamActive ? (dreamProfile?.fontSize ?? 22) : (memory?.fontSize ?? 18)}
             paused={userPaused}
           />
-          <ReaderControls narration={narration} onPlay={playNarration} onPause={pauseNarration} onNext={flipNext} onPrev={flipPrev} />
+          <ReaderControls narration={narration} onPlay={playNarration} onPause={pauseNarration} onNext={flipNext} onPrev={flipPrev} autoFlip={autoFlip} onToggleAutoFlip={toggleAutoFlip} />
         </ErrorBoundary>
         <AchievementToasts queue={achievements} onConsumed={(idx) => setAchievements((prev) => prev.filter((_, i) => i !== idx))} />
         {checkpointOpen && currentPage && book.vertical === "EDU" && (
@@ -347,7 +398,7 @@ export default function ReaderPage() {
           <TranslationPopover
             word={translationWord}
             sourceLang={book.language}
-            targetLang={library.entries.find((e) => e.bookId === book.id)?.narrationLanguage ?? "en"}
+            targetLang={libraryEntries.find((e) => e.bookId === book.id)?.narrationLanguage ?? "en"}
             bookId={book.slug}
             onClose={() => setTranslationWord(null)}
           />

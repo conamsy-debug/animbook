@@ -8,6 +8,8 @@ interface Props {
   onPause(): void;
   onNext?: () => void;
   onPrev?: () => void;
+  autoFlip?: boolean;
+  onToggleAutoFlip?: () => void;
 }
 
 type Mode = "WATCH" | "BOTH" | "READ";
@@ -46,6 +48,12 @@ const Icon = {
       <path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   ),
+  auto: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M4 7h11a4 4 0 0 1 0 8H9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="m12 12-3 3 3 3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
   muted: (
     <svg viewBox="0 0 24 24" aria-hidden>
       <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1Z" fill="currentColor" />
@@ -54,7 +62,7 @@ const Icon = {
   )
 };
 
-export function ReaderControls({ narration, onPlay, onPause, onNext, onPrev }: Props) {
+export function ReaderControls({ narration, onPlay, onPause, onNext, onPrev, autoFlip, onToggleAutoFlip }: Props) {
   const { pages, pageIndex, mode, setMode, flipNext, flipPrev } = useReaderStore();
   const total = pages.length;
   const progress = total > 0 ? ((pageIndex + 1) / total) * 100 : 0;
@@ -124,6 +132,18 @@ export function ReaderControls({ narration, onPlay, onPause, onNext, onPrev }: P
         </div>
 
         <div className="player-side player-right">
+          {onToggleAutoFlip && (
+            <button
+              type="button"
+              className={`toggle-chip${autoFlip ? " on" : ""}`}
+              onClick={onToggleAutoFlip}
+              aria-pressed={Boolean(autoFlip)}
+              title={autoFlip ? "Pages turn by themselves after narration (click to turn off)" : "Turn pages yourself (click to auto-turn)"}
+            >
+              {Icon.auto}
+              <span>Auto-turn</span>
+            </button>
+          )}
           <span className="page-count">{total === 0 ? "—" : `Page ${pageIndex + 1} of ${total}`}</span>
           <div className="volume">
             <button
