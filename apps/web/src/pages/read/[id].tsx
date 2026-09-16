@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Topbar } from "@/components/Topbar";
-import { ReaderStage } from "@/components/ReaderStage";
+import { ReaderStage, READER_ASPECTS, type ReaderAspect } from "@/components/ReaderStage";
 import { ReaderControls } from "@/components/ReaderControls";
 import { CheckpointOverlay } from "@/components/CheckpointOverlay";
 import { BedtimeStylesheet, BedtimeToggle } from "@/components/BedtimeToggle";
@@ -230,6 +230,48 @@ export default function ReaderPage() {
   const narrationRate =
     (dreamActive ? (dreamProfile?.narrationSpeed ?? 0.7) : (memory?.narrationSpeed ?? 1)) *
     (bedtime && book?.vertical === "KIDS" ? 0.78 : 1);
+  // Screen size (frame shape) — remembered per browser.
+  const [aspect, setAspect] = useState<ReaderAspect>("16:9");
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("animbook:aspect");
+      if (saved && READER_ASPECTS.some((a) => a.id === saved)) setAspect(saved as ReaderAspect);
+    } catch {
+      // storage unavailable
+    }
+  }, []);
+  function changeAspect(next: ReaderAspect) {
+    setAspect(next);
+    try {
+      window.localStorage.setItem("animbook:aspect", next);
+    } catch {
+      // ignore
+    }
+  }
+
+  // Full screen: the whole reader (video, text and player) when the browser
+  // allows it; otherwise (iPhone Safari) the video's own full-screen player.
+  const readerRef = useRef<HTMLElement | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const onChange = () => setFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  function toggleFullscreen() {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => undefined);
+      return;
+    }
+    const el = readerRef.current;
+    if (el && document.fullscreenEnabled && el.requestFullscreen) {
+      void el.requestFullscreen().catch(() => undefined);
+      return;
+    }
+    const video = el?.querySelector("video") as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+    video?.webkitEnterFullscreen?.();
+  }
+
   // Auto-turn: when narration finishes a page, move on after a short pause.
   const [autoFlip, setAutoFlip] = useState(true);
   useEffect(() => {
@@ -332,7 +374,11 @@ export default function ReaderPage() {
     >
       <Topbar />
       <BedtimeStylesheet enabled={bedtime || dreamActive} />
-      <main className="reader" style={isProjection ? { minHeight: "100vh" } : undefined}>
+      <main
+        className={`reader${fullscreen ? " is-fullscreen" : ""}`}
+        ref={readerRef}
+        style={isProjection ? { minHeight: "100vh" } : undefined}
+      >
         {dreamActive && (
           <div className="dream-banner" role="status" aria-live="polite">
             <span className="dream-dot" aria-hidden />
@@ -367,8 +413,15 @@ export default function ReaderPage() {
             motionScale={dreamActive ? (dreamProfile?.motionLevel ?? 0.4) : (memory?.motionLevel ?? 1)}
             fontSize={dreamActive ? (dreamProfile?.fontSize ?? 22) : (memory?.fontSize ?? 18)}
             paused={userPaused}
+            aspect={aspect}
           />
-          <ReaderControls narration={narration} onPlay={playNarration} onPause={pauseNarration} onNext={flipNext} onPrev={flipPrev} autoFlip={autoFlip} onToggleAutoFlip={toggleAutoFlip} />
+          <ReaderControls narration={narration} onPlay={playNarration} onPause={pauseNarration} onNext={flipNext} onPrev={flipPrev} autoFlip={autoFlip}
+            onToggleAutoFlip={toggleAutoFlip}
+            aspect={aspect}
+            onAspectChange={changeAspect}
+            fullscreen={fullscreen}
+            onToggleFullscreen={toggleFullscreen}
+          />
         </ErrorBoundary>
         <AchievementToasts queue={achievements} onConsumed={(idx) => setAchievements((prev) => prev.filter((_, i) => i !== idx))} />
         {checkpointOpen && currentPage && book.vertical === "EDU" && (

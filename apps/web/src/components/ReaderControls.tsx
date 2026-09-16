@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import { READER_ASPECTS, type ReaderAspect } from "@/components/ReaderStage";
 import { useReaderStore } from "@/lib/store";
 import type { Narration } from "@/lib/useNarration";
 
@@ -10,6 +11,10 @@ interface Props {
   onPrev?: () => void;
   autoFlip?: boolean;
   onToggleAutoFlip?: () => void;
+  aspect?: ReaderAspect;
+  onAspectChange?: (aspect: ReaderAspect) => void;
+  fullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 type Mode = "WATCH" | "BOTH" | "READ";
@@ -54,6 +59,27 @@ const Icon = {
       <path d="m12 12-3 3 3 3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
+  screen: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <rect x="3.5" y="5.5" width="17" height="13" rx="2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M7 9.5V8.5h2M17 14.5v1h-2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  expand: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  collapse: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  check: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
   muted: (
     <svg viewBox="0 0 24 24" aria-hidden>
       <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1Z" fill="currentColor" />
@@ -62,7 +88,48 @@ const Icon = {
   )
 };
 
-export function ReaderControls({ narration, onPlay, onPause, onNext, onPrev, autoFlip, onToggleAutoFlip }: Props) {
+function AspectShape({ aspect }: { aspect: ReaderAspect }) {
+  const [w, h] = aspect.split(":").map(Number);
+  const scale = 16 / Math.max(w, h);
+  return (
+    <span className="aspect-slot" aria-hidden>
+      <span className="aspect-shape" style={{ width: w * scale, height: h * scale }} />
+    </span>
+  );
+}
+
+export function ReaderControls({
+  narration,
+  onPlay,
+  onPause,
+  onNext,
+  onPrev,
+  autoFlip,
+  onToggleAutoFlip,
+  aspect = "16:9",
+  onAspectChange,
+  fullscreen = false,
+  onToggleFullscreen
+}: Props) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDown(ev: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(ev.target as Node)) setMenuOpen(false);
+    }
+    function onEsc(ev: KeyboardEvent) {
+      if (ev.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [menuOpen]);
+
   const { pages, pageIndex, mode, setMode, flipNext, flipPrev } = useReaderStore();
   const total = pages.length;
   const progress = total > 0 ? ((pageIndex + 1) / total) * 100 : 0;
@@ -82,10 +149,11 @@ export function ReaderControls({ narration, onPlay, onPause, onNext, onPrev, aut
         else onPlay();
       }
       if (ev.key === "m" || ev.key === "M") narration.toggleMute();
+      if ((ev.key === "f" || ev.key === "F") && onToggleFullscreen) onToggleFullscreen();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [next, prev, speaking, onPause, onPlay, narration]);
+  }, [next, prev, speaking, onPause, onPlay, narration, onToggleFullscreen]);
 
   const shownVolume = muted ? 0 : volume;
 
@@ -141,10 +209,87 @@ export function ReaderControls({ narration, onPlay, onPause, onNext, onPrev, aut
               title={autoFlip ? "Pages turn by themselves after narration (click to turn off)" : "Turn pages yourself (click to auto-turn)"}
             >
               {Icon.auto}
-              <span>Auto-turn</span>
+              <span className="chip-label">Auto-turn</span>
             </button>
           )}
-          <span className="page-count">{total === 0 ? "—" : `Page ${pageIndex + 1} of ${total}`}</span>
+          {onAspectChange && (
+            <div className="menu-anchor" ref={menuRef}>
+              <button
+                type="button"
+                className={`icon-btn small${menuOpen ? " active" : ""}`}
+                onClick={() => setMenuOpen((o) => !o)}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                aria-label="Screen size"
+                title="Screen size"
+              >
+                {Icon.screen}
+              </button>
+              {menuOpen && (
+                <div className="player-menu" role="menu" aria-label="Screen size">
+                  <div className="player-menu-title">Screen size</div>
+                  {READER_ASPECTS.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={aspect === option.id}
+                      className={aspect === option.id ? "selected" : ""}
+                      onClick={() => {
+                        onAspectChange(option.id);
+                        setMenuOpen(false);
+                      }}
+                    >
+                      <AspectShape aspect={option.id} />
+                      <span className="player-menu-text">
+                        <span>{option.label}</span>
+                        <small>{option.hint}</small>
+                      </span>
+                      {aspect === option.id && <span className="player-menu-check">{Icon.check}</span>}
+                    </button>
+                  ))}
+                  {onToggleFullscreen && (
+                    <>
+                      <div className="player-menu-sep" />
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          onToggleFullscreen();
+                        }}
+                      >
+                        <span className="player-menu-icon">{fullscreen ? Icon.collapse : Icon.expand}</span>
+                        <span className="player-menu-text">
+                          <span>{fullscreen ? "Exit full screen" : "Full screen"}</span>
+                          <small>Shortcut: F</small>
+                        </span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {onToggleFullscreen && (
+            <button
+              type="button"
+              className="icon-btn small"
+              onClick={onToggleFullscreen}
+              aria-label={fullscreen ? "Exit full screen" : "Full screen"}
+              title={fullscreen ? "Exit full screen (F)" : "Full screen (F)"}
+            >
+              {fullscreen ? Icon.collapse : Icon.expand}
+            </button>
+          )}
+          <span className="page-count">{total === 0 ? "—" : (
+              <>
+                <span className="page-count-word">Page </span>
+                {pageIndex + 1}
+                <span className="page-count-sep"> of </span>
+                {total}
+              </>
+            )}</span>
           <div className="volume">
             <button
               type="button"

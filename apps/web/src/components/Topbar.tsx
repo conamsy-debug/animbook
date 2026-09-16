@@ -58,16 +58,20 @@ export function Topbar() {
                 </SignUpButton>
               </SignedOut>
               <SignedIn>
+                <span className="avatar-slot">
                 <UserButton
                   afterSignOutUrl="/"
                   appearance={{
                     variables: { colorPrimary: "#C49A1C" },
                     elements: {
+                      avatarBox: { width: "36px", height: "36px" },
+                      userButtonAvatarBox: { width: "36px", height: "36px" },
                       userButtonPopoverCard: { background: "#0F1422", border: "1px solid rgba(196, 154, 28, 0.3)" },
                       userButtonPopoverText: { color: "#F4E9D8" }
                     }
                   }}
                 />
+                </span>
               </SignedIn>
             </>
           ) : (

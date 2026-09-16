@@ -14,6 +14,23 @@ interface Props {
   fontSize?: number;
   /** The reader pressed Pause — freeze the page's animation too. */
   paused?: boolean;
+  /** Frame shape for the video, e.g. "16:9", "3:4". */
+  aspect?: ReaderAspect;
+}
+
+export type ReaderAspect = "16:9" | "4:3" | "3:4" | "1:1" | "9:16";
+
+export const READER_ASPECTS: Array<{ id: ReaderAspect; label: string; hint: string }> = [
+  { id: "16:9", label: "Original", hint: "16:9 · widescreen" },
+  { id: "4:3", label: "Classic", hint: "4:3" },
+  { id: "3:4", label: "Portrait", hint: "3:4 · tablets" },
+  { id: "1:1", label: "Square", hint: "1:1" },
+  { id: "9:16", label: "Phone", hint: "9:16 · full-height" }
+];
+
+function aspectNumber(aspect: ReaderAspect): number {
+  const [w, h] = aspect.split(":").map(Number);
+  return w / h;
 }
 
 function pickAccent(vertical: string): string {
@@ -34,7 +51,7 @@ function pickAccent(vertical: string): string {
   return map[vertical] ?? "#1B6B8A";
 }
 
-export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false, onWordTap, paletteHint = "default", motionScale = 1, fontSize = 18, paused = false }: Props) {
+export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false, onWordTap, paletteHint = "default", motionScale = 1, fontSize = 18, paused = false, aspect = "16:9" }: Props) {
   const { pageIndex, mode, isFlipping, flippingDirection, setBook, flipNext, flipPrev, finishFlip } = useReaderStore();
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -84,7 +101,11 @@ export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false,
   };
 
   return (
-    <div className={`reader-stage mode-${mode.toLowerCase()}`} style={{ ["--accent-page" as string]: bannerAccent }}>
+    <div
+      className={`reader-stage mode-${mode.toLowerCase()}${aspectNumber(aspect) < 1 ? " aspect-portrait" : ""}`}
+      style={{ ["--accent-page" as string]: bannerAccent, ["--ar" as string]: aspectNumber(aspect).toFixed(4) }}
+      data-aspect={aspect}
+    >
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={current.id}
