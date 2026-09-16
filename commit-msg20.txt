@@ -1,0 +1,22 @@
+Two more TS fixes for the Railway API build
+
+1. Top-level await (TS1378) in src/index.ts.
+   The previous tsconfig.railway.json had module=CommonJS which
+   forbids top-level await. apps/api/src/index.ts uses `await bootEnv()`
+   at the top level so we need an ESM-capable module mode.
+   Switched to module=NodeNext + moduleResolution=NodeNext. Both
+   errors (TS5095 from bundler + TS5109 from the
+   module/moduleResolution mismatch) are now satisfied — NodeNext +
+   NodeNext is the canonical pair. ESM output matches
+   apps/api/package.json's "type": "module".
+
+2. AuthedRequest body/params/query/header missing (30+ files).
+   apps/api/src/auth/middleware.ts now uses
+     import { type NextFunction, type Request, type Response } from "express";
+   (was `import type` — the type-only import was being stripped in
+   some build passes). AuthedRequest now has required userId +
+   clerkId + optional sessionId, so every route handler gets
+   req.body / req.params / req.query / req.headers for free from
+   express.Request.
+
+Both errors previously masked the build green.

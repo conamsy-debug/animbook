@@ -1,4 +1,4 @@
-import type { NextFunction, Request, Response } from "express";
+import { type NextFunction, type Request, type Response } from "express";
 import { appEnv, isFeatureEnabled } from "../config/env.js";
 import { prisma } from "../db.js";
 
@@ -10,10 +10,16 @@ import { prisma } from "../db.js";
  *
  * The selected identity is materialised as a row in `users` so downstream
  * code can use Prisma relations without an extra join.
+ *
+ * `AuthedRequest` extends `express.Request` so handlers inherit
+ * `req.body` / `req.params` / `req.query` / `req.headers` automatically.
+ * `userId` + `clerkId` are typed as required post-auth (set by this
+ * middleware before `next()` is called); `sessionId` is optional.
  */
 export interface AuthedRequest extends Request {
-  userId?: string;
-  clerkId?: string;
+  userId: string;
+  clerkId: string;
+  sessionId?: string;
 }
 
 const DEMO_EMAIL = "demo@animbook.com";
