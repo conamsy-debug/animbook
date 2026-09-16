@@ -1,0 +1,30 @@
+Switch Railway services from DOCKERFILE to NIXPACKS
+
+Railway kept caching the DOCKERFILE builder (with old layer that
+referenced tsconfig.base.json) even after RAILPACK_BUILD_CMD was
+removed. Switch both services to NIXPACKS with explicit buildCommand
+that:
+- installs only the workspaces the service needs (--workspace +
+  --ignore-scripts to avoid the .vite EBUSY from earlier)
+- builds packages/domain first (so apps/* can resolve @animbook/domain)
+- builds the apps/* service
+
+apps/api/railway.json:
+  builder: NIXPACKS
+  buildCommand:
+    npm install --workspace=apps/api --workspace=packages/domain
+      --ignore-scripts --include-workspace-root
+      --legacy-peer-deps
+    && npm run build -w @animbook/domain
+    && cd apps/api && npx prisma generate && npx tsc -p tsconfig.json
+  startCommand: node apps/api/dist/src/index.js
+
+apps/web/railway.json: same pattern with apps/web + npm start.
+
+Service Settings:
+- Root Directory: empty (monorepo root) so npm workspaces resolve
+- Builder: NIXPACKS (was DOCKERFILE)
+
+Also includes the packages/domain/src/index.ts line-141
+.find() type fix from commit 31eb028 (no change here — already
+present, just keeping it explicit in this version bump).
