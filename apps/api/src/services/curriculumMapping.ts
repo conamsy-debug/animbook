@@ -9,7 +9,7 @@
  * The output is consumed by the Teacher Dashboard's curriculum heatmap.
  */
 import { appEnv, isFeatureEnabled } from "../config/env.js";
-import { CURRICULUM_FRAMEWORKS, type CurriculumFramework, type CurriculumMapping } from "../../domain/index.js";
+import { CURRICULUM_FRAMEWORKS, type CurriculumFramework, type CurriculumMapping } from "../domain/index.js";
 
 export interface MappingInput {
   framework: CurriculumFramework;

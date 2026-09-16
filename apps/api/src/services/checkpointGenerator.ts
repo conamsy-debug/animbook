@@ -17,7 +17,7 @@
  *   - translate_and_type
  */
 import { appEnv, isFeatureEnabled } from "../config/env.js";
-import type { EduQuestionType, DifficultyScore } from "../../domain/index.js";
+import type { EduQuestionType, DifficultyScore } from "../domain/index.js";
 import { calibrateDifficulty } from "./difficultyCalibration.js";
 import { buildMisconceptionTargets } from "./misconceptionDatabase.js";
 

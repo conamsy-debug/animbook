@@ -1,0 +1,15 @@
+Fix relative-path depth for domain imports in apps/api/src/services
+
+When I inlined @animbook/domain into apps/api/src/domain/index.ts,
+the service-level imports used "../../domain/index.js" (two levels
+up) but services/ is only ONE level deep from src/. So Node
+resolved them as apps/api/domain/index.js (which doesn't exist).
+
+Fixed the three service files:
+- services/curriculumMapping.ts: ../../ → ../
+- services/checkpointGenerator.ts: ../../ → ../
+- services/difficultyCalibration.ts: ../../ → ../ (×2: import + export type)
+
+The two modules/*/routes.ts files (books, edu) were already
+correct — modules/X/routes.ts IS two levels deep from src/, so
+"../../domain/index.js" is right there.

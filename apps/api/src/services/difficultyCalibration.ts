@@ -9,9 +9,9 @@
  * Each dimension is a 0-1 score; the AnimBook Studio Review dashboard uses
  * these scores to surface pages that may need scaffolding.
  */
-import type { DifficultyScore } from "../../domain/index.js";
+import type { DifficultyScore } from "../domain/index.js";
 
-export type { DifficultyScore } from "../../domain/index.js";
+export type { DifficultyScore } from "../domain/index.js";
 
 export interface DifficultyInput {
   text: string;
