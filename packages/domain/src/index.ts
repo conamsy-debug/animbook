@@ -138,7 +138,11 @@ export interface AnimBook extends AnimBookSummary {
 }
 
 export function verticalAccent(vertical: VerticalId): string {
-  return VERTICALS.find((entry) => entry.id === vertical)?.accent ?? "#1B6B8A";
+  // `[...VERTICALS]` materialises a mutable copy because TypeScript with
+  // `noUncheckedIndexedAccess: true` infers the const-array-literal as a
+  // readonly tuple whose `.find()` type can fail to resolve in stricter
+  // toolchain combinations.
+  return [...VERTICALS].find((entry) => entry.id === vertical)?.accent ?? "#1B6B8A";
 }
 
 export function curriculumFrameworkLabel(framework: CurriculumFramework): string {

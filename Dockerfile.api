@@ -19,6 +19,10 @@ WORKDIR /app
 # Root manifests.
 COPY package.json package-lock.json .npmrc ./
 
+# Root tsconfig.base.json — packages/domain/tsconfig.json extends this, so
+# it's needed at build time even though we only ship apps/api + domain dist.
+COPY tsconfig.base.json ./
+
 # Only the workspaces the API needs. Skipping apps/web, apps/mobile,
 # apps/tv entirely — they each have heavy install steps (Vite postinstall
 # scripts hold file locks) that conflict with multi-workspace installs.

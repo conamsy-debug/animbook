@@ -1,0 +1,18 @@
+Docker build: copy tsconfig.base.json + fix readonly tuple find()
+
+Two Railway build failures in packages/domain:
+
+1. error TS5083: Cannot read file '/app/tsconfig.base.json'
+   packages/domain/tsconfig.json extends ../../tsconfig.base.json,
+   but the Dockerfile deps stage didn't copy it into the image.
+   Fix: `COPY tsconfig.base.json ./` added to both Dockerfile.api and
+   Dockerfile.web.
+
+2. error TS2339: Property 'find' does not exist on type 'readonly [...]'
+   in packages/domain/src/index.ts line 141.
+   With `noUncheckedIndexedAccess: true` in tsconfig.base.json,
+   TypeScript inferred the VERTICALS const-array-literal as a readonly
+   tuple whose `.find()` chain fails under the strict combo used in
+   Docker. Fix: spread to a mutable copy before find
+     `[...VERTICALS].find(...)` — keeps types stable and avoids the
+   readonly inference.

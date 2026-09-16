@@ -17,6 +17,9 @@ WORKDIR /app
 
 COPY package.json package-lock.json .npmrc ./
 
+# Root tsconfig.base.json — packages/domain/tsconfig.json extends it.
+COPY tsconfig.base.json ./
+
 # Only the workspaces the Web needs. Skipping apps/api, apps/mobile,
 # apps/tv entirely — they have heavy install steps that conflict with
 # multi-workspace installs (EBUSY on .vite or node_modules).
