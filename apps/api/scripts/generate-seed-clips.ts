@@ -23,6 +23,8 @@
  *   --no-covers          leave placeholder covers alone
  *   --no-claude          use the template prompt instead of Claude
  *   --force              regenerate pages (and covers) that already have real media
+ *   --only cover,1,3     with --book: regenerate exactly these items (implies
+ *                        --force for them only; everything else is left alone)
  *   --recast             rewrite the saved cast sheets instead of reusing them
  *
  * Cast sheets: before generating, Claude reads each book (or the whole World
@@ -45,7 +47,8 @@ const opt = (name: string, fallback?: string) => {
   return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[i + 1] : fallback;
 };
 const DRY = flag("dry-run");
-const FORCE = flag("force");
+const ONLY_ITEMS = opt("only")?.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+const FORCE = flag("force") || Boolean(ONLY_ITEMS);
 const RECAST = flag("recast");
 const CAST_FILE = "seed-clips-cast.json";
 const COVERS = !flag("no-covers");
@@ -354,14 +357,18 @@ async function main() {
     if (missing.length) throw new Error(`Missing env: ${missing.join(", ")}`);
   }
 
+  if (ONLY_ITEMS && !ONLY) throw new Error("--only needs --book <slug>");
   const books = await loadBooks();
   let pagesPlanned = 0;
   const plan = books
     .map((book) => {
-      const pages = book.pages.filter((p) => FORCE || isPlaceholder(p.videoUrl));
+      const pages = book.pages.filter((p) =>
+        ONLY_ITEMS ? ONLY_ITEMS.includes(String(p.pageNum)) : FORCE || isPlaceholder(p.videoUrl)
+      );
       const take = pages.slice(0, Math.max(0, LIMIT - pagesPlanned));
       pagesPlanned += take.length;
-      return { book, pages: take, cover: COVERS && (FORCE || isPlaceholder(book.coverUrl)) };
+      const cover = ONLY_ITEMS ? ONLY_ITEMS.includes("cover") : COVERS && (FORCE || isPlaceholder(book.coverUrl));
+      return { book, pages: take, cover };
     })
     .filter((b) => b.pages.length || b.cover);
 

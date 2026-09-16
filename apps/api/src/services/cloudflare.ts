@@ -86,13 +86,28 @@ export async function uploadAsset(input: UploadInput): Promise<UploadResult> {
   return { url: publicUrl, key: input.key, source: "r2" };
 }
 
-/** Download a remote file (e.g. a Runway output, which expires) and store it in R2. */
-export async function mirrorToR2(sourceUrl: string, key: string, fallbackContentType: string): Promise<UploadResult> {
-  const res = await fetch(sourceUrl);
-  if (!res.ok) throw new Error(`Download failed (${res.status}) for ${sourceUrl.slice(0, 80)}`);
-  const contentType = res.headers.get("content-type")?.split(";")[0] || fallbackContentType;
-  const buf = new Uint8Array(await res.arrayBuffer());
-  return uploadAsset({ key, body: buf, contentType });
+/**
+ * Download a remote file (e.g. a Runway output, which expires) and store it
+ * in R2. Retries the whole download + upload, because by this point the
+ * file has already been paid for.
+ */
+export async function mirrorToR2(sourceUrl: string, key: string, fallbackContentType: string, attempts = 5): Promise<UploadResult> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(sourceUrl);
+      if (!res.ok) throw new Error(`Download failed (${res.status}) for ${sourceUrl.slice(0, 80)}`);
+      const contentType = res.headers.get("content-type")?.split(";")[0] || fallbackContentType;
+      const buf = new Uint8Array(await res.arrayBuffer());
+      return await uploadAsset({ key, body: buf, contentType });
+    } catch (err) {
+      lastErr = err;
+      const wait = Math.min(30_000, 3_000 * 2 ** i);
+      console.warn(`[r2] copy of ${key} failed (${(err as Error).message}), retry ${i + 1}/${attempts} in ${wait / 1000}s`);
+      await new Promise((r) => setTimeout(r, wait));
+    }
+  }
+  throw lastErr;
 }
 
 export const cloudflareStatus = {

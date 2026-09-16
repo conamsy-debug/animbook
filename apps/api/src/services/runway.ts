@@ -72,7 +72,15 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function createTask(path: string, body: unknown): Promise<string> {
   for (let attempt = 0; attempt < 6; attempt++) {
-    const res = await fetch(`${API_BASE}${path}`, { method: "POST", headers: headers(), body: JSON.stringify(body) });
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}${path}`, { method: "POST", headers: headers(), body: JSON.stringify(body) });
+    } catch (err) {
+      // Connection failed before a response — the task was not accepted.
+      console.warn(`[runway] ${path} network error (${(err as Error).message}), retrying`);
+      await sleep(Math.min(60_000, 5_000 * 2 ** attempt));
+      continue;
+    }
     if (res.ok) return ((await res.json()) as { id: string }).id;
     const detail = await res.text().catch(() => "");
     if (res.status === 429 || res.status >= 500) {
@@ -88,9 +96,15 @@ async function waitForTask(id: string, timeoutMs = 15 * 60_000): Promise<string>
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     await sleep(5_000); // Runway asks for ≥5s between polls
-    const res = await fetch(`${API_BASE}/tasks/${id}`, { headers: headers() });
-    if (!res.ok) continue;
-    const task = (await res.json()) as RunwayTask;
+    let task: RunwayTask;
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${id}`, { headers: headers() });
+      if (!res.ok) continue;
+      task = (await res.json()) as RunwayTask;
+    } catch {
+      // Network blip while polling — the task keeps running on Runway's side.
+      continue;
+    }
     if (task.status === "SUCCEEDED") {
       const url = task.output?.[0];
       if (!url) throw new RunwayError(`Runway task ${id} succeeded with no output`);
