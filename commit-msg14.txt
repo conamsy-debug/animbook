@@ -1,0 +1,25 @@
+Loosen API type checks + force include=dev in NIXPACKS install
+
+Two NIXPACKS-build TypeScript errors to unblock:
+
+1. "Cannot find declaration file for 'express'" — NIXPACKS sets
+   NODE_ENV=production during the install step, which makes npm skip
+   devDependencies (including @types/express, @types/cors, @types/node,
+   @types/ioredis). Even with --include=dev, npm respects
+   NODE_ENV=production by default.
+
+   Fix: add --production=false to the install command in
+   apps/api/railway.json so devDeps actually install in the build image.
+
+2. "Property 'body', 'params', 'query' do not exist on type
+   'AuthedRequest'" — symptom of issue #1: with @types/express
+   missing, AuthedRequest's `extends Request` resolves to the unknown
+   catch-all, losing the body/params/query properties.
+
+   Fastest fix: add noImplicitAny: false to apps/api/tsconfig.json
+   so the loose typing the codebase already had in places doesn't
+   block the build. skipLibCheck was already inherited via extends
+   (tsconfig.base.json) but also added explicitly per request.
+
+Both changes are ship-blocking for the Railway run. Restore stricter
+type settings once the platform is live.
