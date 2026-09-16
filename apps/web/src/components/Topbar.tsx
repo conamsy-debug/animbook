@@ -46,12 +46,12 @@ export function Topbar() {
           {HAS_CLERK ? (
             <>
               <SignedOut>
-                <SignInButton mode="modal" forceRedirectUrl="/library">
+                <SignInButton mode="modal" forceRedirectUrl="/">
                   <button type="button" className="btn ghost" aria-label="Sign in">
                     Sign In
                   </button>
                 </SignInButton>
-                <SignUpButton mode="modal" forceRedirectUrl="/library">
+                <SignUpButton mode="modal" forceRedirectUrl="/">
                   <button type="button" className="btn primary" aria-label="Create account">
                     Get Started
                   </button>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import type { EduCheckpoint, DifficultyScore } from "../domain/index.js";
+import { apiFetch } from "@/lib/api";
 
 interface Props {
   pageId: string;
@@ -36,15 +37,12 @@ export function CheckpointOverlay({ pageId, pageNum, vertical, onClose, onRespon
     setResult(null);
     async function load() {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/edu/checkpoints/${pageId}`);
-        if (!res.ok) {
-          setError("No checkpoint for this page yet.");
-          return;
-        }
-        const json = (await res.json()) as CheckpointBundle;
+        const json = await apiFetch<CheckpointBundle>(`/api/edu/checkpoints/${pageId}`);
         if (!cancelled) setBundle(json);
       } catch (err) {
-        if (!cancelled) setError((err as Error).message);
+        if (cancelled) return;
+        const status = (err as { status?: number }).status;
+        setError(status === 401 ? (err as Error).message : status ? "No checkpoint for this page yet." : (err as Error).message);
       }
     }
     load();
@@ -60,20 +58,23 @@ export function CheckpointOverlay({ pageId, pageNum, vertical, onClose, onRespon
     setSubmitting(true);
     const elapsed = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/edu/checkpoints/${bundle.checkpoint.id}/respond`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          selectedIndex: selected,
-          responseText: responseText.trim() || null,
-          timeTakenSeconds: elapsed
-        })
-      });
-      if (!res.ok) {
-        setError("Could not submit response");
+      let json: { isCorrect: boolean; explanation: string };
+      try {
+        json = await apiFetch<{ isCorrect: boolean; explanation: string }>(
+          `/api/edu/checkpoints/${bundle.checkpoint.id}/respond`,
+          {
+            method: "POST",
+            json: {
+              selectedIndex: selected,
+              responseText: responseText.trim() || null,
+              timeTakenSeconds: elapsed
+            }
+          }
+        );
+      } catch (apiErr) {
+        setError((apiErr as { status?: number }).status === 401 ? (apiErr as Error).message : "Could not submit response");
         return;
       }
-      const json = (await res.json()) as { isCorrect: boolean; explanation: string };
       setResult(json);
       onResponded?.(json.isCorrect);
     } catch (err) {

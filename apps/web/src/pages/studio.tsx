@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Topbar } from "@/components/Topbar";
-import { apiFetch, type BookBrainJson, type PageRecord, type PipelineEvent, type StudioProjectSummary } from "@/lib/api";
+import { apiFetch, apiStreamUrl, type BookBrainJson, type PageRecord, type PipelineEvent, type StudioProjectSummary } from "@/lib/api";
 import { useToastStore } from "@/lib/store";
 
 type Stage = "SETUP" | "UPLOAD" | "BRAIN" | "STYLE" | "REVIEW";
@@ -69,6 +69,7 @@ export default function StudioPage() {
   useEffect(() => {
     return () => {
       eventSourceRef.current?.close();
+      eventSourceRef.current = null;
     };
   }, []);
 
@@ -116,7 +117,7 @@ export default function StudioPage() {
         }
       });
       await apiFetch(`/api/studio/projects/${projectId}/analyze`, { method: "POST" });
-      subscribe(projectId);
+      void subscribe(projectId);
       toast("Manuscript ingested, pipeline queued");
       await refreshProject(projectId);
     } catch (err) {
@@ -126,9 +127,9 @@ export default function StudioPage() {
     }
   }
 
-  function subscribe(id: string) {
+  async function subscribe(id: string) {
     eventSourceRef.current?.close();
-    const es = new EventSource(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/studio/projects/${id}/events`);
+    const es = new EventSource(await apiStreamUrl(`/api/studio/projects/${id}/events`));
     es.addEventListener("pipeline", (ev) => {
       try {
         const data = JSON.parse((ev as MessageEvent).data) as PipelineEvent;
@@ -145,7 +146,13 @@ export default function StudioPage() {
       }
     });
     es.onerror = () => {
-      // EventSource auto-reconnects; nothing to do here.
+      // Session tokens are short-lived, so a plain auto-reconnect would 401.
+      // Reopen with a fresh token instead.
+      if (eventSourceRef.current !== es) return;
+      es.close();
+      setTimeout(() => {
+        if (eventSourceRef.current === es) void subscribe(id);
+      }, 3000);
     };
     eventSourceRef.current = es;
   }
@@ -192,7 +199,7 @@ export default function StudioPage() {
       });
       await apiFetch(`/api/studio/projects/${projectId}/generate`, { method: "POST" });
       toast("Style locked. Generation queued.");
-      subscribe(projectId);
+      void subscribe(projectId);
     } catch (err) {
       toast(`Style failed: ${(err as Error).message}`);
     } finally {

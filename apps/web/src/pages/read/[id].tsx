@@ -255,7 +255,7 @@ export default function ReaderPage() {
           <EmptyState
             title="Could not open this AnimBook"
             message={error ?? "The book record is missing or unreachable."}
-            cta={{ href: "/library", label: "Back to library" }}
+            cta={{ href: "/", label: "Back to library" }}
           />
         </main>
       </div>

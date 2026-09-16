@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { apiFetch } from "@/lib/api";
 
 interface Choice {
   nodeId: string;
@@ -22,7 +23,6 @@ interface Props {
   onApply(continuation: Continuation): void;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export function OracleChoices({ bookId, rootPage, onClose, onApply }: Props) {
   const [choices, setChoices] = useState<Choice[]>([]);
@@ -35,9 +35,7 @@ export function OracleChoices({ bookId, rootPage, onClose, onApply }: Props) {
     let cancelled = false;
     async function load() {
       try {
-        const res = await fetch(`${API_BASE}/api/oracle/${bookId}/decision/${rootPage}`);
-        if (!res.ok) throw new Error(`Status ${res.status}`);
-        const json = (await res.json()) as { choices: Choice[] };
+        const json = await apiFetch<{ choices: Choice[] }>(`/api/oracle/${bookId}/decision/${rootPage}`);
         if (!cancelled) {
           setChoices(json.choices);
           setLoading(false);
@@ -59,13 +57,10 @@ export function OracleChoices({ bookId, rootPage, onClose, onApply }: Props) {
     setSelected(choice.nodeId);
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/oracle/${bookId}/choose`, {
+      const json = await apiFetch<{ continuation: Continuation }>(`/api/oracle/${bookId}/choose`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parentNodeId: choice.nodeId, pageNum: rootPage + 1 })
+        json: { parentNodeId: choice.nodeId, pageNum: rootPage + 1 }
       });
-      if (!res.ok) throw new Error(`Status ${res.status}`);
-      const json = (await res.json()) as { continuation: Continuation };
       setContinuation(json.continuation);
       setLoading(false);
     } catch (err) {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { apiFetch } from "@/lib/api";
 
 interface Props {
   word: string;
@@ -18,7 +19,6 @@ interface Gloss {
   exampleSentence: string | null;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export function TranslationPopover({ word, sourceLang, targetLang, bookId, onClose }: Props) {
   const [gloss, setGloss] = useState<Gloss | null>(null);
@@ -29,13 +29,10 @@ export function TranslationPopover({ word, sourceLang, targetLang, bookId, onClo
     let cancelled = false;
     async function run() {
       try {
-        const res = await fetch(`${API_BASE}/api/translation/lookup`, {
+        const json = await apiFetch<{ source: Gloss }>(`/api/translation/lookup`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ word, sourceLang, targetLang: target, bookId })
+          json: { word, sourceLang, targetLang: target, bookId }
         });
-        if (!res.ok) throw new Error(`Status ${res.status}`);
-        const json = (await res.json()) as { source: Gloss };
         if (!cancelled) setGloss(json.source);
       } catch (err) {
         if (!cancelled) setError((err as Error).message);

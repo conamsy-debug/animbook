@@ -13,12 +13,14 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
-    "db:reset": "prisma migrate reset --force"
+    "db:reset": "prisma migrate reset --force",
+    "clips:seed": "tsx scripts/generate-seed-clips.ts"
   },
   "dependencies": {
     "@apollo/server": "^4.12.2",
     "@clerk/backend": "^3.13.1",
     "@prisma/client": "^6.19.0",
+    "aws4fetch": "1.0.20",
     "bullmq": "^5.34.10",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

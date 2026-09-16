@@ -3,6 +3,7 @@ import Head from "next/head";
 import { useEffect } from "react";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ErrorBoundary, ErrorState } from "@/components/ErrorBoundary";
+import { AuthBridge } from "@/components/AuthBridge";
 import "@/styles/globals.css";
 
 const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
@@ -54,8 +55,8 @@ export default function App({ Component, pageProps }: AppProps) {
       publishableKey={PUBLISHABLE_KEY}
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
-      afterSignInUrl="/library"
-      afterSignUpUrl="/library"
+      afterSignInUrl="/"
+      afterSignUpUrl="/"
       appearance={{
         variables: {
           colorPrimary: "#C49A1C",
@@ -84,6 +85,7 @@ export default function App({ Component, pageProps }: AppProps) {
           rel="stylesheet"
         />
       </Head>
+      <AuthBridge />
       <ErrorBoundary
         fallback={(err, reset) => (
           <ErrorState error={err} onRetry={reset} title="AnimBook ran into a snag" />

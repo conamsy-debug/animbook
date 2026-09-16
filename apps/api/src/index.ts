@@ -14,6 +14,7 @@ import express, { type Request, type Response, type NextFunction } from "express
 import cors from "cors";
 import helmet from "helmet";
 import { appEnv, featureStatus } from "./config/env.js";
+import { isOriginAllowed } from "./config/origins.js";
 import { initSentry, captureException } from "./observability/sentry.js";
 import books from "./modules/books/routes.js";
 import library from "./modules/library/routes.js";
@@ -55,22 +56,7 @@ app.use(
   })
 );
 
-// CORS — WEB_ORIGIN is a comma-separated allowlist; localhost:3000 is always
-// permitted so local smokes still work. When ALLOW_RAILWAY_PREVIEW=true,
-// any *.up.railway.app origin is also accepted — this is for the pre-launch
-// period when animbook.com DNS is still landing and the web service lives at
-// its Railway preview URL (e.g. https://animbook-web-*.up.railway.app).
-const ALWAYS_ALLOWED_ORIGINS = ["http://localhost:3000"];
-const RAILWAY_PREVIEW_PATTERN = /^https:\/\/[a-z0-9-]+\.up\.railway\.app$/i;
-
-function isOriginAllowed(origin: string | undefined): boolean {
-  if (!origin) return true; // same-origin, server-to-server, curl, mobile
-  const allowList = [...appEnv.WEB_ORIGIN_LIST, ...ALWAYS_ALLOWED_ORIGINS];
-  if (allowList.includes(origin)) return true;
-  if (appEnv.ALLOW_RAILWAY_PREVIEW && RAILWAY_PREVIEW_PATTERN.test(origin)) return true;
-  return false;
-}
-
+// CORS — allowlist lives in config/origins.ts (shared with Clerk token checks).
 app.use(
   cors({
     origin: (origin, callback) => {

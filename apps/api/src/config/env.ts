@@ -113,7 +113,9 @@ export function isFeatureEnabled(feature: Feature): boolean {
     case "STRIPE":
       return Boolean(appEnv.STRIPE_SECRET_KEY);
     case "CLOUDFLARE":
-      return Boolean(appEnv.CLOUDFLARE_ACCOUNT_ID && appEnv.CLOUDFLARE_R2_ACCESS_KEY_ID);
+      return Boolean(
+        appEnv.CLOUDFLARE_ACCOUNT_ID && appEnv.CLOUDFLARE_R2_ACCESS_KEY_ID && appEnv.CLOUDFLARE_R2_SECRET_ACCESS_KEY
+      );
     default:
       return false;
   }

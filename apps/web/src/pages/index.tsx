@@ -81,12 +81,12 @@ export default function LibraryPage() {
               <SignedOut>
                 {HAS_CLERK ? (
                   <>
-                    <SignUpButton mode="modal" forceRedirectUrl="/library">
+                    <SignUpButton mode="modal" forceRedirectUrl="/">
                       <button type="button" className="btn primary" aria-label="Create your account">
                         Get Started
                       </button>
                     </SignUpButton>
-                    <SignInButton mode="modal" forceRedirectUrl="/library">
+                    <SignInButton mode="modal" forceRedirectUrl="/">
                       <button type="button" className="btn ghost" aria-label="Sign in">
                         Sign In
                       </button>

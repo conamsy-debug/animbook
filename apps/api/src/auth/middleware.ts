@@ -1,12 +1,20 @@
 import { Request, Response, NextFunction } from 'express';
 import { appEnv, isFeatureEnabled } from "../config/env.js";
 import { prisma } from "../db.js";
+import { findOrProvisionUser, verifyClerkToken } from "./clerk.js";
 
 /**
  * Identity resolution:
- *   1. If Clerk is configured, the Clerk JWT middleware injects `auth.userId`.
+ *   1. If Clerk is configured (CLERK_SECRET_KEY set), the request must carry a
+ *      Clerk session token — `Authorization: Bearer <jwt>`, or `?token=<jwt>`
+ *      on GET requests (EventSource can't set headers). The token is verified
+ *      and the matching `users` row is created on first sight.
  *   2. In demo mode (Clerk missing), accept either `x-demo-user-id` (E2E) or
  *      fall back to the seeded `demo@animbook.com` reader.
+ *
+ * `x-demo-user-id` is ignored whenever Clerk is on, unless
+ * ALLOW_DEMO_HEADER=true is set explicitly — otherwise anyone who learned a
+ * user's id could act as them in production.
  *
  * The selected identity is materialised as a row in `users` so downstream
  * code can use Prisma relations without an extra join.
@@ -51,10 +59,26 @@ async function resolveDemoUserId(): Promise<string> {
   return demoUserPromise;
 }
 
+function extractToken(req: Request): string | undefined {
+  const header = req.header("authorization");
+  if (header && header.toLowerCase().startsWith("bearer ")) {
+    const value = header.slice(7).trim();
+    if (value) return value;
+  }
+  if (req.method === "GET" && typeof req.query.token === "string" && req.query.token) {
+    return req.query.token;
+  }
+  return undefined;
+}
+
+const clerkOn = () => isFeatureEnabled("CLERK");
+const demoHeaderAllowed = () =>
+  !clerkOn() || (process.env.ALLOW_DEMO_HEADER ?? "false").toLowerCase() === "true";
+
 export async function authMiddleware(req: AuthedRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const headerUser = req.header("x-demo-user-id");
-    if (headerUser) {
+    if (headerUser && demoHeaderAllowed()) {
       const user = await prisma.user.findUnique({ where: { id: headerUser } });
       if (!user) {
         res.status(401).json({ error: "Unknown demo user" });
@@ -66,29 +90,27 @@ export async function authMiddleware(req: AuthedRequest, res: Response, next: Ne
       return;
     }
 
-    if (isFeatureEnabled("CLERK")) {
-      // Real Clerk JWT verification would attach `req.auth.userId`. In this
-      // foundation slice we rely on the upstream Clerk middleware on the
-      // Express app; this block is the placeholder that future production
-      // wiring will populate.
-      const clerkUserId = (req as AuthedRequest & { auth?: { userId?: string } }).auth?.userId;
-      if (!clerkUserId) {
-        res.status(401).json({ error: "Authentication required" });
+    if (clerkOn()) {
+      const token = extractToken(req);
+      if (!token) {
+        res.status(401).json({ error: "Authentication required", code: "signed_out" });
         return;
       }
-      const user = await prisma.user.findUnique({ where: { clerkId: clerkUserId } });
-      if (!user) {
-        res.status(401).json({ error: "Unknown authenticated user" });
+      const session = await verifyClerkToken(token);
+      if (!session) {
+        res.status(401).json({ error: "Invalid or expired session", code: "invalid_token" });
         return;
       }
+      const user = await findOrProvisionUser(session.clerkUserId);
       req.userId = user.id;
       req.clerkId = user.clerkId;
+      req.sessionId = session.sessionId;
       next();
       return;
     }
 
     if (!appEnv.ALLOW_DEMO_AUTH) {
-      res.status(401).json({ error: "Authentication required" });
+      res.status(401).json({ error: "Authentication required", code: "signed_out" });
       return;
     }
 

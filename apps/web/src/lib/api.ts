@@ -1,4 +1,22 @@
+import { announceAuthRequired, getAuthToken } from "@/lib/auth";
+
 const DEFAULT_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+
+/** Absolute API URL for a path. */
+export function apiUrl(path: string): string {
+  return `${DEFAULT_BASE}${path}`;
+}
+
+/**
+ * URL for an EventSource stream. EventSource can't send headers, so the
+ * session token rides along as `?token=` (the API accepts this on GET only).
+ */
+export async function apiStreamUrl(path: string): Promise<string> {
+  const token = await getAuthToken();
+  if (!token) return apiUrl(path);
+  const sep = path.includes("?") ? "&" : "?";
+  return apiUrl(`${path}${sep}token=${encodeURIComponent(token)}`);
+}
 
 export interface FetchOptions extends RequestInit {
   json?: unknown;
@@ -25,7 +43,11 @@ export async function apiFetch<T>(path: string, options: FetchOptions = {}): Pro
   if (demoUserId) {
     finalHeaders.set("x-demo-user-id", demoUserId);
   }
-  const response = await fetch(`${DEFAULT_BASE}${path}`, {
+  if (!finalHeaders.has("Authorization")) {
+    const token = await getAuthToken();
+    if (token) finalHeaders.set("Authorization", `Bearer ${token}`);
+  }
+  const response = await fetch(apiUrl(path), {
     ...rest,
     headers: finalHeaders,
     body: json === undefined ? (rest.body ?? null) : JSON.stringify(json)
@@ -43,7 +65,12 @@ export async function apiFetch<T>(path: string, options: FetchOptions = {}): Pro
         details = raw;
       }
     }
-    throw new ApiError(response.status, `${response.status} ${response.statusText}`, details);
+    if (response.status === 401) announceAuthRequired();
+    throw new ApiError(
+      response.status,
+      response.status === 401 ? "Please sign in to continue" : `${response.status} ${response.statusText}`,
+      details
+    );
   }
   if (response.status === 204) return undefined as T;
   const contentType = response.headers.get("content-type") ?? "";

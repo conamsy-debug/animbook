@@ -718,3 +718,10 @@ h1 {
   color: var(--muted);
   font-size: 0.85rem;
 }
+
+/* ==== Sign-in prompt + banner ==== */
+.signin-prompt { display: grid; gap: 12px; justify-items: center; text-align: center; max-width: 520px; margin: 0 auto; }
+.signin-prompt p { margin: 0; color: var(--muted); }
+.signin-prompt-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.auth-banner { position: relative; background: var(--surface-2); border-bottom: 1px solid var(--border); padding: 16px 48px; }
+.auth-banner-close { position: absolute; right: 16px; top: 12px; background: none; border: none; color: var(--muted); font-size: 1.4rem; line-height: 1; cursor: pointer; }

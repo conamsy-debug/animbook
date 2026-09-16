@@ -1,4 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { SignInPrompt } from "@/components/SignInPrompt";
+import { authEnabled } from "@/lib/auth";
 
 interface Props {
   fallback: (error: Error, reset: () => void) => ReactNode;
@@ -59,7 +61,18 @@ interface ErrorStateProps {
  * Honors `compact` for the Reader so the page stays navigable; full-page
  * version for the catalogue and content shell.
  */
+function isAuthError(error: Error): boolean {
+  return (error as Error & { status?: number }).status === 401 || /\b401\b|sign in to continue/i.test(error.message);
+}
+
 export function ErrorState({ error, title, onRetry, compact }: ErrorStateProps) {
+  if (authEnabled && isAuthError(error)) {
+    return (
+      <div role="alert" style={{ minHeight: compact ? undefined : "40vh", display: "grid", placeItems: "center", padding: "2rem 1rem" }}>
+        <SignInPrompt />
+      </div>
+    );
+  }
   const heading = title ?? "Something went sideways";
   if (compact) {
     return (

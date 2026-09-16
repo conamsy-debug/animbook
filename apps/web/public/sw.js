@@ -15,11 +15,15 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
+  // Let the browser handle the API, Clerk, R2 media and video range requests
+  // directly — only same-origin app assets go through the offline cache.
+  if (!req.url.startsWith(self.location.origin)) return;
+  if (req.headers.has("range")) return;
   event.respondWith(
     caches.open(CACHE).then(async (cache) => {
       try {
         const response = await fetch(req);
-        if (response.status === 200 && req.url.startsWith(self.location.origin)) {
+        if (response.status === 200) {
           cache.put(req, response.clone());
         }
         return response;
