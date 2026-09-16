@@ -30,6 +30,8 @@ export interface AppEnv {
   NODE_ENV: "development" | "production" | "test";
   PORT: number;
   WEB_ORIGIN: string;
+  WEB_ORIGIN_LIST: string[];
+  ALLOW_RAILWAY_PREVIEW: boolean;
   DATABASE_URL: string;
   REDIS_URL: string;
   CLERK_SECRET_KEY: string | undefined;
@@ -56,10 +58,20 @@ export interface AppEnv {
   RELEASE: string;
 }
 
+function parseCsvOrigins(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
 export const appEnv: AppEnv = {
   NODE_ENV: (env.NODE_ENV ?? "development") as AppEnv["NODE_ENV"],
   PORT: Number(env.PORT ?? 4000),
   WEB_ORIGIN: env.WEB_ORIGIN ?? "http://localhost:3000",
+  WEB_ORIGIN_LIST: parseCsvOrigins(env.WEB_ORIGIN),
+  ALLOW_RAILWAY_PREVIEW: (env.ALLOW_RAILWAY_PREVIEW ?? "false").toLowerCase() === "true",
   DATABASE_URL: required("DATABASE_URL", "postgresql://animbook:animbook_local@localhost:6000/animbook?schema=public"),
   REDIS_URL: required("REDIS_URL", "redis://localhost:6001"),
   CLERK_SECRET_KEY: optional("CLERK_SECRET_KEY"),
