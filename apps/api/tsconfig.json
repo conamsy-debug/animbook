@@ -1,15 +1,20 @@
 {
-  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noImplicitAny": false,
+    "exactOptionalPropertyTypes": false,
+    "sourceMap": true,
     "outDir": "dist",
     "rootDir": "src",
-    "types": [],
-    "sourceMap": true,
-    "exactOptionalPropertyTypes": false,
-    "skipLibCheck": true,
-    "noImplicitAny": false
+    "types": []
   },
   "include": ["src/**/*.ts", "src/types/**/*.d.ts"]
 }

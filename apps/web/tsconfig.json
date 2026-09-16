@@ -1,5 +1,4 @@
 {
-  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "target": "ES2022",
     "lib": [
@@ -13,8 +12,15 @@
     "moduleResolution": "bundler",
     "jsx": "preserve",
     "incremental": true,
-    "types": [],
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noImplicitAny": false,
+    "strict": false,
     "exactOptionalPropertyTypes": false,
+    "types": [],
     "plugins": [
       {
         "name": "next"

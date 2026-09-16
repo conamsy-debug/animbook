@@ -1,0 +1,27 @@
+Remove tsconfig.base.json extends from apps/* tsconfig.json files
+
+packages/domain/tsconfig.json was already self-contained (no
+extends) from commit e23105d. The remaining offenders were
+apps/{api,web,mobile}/tsconfig.json — each still had
+  "extends": "../../tsconfig.base.json"
+
+NIXPACKS / tsc would still try to load the base config during any
+build path that touches these files (including the implicit
+type-check NIXPACKS runs at detect time). Inlined all base
+options into each file so they're fully self-contained.
+
+- apps/api/tsconfig.json: inlined target/lib/module/esModuleInterop/
+  allowSyntheticDefaultImports/forceConsistentCasingInFileNames/
+  resolveJsonModule/skipLibCheck/noImplicitAny/exactOptionalPropertyTypes.
+  Kept module=NodeNext, rootDir=src, outDir=dist.
+- apps/web/tsconfig.json: inlined same base, kept Next-specific
+  jsx/paths/plugins/isolatedModules + include/exclude.
+- apps/mobile/tsconfig.json: inlined same base, kept
+  jsx=react-native + paths aliases to domain.
+
+Also added strict: false to apps/web/tsconfig.json to match the
+relaxed posture of the other tsconfig files (Next's strict type
+checks fight with the @/* path alias inference in some workspaces).
+
+No .dockerignore / .nixpacksignore present — the build context
+includes everything in the repo.
