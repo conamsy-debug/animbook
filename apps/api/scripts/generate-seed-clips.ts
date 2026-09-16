@@ -41,6 +41,7 @@
  * pasted into every cover and page prompt so people look right and stay the
  * same. Sheets are saved to seed-clips-cast.json and reused on later runs.
  */
+import "./slow-link-db.js"; // must stay first: lengthens DB timeouts before Prisma loads
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { appEnv, isFeatureEnabled } from "../src/config/env.js";
 import { prisma } from "../src/db.js";
@@ -382,7 +383,7 @@ async function main() {
   }
 
   if (ONLY_ITEMS && !ONLY) throw new Error("--only needs --book <slug>");
-  const books = await loadBooks();
+  const books = await withDbRetry("loading books", () => loadBooks());
   let pagesPlanned = 0;
   const wanted = (p: PageRow, existing: string | null) =>
     ONLY_ITEMS ? ONLY_ITEMS.includes(String(p.pageNum)) : FORCE || isPlaceholder(existing);
