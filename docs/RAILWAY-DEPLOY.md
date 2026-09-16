@@ -4,7 +4,7 @@ Step-by-step to push AnimBook from `https://github.com/conamsy-debug/animbook` t
 
 **Why Railway over Render?** Railway works in regions where Render is blocked, has a simpler one-platform model (one account, many services), auto-detects Node via Nixpacks, and gives you $5 of credits on the Hobby plan to run the whole stack.
 
-**Monorepo setup:** Each Railway service points at a `railway.json` config in the relevant subdirectory. API uses `apps/api/railway.json`, Web uses `apps/web/railway.json`. Set the **Root Directory** in each service's Settings to `apps/api` or `apps/web` respectively so Railpack picks up the right config.
+**Monorepo setup:** Both `Dockerfile.api` and `Dockerfile.web` live at the **monorepo root** so the Docker build context is the full repo (including `packages/domain/`). Each Railway service picks up `apps/api/railway.json` or `apps/web/railway.json` via the `rootDirectory` setting, which in turn references the root Dockerfile via a relative `dockerfilePath` (e.g. `../Dockerfile.api`).
 
 ---
 
@@ -42,12 +42,14 @@ Step-by-step to push AnimBook from `https://github.com/conamsy-debug/animbook` t
 2. Railway creates a service. Click on it to open the panel.
 3. **Settings** tab:
    - **Service Name:** `animbook-api`
-   - **Root Directory:** `apps/api` ← **this is the monorepo fix** — tells Railpack which subdirectory to treat as the service root. Railway will then pick up `apps/api/railway.json` from there.
+   - **Root Directory:** `apps/api` ← **monorepo fix #1** — tells Railpack which subdirectory to treat as the service root. Railway picks up `apps/api/railway.json` from there.
    - **Watch Paths:** `apps/api/**` *(optional — speeds up rebuilds by ignoring mobile/tv/web changes)*
-4. **Variables** tab → **+ New Variable** → **Raw Editor** → paste the entire `apps/api/.env.production` file. See [step 3a below](#3a-environment-variables-for-the-api-service) for the full list.
-5. **Networking** tab → click **Generate Domain** to get a free `*.up.railway.app` URL for now (we'll wire the real domain in step 6).
-6. The first deploy takes ~3–5 min (npm install + `prisma generate` + `tsc`). Watch the logs.
-7. Once deployed, click the **Variables** tab → verify `PORT=4000` is set (Railway injects a `PORT` env var automatically — we set our app to use `process.env.PORT || 4000` so it'll pick up Railway's port).
+4. **Settings → Build → Builder:** should already say `DOCKERFILE` (because `apps/api/railway.json` declares `builder: DOCKER` + `dockerfilePath: ../Dockerfile.api`). If not, set it to **Dockerfile** and **Dockerfile Path** to `../Dockerfile.api`.
+   - The Dockerfile lives at the **monorepo root** (`Dockerfile.api`) — `apps/api/railway.json`'s `dockerfilePath: "../Dockerfile.api"` tells Railway to use it relative to the `apps/api` Root Directory.
+5. **Variables** tab → **+ New Variable** → **Raw Editor** → paste the entire `apps/api/.env.production` file. See [step 3a below](#3a-environment-variables-for-the-api-service) for the full list.
+6. **Networking** tab → click **Generate Domain** to get a free `*.up.railway.app` URL for now (we'll wire the real domain in step 6).
+7. The first deploy takes ~3–5 min (`npm install` + `prisma generate` + `tsc`). Watch the logs.
+8. Once deployed, click the **Variables** tab → verify `PORT=4000` is set (Railway injects a `PORT` env var automatically — our code uses `process.env.PORT || 4000` so it'll pick up Railway's port).
 
 ### 3a. Environment variables for the API service
 
@@ -92,7 +94,8 @@ Railway reads `/api/health/ready` automatically if you set it. Go to **Settings 
    - **Service Name:** `animbook-web`
    - **Root Directory:** `apps/web` ← **monorepo fix**
    - **Watch Paths:** `apps/web/**`
-3. **Variables** tab → **Raw Editor** → paste this:
+3. **Settings → Build → Builder:** should say `DOCKERFILE` (because `apps/web/railway.json` declares `builder: DOCKER` + `dockerfilePath: ../Dockerfile.web`). If not, set **Builder** to **Dockerfile** and **Dockerfile Path** to `../Dockerfile.web`.
+4. **Variables** tab → **Raw Editor** → paste this:
 
 ```env
 NEXT_PUBLIC_API_URL=https://api.animbook.com
@@ -106,8 +109,8 @@ NEXT_PUBLIC_TV_URL=
 
 The exact values for the Clerk key live in your local `apps/web/.env.production` (which is gitignored) and should be pasted verbatim.
 
-4. **Networking** tab → **Generate Domain** → note the temporary URL.
-5. **Settings → Health Check** → **Healthcheck Path:** `/`
+5. **Networking** tab → **Generate Domain** → note the temporary URL.
+6. **Settings → Health Check** → **Healthcheck Path:** `/`
 
 ### Important: WEB_ORIGIN
 

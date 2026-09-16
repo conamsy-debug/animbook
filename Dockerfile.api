@@ -1,0 +1,70 @@
+# AnimBook API — production image (multi-stage, monorepo root context).
+#
+# Build:    docker build -f Dockerfile.api -t animbook-api:latest .
+# Run:      docker run --rm -p 4000:4000 --env-file apps/api/.env.production animbook-api:latest
+#
+# Why monorepo-root: the API depends on @animbook/domain (from packages/),
+# apps/api's package.json, and the root workspaces manifest. Building from
+# apps/api/ as the context loses access to packages/domain — the build fails.
+#
+# Multi-stage:
+#   1. deps    — npm install (root + workspaces)
+#   2. build   — `prisma generate` + `tsc`
+#   3. runtime — minimal node:20-alpine + the compiled bundle + domain
+
+# ---- 1. deps ---------------------------------------------------------------
+FROM node:20-alpine AS deps
+WORKDIR /app
+
+# Root manifests.
+COPY package.json package-lock.json .npmrc ./
+
+# Workspace manifests (so npm knows the shape of each workspace).
+COPY packages/domain/package.json ./packages/domain/
+COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/ 2>/dev/null || true
+COPY apps/mobile/package.json ./apps/mobile/ 2>/dev/null || true
+COPY apps/tv/package.json ./apps/tv/ 2>/dev/null || true
+
+# Install all workspace deps in one pass (root npm install hoists).
+RUN npm install --legacy-peer-deps --prefer-offline --no-audit --no-fund
+
+# ---- 2. build --------------------------------------------------------------
+FROM deps AS build
+WORKDIR /app
+
+# Sources the API needs.
+COPY packages/domain ./packages/domain
+COPY apps/api ./apps/api
+
+# Prisma client generation + TypeScript compile.
+# (prisma generate must run from apps/api so it picks up prisma/schema.prisma).
+RUN cd apps/api && npx prisma generate && npx tsc -p tsconfig.json
+
+# ---- 3. runtime ------------------------------------------------------------
+FROM node:20-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=4000
+ENV HOSTNAME=0.0.0.0
+
+# Build artefacts (dist/src — the actual entry, not the root index).
+COPY --from=build /app/apps/api/dist/src ./apps/api/dist/src
+# Prisma schema + generated client.
+COPY --from=build /app/apps/api/prisma ./apps/api/prisma
+# node_modules (hoisted + workspaces).
+COPY --from=build /app/node_modules ./node_modules
+# Domain package (runtime).
+COPY --from=build /app/packages/domain ./packages/domain
+
+# Lock down perms + drop to non-root.
+RUN chown -R node:node /app
+USER node
+
+EXPOSE 4000
+
+# Liveness probe — `/api/health/ready` checks DB + Redis + integrations.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:4000/api/health/ready || exit 1
+
+CMD ["node", "apps/api/dist/src/index.js"]

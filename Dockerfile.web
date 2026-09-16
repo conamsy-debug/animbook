@@ -1,12 +1,13 @@
-# AnimBook Web — production image (Next.js standalone).
+# AnimBook Web — production image (Next.js standalone, monorepo root context).
 #
-# Build:    docker build -f apps/web/Dockerfile -t animbook-web:latest .
+# Build:    docker build -f Dockerfile.web -t animbook-web:latest .
 # Run:      docker run --rm -p 3000:3000 \
 #             -e NEXT_PUBLIC_API_URL=https://api.animbook.com \
+#             -e NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=... \
 #             animbook-web:latest
 #
 # Multi-stage:
-#   1. deps    — npm install
+#   1. deps    — npm install (root + workspaces)
 #   2. build   — `next build` with `output: "standalone"` → .next/standalone
 #   3. runtime — minimal node:20-alpine + the standalone bundle
 
@@ -15,15 +16,13 @@ FROM node:20-alpine AS deps
 WORKDIR /app
 
 COPY package.json package-lock.json .npmrc ./
+COPY packages/domain/package.json ./packages/domain/
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
-COPY packages/domain/package.json ./packages/domain/
 COPY apps/mobile/package.json ./apps/mobile/ 2>/dev/null || true
 COPY apps/tv/package.json ./apps/tv/ 2>/dev/null || true
 
 RUN npm install --legacy-peer-deps --prefer-offline --no-audit --no-fund
-COPY apps/web ./apps/web
-COPY packages/domain ./packages/domain
 
 # ---- 2. build --------------------------------------------------------------
 FROM deps AS build
@@ -43,6 +42,10 @@ ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
 ENV NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=$NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE
 ENV NEXT_PUBLIC_RELEASE=$NEXT_PUBLIC_RELEASE
 
+# Sources.
+COPY packages/domain ./packages/domain
+COPY apps/web ./apps/web
+
 # Build with the public env in scope.
 RUN cd apps/web && npx next build
 
@@ -54,18 +57,23 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-# Copy the standalone bundle + static assets + public/ folder.
+# Copy the standalone bundle (apps/web/.next/standalone contains a fully
+# runnable Next.js server that resolves workspaces via node_modules).
 COPY --from=build /app/apps/web/.next/standalone ./
 COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=build /app/apps/web/public ./apps/web/public
+
+# Standalone strips workspace deps — re-add the domain package + node_modules.
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/packages/domain ./packages/domain
 
 RUN chown -R node:node /app
 USER node
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || \
-      wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
 
+# Next.js standalone emits apps/web/server.js at the root of the standalone dir.
 CMD ["node", "apps/web/server.js"]

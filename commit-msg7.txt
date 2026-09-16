@@ -1,0 +1,17 @@
+Move Dockerfiles to monorepo root + switch Railway to DOCKER builder
+
+Railway build was failing because apps/api/Dockerfile tried to
+COPY packages/domain from a build context of apps/api/, where that
+directory doesn't exist (it lives at the monorepo root).
+
+Fix:
+- New Dockerfile.api and Dockerfile.web at the monorepo root — build
+  context is the full repo, with all workspaces visible.
+- apps/api/railway.json + apps/web/railway.json updated: builder is
+  now DOCKER, with dockerfilePath pointing at the root Dockerfile.
+- apps/api/Dockerfile + apps/web/Dockerfile removed (superseded).
+- Deploy doc updated to reflect: set Builder=Dockerfile + Dockerfile
+  Path=Dockerfile.api / Dockerfile.web in each Railway service.
+
+The DOCKER path also means Railway no longer needs Nixpacks auto-detect
+on a monorepo with workspaces, which was the original failure mode.
