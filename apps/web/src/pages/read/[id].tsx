@@ -12,7 +12,8 @@ import { ErrorBoundary, ErrorState } from "@/components/ErrorBoundary";
 import { LoadingState, EmptyState } from "@/components/States";
 import { apiFetch, type BookSummary, type PageRecord } from "@/lib/api";
 import { useLibraryStore, useReaderStore, useToastStore } from "@/lib/store";
-import { speakWithBrowser, stopSpeaking } from "@/lib/speech";
+import { stopSpeaking } from "@/lib/speech";
+import { useNarration } from "@/lib/useNarration";
 
 interface MemoryProfile {
   palette: string;
@@ -222,12 +223,20 @@ export default function ReaderPage() {
 
   const currentPage = useMemo(() => pages[pageIndex] ?? null, [pages, pageIndex]);
 
+  const narrationRate =
+    (dreamActive ? (dreamProfile?.narrationSpeed ?? 0.7) : (memory?.narrationSpeed ?? 1)) *
+    (bedtime && book?.vertical === "KIDS" ? 0.78 : 1);
+  const narration = useNarration(currentPage, narrationRate);
+  const [userPaused, setUserPaused] = useState(false);
+
   function playNarration() {
-    if (!currentPage) return;
-    const baseRate = dreamActive ? (dreamProfile?.narrationSpeed ?? 0.7) : (memory?.narrationSpeed ?? 1);
-    const rate = baseRate * (bedtime && book?.vertical === "KIDS" ? 0.78 : 1);
-    speakWithBrowser(currentPage.textExcerpt, { voiceId: currentPage.speakerName ?? "narrator", name: currentPage.speakerName ?? "default", rate });
-    toast(bedtime ? "Bedtime narration · slow & calm" : dreamActive ? `DREAM narration · ${Math.round(rate * 100)}%` : `Now reading as ${currentPage.speakerName ?? "narrator"}`);
+    setUserPaused(false);
+    narration.play();
+  }
+
+  function pauseNarration() {
+    setUserPaused(true);
+    narration.pause();
   }
 
   function handleWordTap(word: string) {
@@ -306,8 +315,9 @@ export default function ReaderPage() {
             paletteHint={dreamActive ? (dreamProfile?.palette ?? "cool") : (memory?.palette ?? "default")}
             motionScale={dreamActive ? (dreamProfile?.motionLevel ?? 0.4) : (memory?.motionLevel ?? 1)}
             fontSize={dreamActive ? (dreamProfile?.fontSize ?? 22) : (memory?.fontSize ?? 18)}
+            paused={userPaused}
           />
-          <ReaderControls onPlayNarration={playNarration} onNext={flipNext} onPrev={flipPrev} />
+          <ReaderControls narration={narration} onPlay={playNarration} onPause={pauseNarration} onNext={flipNext} onPrev={flipPrev} />
         </ErrorBoundary>
         <AchievementToasts queue={achievements} onConsumed={(idx) => setAchievements((prev) => prev.filter((_, i) => i !== idx))} />
         {checkpointOpen && currentPage && book.vertical === "EDU" && (

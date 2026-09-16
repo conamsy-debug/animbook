@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useReaderStore } from "@/lib/store";
 import type { BookSummary, PageRecord } from "@/lib/api";
@@ -12,6 +12,8 @@ interface Props {
   paletteHint?: string;
   motionScale?: number;
   fontSize?: number;
+  /** The reader pressed Pause — freeze the page's animation too. */
+  paused?: boolean;
 }
 
 function pickAccent(vertical: string): string {
@@ -32,14 +34,23 @@ function pickAccent(vertical: string): string {
   return map[vertical] ?? "#1B6B8A";
 }
 
-export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false, onWordTap, paletteHint = "default", motionScale = 1, fontSize = 18 }: Props) {
+export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false, onWordTap, paletteHint = "default", motionScale = 1, fontSize = 18, paused = false }: Props) {
   const { pageIndex, mode, isFlipping, flippingDirection, setBook, flipNext, flipPrev, finishFlip } = useReaderStore();
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     setBook(book, pages);
   }, [book, pages, setBook]);
 
   const current = pages[pageIndex];
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (paused) video.pause();
+    else void video.play().catch(() => undefined);
+  }, [paused, current?.id, mode]);
+
   const accent = useMemo(() => pickAccent(book.vertical), [book.vertical]);
 
   if (!current) return null;
@@ -73,7 +84,7 @@ export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false,
   };
 
   return (
-    <div className="reader-stage" style={{ borderColor: bannerAccent }}>
+    <div className={`reader-stage mode-${mode.toLowerCase()}`} style={{ ["--accent-page" as string]: bannerAccent }}>
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={current.id}
@@ -87,7 +98,9 @@ export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false,
         >
           {mode !== "WATCH" && (
             <article className="page text">
-              <div className="label" style={{ color: bannerAccent }}>Page {current.pageNum} of {pages.length}</div>
+              <div className="page-kicker" style={{ color: bannerAccent }}>
+                {book.title} · Page {current.pageNum}
+              </div>
               {current.chapter && <div className="chapter">{current.chapter}</div>}
               {current.speakerName && book.vertical === "KIDS" && (
                 <div className="label" style={{ color: "var(--kids)", marginBottom: 8 }}>
@@ -103,27 +116,25 @@ export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false,
               >
                 {lensEnabled ? "You see " : ""}{renderWords(current.textExcerpt)}
               </p>
-              <div className="scene-meta">
-                {current.emotionalRegister && <span className="pill">{current.emotionalRegister}</span>}
-                {current.cameraAngle && <span className="pill">{current.cameraAngle}</span>}
-                {current.sceneType && <span className="pill">{current.sceneType}</span>}
-              </div>
             </article>
           )}
           {mode !== "READ" && (
             <article className="page video" aria-label={`Page ${current.pageNum} animation`}>
-              {current.videoUrl ? (
+              {current.videoUrl && !/\.(png|jpe?g|webp)(\?|$)|placehold\.co/i.test(current.videoUrl) ? (
                 <video
+                  ref={videoRef}
                   src={current.videoUrl}
                   poster={current.posterUrl ?? undefined}
-                  autoPlay
+                  autoPlay={!paused}
                   muted
                   loop
                   playsInline
                   style={lensEnabled ? { transform: "scale(1.6)", transformOrigin: "center" } : undefined}
                 />
+              ) : current.posterUrl || current.videoUrl ? (
+                <img src={current.posterUrl ?? current.videoUrl ?? ""} alt="" className="video-poster" />
               ) : (
-                <div className="video-empty">Animation pending</div>
+                <div className="video-empty">Animation coming soon</div>
               )}
             </article>
           )}
@@ -145,19 +156,19 @@ export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false,
         type="button"
         aria-label="Previous page"
         onClick={flipPrev}
-        className="btn ghost"
-        style={{ position: "absolute", top: "50%", left: 8, transform: "translateY(-50%)", borderRadius: "50%", width: 40, height: 40, padding: 0 }}
+        className="stage-arrow left"
+        disabled={pageIndex === 0}
       >
-        ‹
+        <svg viewBox="0 0 24 24" aria-hidden><path d="M15.5 5.5 9 12l6.5 6.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </button>
       <button
         type="button"
         aria-label="Next page"
         onClick={flipNext}
-        className="btn ghost"
-        style={{ position: "absolute", top: "50%", right: 8, transform: "translateY(-50%)", borderRadius: "50%", width: 40, height: 40, padding: 0 }}
+        className="stage-arrow right"
+        disabled={pageIndex >= pages.length - 1}
       >
-        ›
+        <svg viewBox="0 0 24 24" aria-hidden><path d="M8.5 5.5 15 12l-6.5 6.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </button>
     </div>
   );

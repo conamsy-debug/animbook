@@ -27,6 +27,14 @@
  *                        --force for them only; everything else is left alone)
  *   --recast             rewrite the saved cast sheets instead of reusing them
  *
+ * Narration (ElevenLabs → R2 MP3 → page.audioUrl)
+ *   --audio              also narrate pages that have no narration yet
+ *   --audio-only         narrate only (no video, no covers)
+ *   --voice <id>         ElevenLabs voice id (else the book's narrator voice,
+ *                        else ELEVENLABS_NARRATOR_VOICE_ID, else "Rachel")
+ *   --list-voices        print the voices on your ElevenLabs account and exit
+ *   --max-chars 25000    narration budget in characters
+ *
  * Cast sheets: before generating, Claude reads each book (or the whole World
  * for books that share characters, e.g. Lagos Nights) and writes one fixed
  * description per character — age, build, skin tone, hair, clothing — that is
@@ -38,6 +46,7 @@ import { appEnv, isFeatureEnabled } from "../src/config/env.js";
 import { prisma } from "../src/db.js";
 import { generateClip, generateStill, estimateClipCredits } from "../src/services/runway.js";
 import { mirrorToR2 } from "../src/services/cloudflare.js";
+import { characterQuota, generateNarration, listVoices, narratorVoiceId } from "../src/services/elevenlabs.js";
 
 // ---------- args ----------
 const argv = process.argv.slice(2);
@@ -51,7 +60,12 @@ const ONLY_ITEMS = opt("only")?.split(",").map((s) => s.trim().toLowerCase()).fi
 const FORCE = flag("force") || Boolean(ONLY_ITEMS);
 const RECAST = flag("recast");
 const CAST_FILE = "seed-clips-cast.json";
-const COVERS = !flag("no-covers");
+const AUDIO_ONLY = flag("audio-only");
+const AUDIO = AUDIO_ONLY || flag("audio");
+const VIDEO = !AUDIO_ONLY;
+const VOICE = opt("voice");
+const MAX_CHARS = Number(opt("max-chars", "25000"));
+const COVERS = !flag("no-covers") && VIDEO;
 const USE_CLAUDE = !flag("no-claude") && isFeatureEnabled("BOOK_BRAIN");
 const ONLY = opt("book")?.split(",").map((s) => s.trim()).filter(Boolean);
 const LIMIT = Number(opt("limit", "0")) || Infinity;
@@ -264,7 +278,7 @@ async function loadBooks() {
       vertical: true,
       coverUrl: true,
       iconographicNotes: true,
-      brain: { select: { styleSelected: true, culturalOrigin: true } },
+      brain: { select: { styleSelected: true, culturalOrigin: true, narratorVoiceId: true } },
       worldMembership: {
         select: {
           sharedCharacters: true,
@@ -296,7 +310,8 @@ async function loadBooks() {
           sceneType: true,
           emotionalRegister: true,
           cameraAngle: true,
-          videoUrl: true
+          videoUrl: true,
+          audioUrl: true
         }
       }
     }
@@ -329,7 +344,7 @@ async function withDbRetry<T>(label: string, fn: () => Promise<T>, attempts = 6)
 // ---------- run ----------
 interface ReportRow {
   book: string;
-  page: number | "cover";
+  page: number | "cover" | `audio-${number}`;
   status: "done" | "failed" | "skipped-budget";
   videoUrl?: string;
   posterUrl?: string;
@@ -348,9 +363,18 @@ async function pool<T>(items: T[], size: number, fn: (item: T) => Promise<void>)
 }
 
 async function main() {
+  if (flag("list-voices")) {
+    const voices = await listVoices();
+    for (const v of voices) {
+      const labels = v.labels ? Object.values(v.labels).join(", ") : "";
+      console.log(`${v.voice_id}  ${v.name.padEnd(28)} ${v.category ?? ""}  ${labels}`);
+    }
+    return;
+  }
   if (!DRY) {
     const missing = [
-      !isFeatureEnabled("RUNWAY") && "RUNWAY_API_KEY",
+      VIDEO && !isFeatureEnabled("RUNWAY") && "RUNWAY_API_KEY",
+      AUDIO && !isFeatureEnabled("ELEVENLABS") && "ELEVENLABS_API_KEY",
       !isFeatureEnabled("CLOUDFLARE") && "CLOUDFLARE_ACCOUNT_ID / R2 access key / R2 secret",
       !appEnv.CLOUDFLARE_CDN_BASE && "CLOUDFLARE_CDN_BASE"
     ].filter(Boolean);
@@ -360,25 +384,46 @@ async function main() {
   if (ONLY_ITEMS && !ONLY) throw new Error("--only needs --book <slug>");
   const books = await loadBooks();
   let pagesPlanned = 0;
+  const wanted = (p: PageRow, existing: string | null) =>
+    ONLY_ITEMS ? ONLY_ITEMS.includes(String(p.pageNum)) : FORCE || isPlaceholder(existing);
   const plan = books
     .map((book) => {
-      const pages = book.pages.filter((p) =>
-        ONLY_ITEMS ? ONLY_ITEMS.includes(String(p.pageNum)) : FORCE || isPlaceholder(p.videoUrl)
-      );
+      const pages = VIDEO ? book.pages.filter((p) => wanted(p, p.videoUrl)) : [];
       const take = pages.slice(0, Math.max(0, LIMIT - pagesPlanned));
       pagesPlanned += take.length;
-      const cover = ONLY_ITEMS ? ONLY_ITEMS.includes("cover") : COVERS && (FORCE || isPlaceholder(book.coverUrl));
-      return { book, pages: take, cover };
+      const audioPages = AUDIO ? book.pages.filter((p) => wanted(p, p.audioUrl)) : [];
+      const cover = !VIDEO
+        ? false
+        : ONLY_ITEMS
+          ? ONLY_ITEMS.includes("cover")
+          : COVERS && (FORCE || isPlaceholder(book.coverUrl));
+      return { book, pages: take, audioPages, cover };
     })
-    .filter((b) => b.pages.length || b.cover);
-
+    .filter((b) => b.pages.length || b.cover || b.audioPages.length);
+  const audioCount = plan.reduce((n, b) => n + b.audioPages.length, 0);
+  const audioChars = plan.reduce((n, b) => n + b.audioPages.reduce((m, p) => m + p.textExcerpt.trim().length, 0), 0);
   const coverCount = plan.filter((b) => b.cover).length;
   const est = pagesPlanned * PAGE_CREDITS + coverCount * COVER_CREDITS;
-  console.log(`\nAnimBook seed clips — ${plan.length} books, ${pagesPlanned} pages, ${coverCount} covers`);
-  console.log(`Estimate: ~${est} Runway credits (~$${(est / 100).toFixed(2)}), ${DURATION}s clips, budget ${MAX_CREDITS}`);
-  console.log(`Prompts: ${USE_CLAUDE ? `Claude (${appEnv.ANTHROPIC_BOOK_BRAIN_MODEL})` : "template"}\n`);
-  for (const { book, pages, cover } of plan) {
-    console.log(`  ${book.slug.padEnd(44)} ${String(pages.length).padStart(3)} pages${cover ? " + cover" : ""}`);
+  console.log(`\nAnimBook seed media — ${plan.length} books, ${pagesPlanned} clips, ${coverCount} covers, ${audioCount} narrations`);
+  if (VIDEO) {
+    console.log(`Video: ~${est} Runway credits (~$${(est / 100).toFixed(2)}), ${DURATION}s clips, budget ${MAX_CREDITS}`);
+    console.log(`Prompts: ${USE_CLAUDE ? `Claude (${appEnv.ANTHROPIC_BOOK_BRAIN_MODEL})` : "template"}`);
+  }
+  if (AUDIO) {
+    const quota = await characterQuota();
+    console.log(
+      `Narration: ~${audioChars} ElevenLabs characters, budget ${MAX_CHARS}` +
+        (quota ? ` · account has ${quota.limit - quota.used} of ${quota.limit} left this period` : "")
+    );
+  }
+  console.log("");
+  for (const { book, pages, cover, audioPages } of plan) {
+    const parts = [
+      pages.length ? `${pages.length} clips` : "",
+      cover ? "cover" : "",
+      audioPages.length ? `${audioPages.length} narrations` : ""
+    ].filter(Boolean);
+    console.log(`  ${book.slug.padEnd(44)} ${parts.join(" + ")}`);
   }
   if (DRY) {
     if (flag("show-cast")) {
@@ -398,10 +443,11 @@ async function main() {
     return true;
   };
 
-  for (const { book, pages, cover } of plan) {
+  let charsUsed = 0;
+  for (const { book, pages, cover, audioPages } of plan) {
     const style = resolveStyle(book);
     console.log(`\n▶ ${book.title}`);
-    const cast = await castFor(book);
+    const cast = VIDEO ? await castFor(book) : null;
 
     if (cover) {
       if (!reserve(COVER_CREDITS)) {
@@ -481,14 +527,40 @@ async function main() {
         console.warn(`  ✗ p${page.pageNum}: ${(err as Error).message}`);
       }
     });
+
+    const voice = VOICE ?? narratorVoiceId(book.brain?.narratorVoiceId);
+    for (const page of audioPages) {
+      const text = page.textExcerpt.trim();
+      if (charsUsed + text.length > MAX_CHARS) {
+        report.push({ book: book.slug, page: `audio-${page.pageNum}`, status: "skipped-budget" });
+        continue;
+      }
+      charsUsed += text.length;
+      try {
+        const narration = await generateNarration({
+          text,
+          voiceId: voice,
+          storageKey: `books/${book.slug}/p${page.pageNum}-voice-${Date.now().toString(36)}.mp3`,
+          strict: true
+        });
+        await withDbRetry(`p${page.pageNum} narration save`, () =>
+          prisma.page.update({ where: { id: page.id }, data: { audioUrl: narration.audioUrl, vttUrl: null } })
+        );
+        report.push({ book: book.slug, page: `audio-${page.pageNum}`, status: "done", videoUrl: narration.audioUrl ?? undefined });
+        console.log(`  ✓ p${page.pageNum} narration`);
+      } catch (err) {
+        report.push({ book: book.slug, page: `audio-${page.pageNum}`, status: "failed", error: (err as Error).message });
+        console.warn(`  ✗ p${page.pageNum} narration: ${(err as Error).message}`);
+      }
+    }
   }
 
   const file = `seed-clips-report-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-  writeFileSync(file, JSON.stringify({ spentEstimate: spent, report }, null, 2));
+  writeFileSync(file, JSON.stringify({ spentEstimate: spent, narrationCharacters: charsUsed, report }, null, 2));
   const done = report.filter((r) => r.status === "done").length;
   const failed = report.filter((r) => r.status === "failed").length;
   const skipped = report.filter((r) => r.status === "skipped-budget").length;
-  console.log(`\nDone ${done} · failed ${failed} · skipped for budget ${skipped} · ~${spent} credits. Report: ${file}`);
+  console.log(`\nDone ${done} · failed ${failed} · skipped for budget ${skipped} · ~${spent} Runway credits · ${charsUsed} narration characters. Report: ${file}`);
   if (failed) console.log("Re-run the same command to retry failures — finished pages are skipped.");
 }
 

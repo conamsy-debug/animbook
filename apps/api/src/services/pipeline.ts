@@ -249,15 +249,20 @@ async function runAudioStage(projectId: string): Promise<void> {
   const project = await prisma.studioProject.findUnique({ where: { id: projectId }, select: { bookId: true } });
   if (!project?.bookId) return;
   const pages = await prisma.page.findMany({ where: { bookId: project.bookId }, orderBy: { pageNum: "asc" } });
-  await Promise.all(
-    pages.map(async (page) => {
-      const result = await generateNarration({ text: page.textExcerpt });
-      await prisma.page.update({
-        where: { id: page.id },
-        data: { audioUrl: result.audioUrl, vttUrl: result.vttUrl }
-      });
-    })
-  );
+  const brain = await prisma.bookBrain.findUnique({ where: { bookId: project.bookId }, select: { narratorVoiceId: true } });
+  // Sequential: ElevenLabs limits concurrent requests on smaller plans.
+  for (const page of pages) {
+    const result = await generateNarration({
+      text: page.textExcerpt,
+      voiceId: brain?.narratorVoiceId,
+      storageKey: `narration/${projectId}/p${page.pageNum}-${Date.now().toString(36)}.mp3`
+    });
+    if (!result.audioUrl) continue;
+    await prisma.page.update({
+      where: { id: page.id },
+      data: { audioUrl: result.audioUrl, vttUrl: result.vttUrl }
+    });
+  }
 }
 
 export async function shutdownPipeline(): Promise<void> {
