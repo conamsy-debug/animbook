@@ -20,6 +20,7 @@
 import type { Request, Response } from "express";
 import { Router } from "express";
 import { authMiddleware, requireUserId, type AuthedRequest } from "../../auth/middleware.js";
+import { deleteClerkUser } from "../../auth/clerk.js";
 import { prisma } from "../../db.js";
 import { appEnv, isFeatureEnabled } from "../../config/env.js";
 
@@ -231,8 +232,18 @@ router.post(
       })
     ]);
 
+    // 9. Remove the sign-in itself so the reader can't log back into an
+    //    empty shell (and a fresh sign-up starts clean).
+    let loginRemoved = false;
+    try {
+      loginRemoved = await deleteClerkUser(user.clerkId);
+    } catch (err) {
+      console.error("[account/delete] Clerk user deletion failed:", (err as Error).message);
+    }
+
     res.json({
       ok: true,
+      loginRemoved,
       deletedAt: new Date().toISOString(),
       message:
         "Your account has been anonymised. Library, achievements, memory, page-signal events, and dream sessions have been deleted. Subscriptions have been cancelled. The deletion audit row is the only thing retained, as required by GDPR Art. 30.",

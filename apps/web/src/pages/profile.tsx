@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Topbar } from "@/components/Topbar";
 import { ErrorBoundary, ErrorState } from "@/components/ErrorBoundary";
 import { LoadingState, EmptyState } from "@/components/States";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, type LibraryEntry } from "@/lib/api";
 import { useLibraryStore, useToastStore } from "@/lib/store";
 import Link from "next/link";
 import { SignInPrompt } from "@/components/SignInPrompt";
@@ -15,7 +15,7 @@ interface ProfileData {
     tier: string;
     subscriptionStatus: string | null;
   };
-  integrations: Record<string, boolean>;
+  paymentsLive: boolean;
 }
 
 export default function ProfilePage() {
@@ -25,17 +25,57 @@ export default function ProfilePage() {
   const [needsSignIn, setNeedsSignIn] = useState(false);
   const library = useLibraryStore();
   const toast = useToastStore((s) => s.push);
+  // window.Clerk is set by <ClerkProvider>; reading it (rather than useClerk)
+  // keeps this page working in local builds that run without a Clerk key.
+  const clerk = typeof window !== "undefined"
+    ? ((window as unknown as { Clerk?: { signOut(o?: { redirectUrl?: string }): Promise<void>; openUserProfile(): void } }).Clerk)
+    : undefined;
+  const [busy, setBusy] = useState<"export" | "delete" | null>(null);
+
+  async function exportData() {
+    setBusy("export");
+    try {
+      const payload = await apiFetch<unknown>("/api/account/export");
+      const text = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+      const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `animbook-data-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast(`Could not export your data: ${(err as Error).message}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function deleteAccount() {
+    if (!window.confirm("Permanently delete your AnimBook account and all your data? This cannot be undone.")) return;
+    setBusy("delete");
+    try {
+      await apiFetch("/api/account/delete", { method: "POST", json: { confirm: true } });
+      toast("Your account has been deleted.");
+      if (clerk) await clerk.signOut({ redirectUrl: "/" });
+      else window.location.href = "/";
+    } catch (err) {
+      toast(`Could not delete account: ${(err as Error).message}`);
+      setBusy(null);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const [me, integrations] = await Promise.all([
+        const [me, lib, pricing] = await Promise.all([
           apiFetch<{ user: ProfileData["user"] }>("/api/account/me"),
-          apiFetch<{ integrations: Record<string, boolean> }>("/api/health")
+          apiFetch<{ items: LibraryEntry[] }>("/api/library").catch(() => ({ items: [] as LibraryEntry[] })),
+          apiFetch<{ live: boolean }>("/api/legal/pricing").catch(() => ({ live: false }))
         ]);
         if (!cancelled) {
-          setData({ user: me.user, integrations: integrations.integrations });
+          library.hydrate(lib.items);
+          setData({ user: me.user, paymentsLive: pricing.live });
           setLoading(false);
         }
       } catch (err) {
@@ -119,25 +159,34 @@ export default function ProfilePage() {
             <span className="dot" style={{ background: "#C49A1C" }} />
             <h1>Your profile</h1>
           </div>
-          <span className="label">11 phases shipped</span>
         </header>
 
         <div className="grid">
           <section className="card">
             <h3>Account</h3>
             <dl className="kvp">
-              <dt>Email</dt>
-              <dd>{dataReady.user.email}</dd>
               <dt>Name</dt>
               <dd>{dataReady.user.name}</dd>
-              <dt>Tier</dt>
-              <dd>{dataReady.user.tier}</dd>
-              <dt>Status</dt>
-              <dd>{dataReady.user.subscriptionStatus ?? "—"}</dd>
+              <dt>Email</dt>
+              <dd>{dataReady.user.email}</dd>
+              <dt>Plan</dt>
+              <dd>{dataReady.user.tier === "BASIC" ? "Free" : dataReady.user.tier.charAt(0) + dataReady.user.tier.slice(1).toLowerCase()}</dd>
             </dl>
-            <button type="button" className="btn" onClick={startCheckout}>
-              Upgrade · Premium
-            </button>
+            {dataReady.paymentsLive ? (
+              <button type="button" className="btn primary" onClick={startCheckout}>
+                Upgrade to Premium
+              </button>
+            ) : (
+              <p className="muted" style={{ fontSize: 14 }}>
+                Premium plans are coming soon. During early access every reader gets the full library.{" "}
+                <Link href="/pricing">See plans</Link>
+              </p>
+            )}
+            {process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? (
+              <button type="button" className="btn ghost" onClick={() => clerk?.openUserProfile()}>
+                Manage sign-in &amp; security
+              </button>
+            ) : null}
           </section>
           <section className="card">
             <h3>Library</h3>
@@ -151,53 +200,34 @@ export default function ProfilePage() {
               <ul>
                 {library.entries.map((entry) => (
                   <li key={entry.id}>
-                    Page {entry.progressPage} · Mode {entry.mode} · {entry.completed ? "complete" : "in progress"}
+                    <Link href={`/read/${entry.book?.slug ?? entry.bookId}`}>{entry.book?.title ?? "Untitled"}</Link>
+                    {" · "}
+                    {entry.completed ? "Finished" : `Page ${entry.progressPage} of ${entry.book?.totalPages ?? "?"}`}
                   </li>
                 ))}
               </ul>
             )}
           </section>
           <section className="card">
-            <h3>AI integrations</h3>
-            <ul>
-              {Object.entries(dataReady.integrations).map(([name, enabled]) => (
-                <li key={name}>
-                  <strong>{name}</strong>: {enabled ? "live" : "fallback"}
-                </li>
-              ))}
-            </ul>
-            <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>
-              <Link href="/pricing">View pricing</Link> · <Link href="/legal/privacy">Privacy</Link> · <Link href="/legal/terms">Terms</Link>
-            </p>
-          </section>
-          <section className="card">
             <h3>Your data</h3>
             <p className="muted">Export everything we hold about you, or remove your account.</p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => window.open("/api/account/export", "_blank")}
-              >
-                Export my data (GDPR)
+              <button type="button" className="btn" disabled={busy !== null} onClick={exportData}>
+                {busy === "export" ? "Preparing…" : "Download my data"}
               </button>
               <button
                 type="button"
                 className="btn"
                 style={{ borderColor: "#C94B32" }}
-                onClick={async () => {
-                  if (!window.confirm("Permanently delete your account and all data?")) return;
-                  try {
-                    await apiFetch("/api/account/delete", { method: "POST", json: { confirm: true } });
-                    toast("Account removed. Signing you out.");
-                  } catch (err) {
-                    toast(`Could not delete account: ${(err as Error).message}`);
-                  }
-                }}
+                disabled={busy !== null}
+                onClick={deleteAccount}
               >
-                Delete my account
+                {busy === "delete" ? "Deleting…" : "Delete my account"}
               </button>
             </div>
+            <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>
+              <Link href="/legal/privacy">Privacy</Link> · <Link href="/legal/terms">Terms</Link>
+            </p>
           </section>
         </div>
       </main>

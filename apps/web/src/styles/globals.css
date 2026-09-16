@@ -321,6 +321,8 @@ h1 {
   border-color: var(--accent);
 }
 .btn.primary:hover { background: var(--accent-2); border-color: var(--accent-2); }
+.btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.card .btn + .btn, .card p + .btn { margin-top: 10px; }
 
 /* ==== Misc ==== */
 .empty-state {

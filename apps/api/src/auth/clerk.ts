@@ -107,3 +107,13 @@ async function provision(clerkUserId: string): Promise<{ id: string; clerkId: st
     throw err;
   }
 }
+
+/**
+ * Remove the reader's Clerk login (used by GDPR erasure). Only real Clerk ids
+ * ("user_…") are sent; demo and already-anonymised ids are ignored.
+ */
+export async function deleteClerkUser(clerkUserId: string): Promise<boolean> {
+  if (!appEnv.CLERK_SECRET_KEY || !clerkUserId.startsWith("user_")) return false;
+  await getClerkClient().users.deleteUser(clerkUserId);
+  return true;
+}
