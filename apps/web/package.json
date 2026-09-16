@@ -10,17 +10,15 @@
     "test": "node --test"
   },
   "dependencies": {
-    "framer-motion": "^12.42.2",
-    "next": "14.2.35",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "zustand": "^5.0.3"
-  },
-  "devDependencies": {
     "@clerk/nextjs": "^6.39.6",
     "@types/node": "^22.10.7",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
-    "typescript": "^5.7.3"
+    "framer-motion": "^12.42.2",
+    "next": "14.2.35",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "typescript": "^5.7.3",
+    "zustand": "^5.0.3"
   }
 }
