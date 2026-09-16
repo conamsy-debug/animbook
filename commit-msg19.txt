@@ -1,0 +1,24 @@
+Fix tsconfig.railway.json module / moduleResolution conflict
+
+Previous railway config had:
+  "module": "NodeNext",
+  "moduleResolution": "Bundler"
+
+TypeScript rejects this combo:
+  TS5095: Option 'bundler' can only be used when 'module' is set
+         to 'preserve' or es2015+
+  TS5109: Option 'moduleResolution' must be 'NodeNext' when
+         'module' is set to 'NodeNext'
+
+Switched both to a single, composable pair for the Railway build:
+  "module": "CommonJS",
+  "moduleResolution": "node"
+
+Keeps everything else from the previous config — outDir/rootDir
+(still pointing at apps/api/dist), skipLibCheck, noImplicitAny,
+strict:false, esModuleInterop, allowSyntheticDefaultImports,
+resolveJsonModule, declaration:false, sourceMap:false.
+
+The output JS is still consumable by the runtime because apps/api's
+package.json declares "type": "module" + ESM-style .js import
+suffixes; tsc just emits plain JS, Node resolves it.

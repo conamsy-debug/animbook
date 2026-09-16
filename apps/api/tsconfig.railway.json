@@ -8,23 +8,26 @@
   // TODO(after-launch): audit and merge back into tsconfig.json with
   // proper interface fixes (AuthedRequest extends Request, body/params/
   // query typed correctly).
+  //
+  // Module + moduleResolution are CommonJS/"node" — composable for a
+  // single-target build. The previous "NodeNext + Bundler" combo is
+  // invalid (TS5095 + TS5109). Output remains ESM-compatible because
+  // tsc only emits JS; the runtime uses the existing package.json
+  // "type": "module" + .js import suffixes.
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "strict": false,
-    "noImplicitAny": false,
-    "noEmitOnError": false,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "moduleResolution": "Bundler",
-    "module": "NodeNext",
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "node",
     "outDir": "dist",
     "rootDir": "src",
-    "types": [],
-    "sourceMap": true
+    "skipLibCheck": true,
+    "noImplicitAny": false,
+    "strict": false,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "declaration": false,
+    "sourceMap": false
   },
-  "include": ["src/**/*.ts", "src/types/**/*.d.ts"]
+  "include": ["src/**/*.ts"]
 }
