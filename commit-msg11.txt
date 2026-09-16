@@ -1,0 +1,21 @@
+Make packages/domain/tsconfig.json self-contained (drop extends)
+
+The COPY of tsconfig.base.json added in commit 31eb028 helped the
+file exist in the build context, but Railway's build cache meant the
+env-var RAILPACK_BUILD_CMD kept running the stale build, and the
+cleaner fix is to remove the dependency entirely.
+
+packages/domain/tsconfig.json now inlines all compiler options from
+tsconfig.base.json (target, lib, strict, noUncheckedIndexedAccess,
+exactOptionalPropertyTypes, skipLibCheck, esModuleInterop,
+allowSyntheticDefaultImports, forceConsistentCasingInFileNames,
+resolveJsonModule, moduleResolution) plus the domain-specific
+overrides (module: ESNext, declaration, declarationMap, outDir,
+rootDir, types, include).
+
+This means packages/domain builds in any Docker context that has
+node + npm — no dependency on tsconfig.base.json being present.
+
+Also removed the now-unnecessary
+  COPY tsconfig.base.json ./
+lines from Dockerfile.api and Dockerfile.web.

@@ -17,14 +17,14 @@ WORKDIR /app
 
 COPY package.json package-lock.json .npmrc ./
 
-# Root tsconfig.base.json — packages/domain/tsconfig.json extends it.
-COPY tsconfig.base.json ./
-
 # Only the workspaces the Web needs. Skipping apps/api, apps/mobile,
 # apps/tv entirely — they have heavy install steps that conflict with
 # multi-workspace installs (EBUSY on .vite or node_modules).
 COPY packages/domain/package.json ./packages/domain/
 COPY apps/web/package.json ./apps/web/
+
+# packages/domain/tsconfig.json is now self-contained (no `extends`),
+# so no root tsconfig.base.json is needed in the image.
 
 RUN npm ci --legacy-peer-deps --ignore-scripts --no-audit --no-fund \
       --include-workspace-root \
