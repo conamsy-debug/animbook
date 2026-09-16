@@ -99,6 +99,7 @@ export const APP_ROUTES: Module[] = [
     description: "Public pricing + GDPR export/erase.",
     routes: [
       { method: "GET", path: "/api/legal/pricing", auth: "public", summary: "3-tier pricing table for the /pricing page." },
+      { method: "GET", path: "/api/account/me", auth: "user", summary: "The signed-in reader's account (profile page)." },
       { method: "GET", path: "/api/account/export", auth: "user", summary: "GDPR Art. 20 — data portability (JSON download)." },
       { method: "POST", path: "/api/account/delete", auth: "user", summary: "GDPR Art. 17 — right to erasure.", notes: "Audit row preserved as required by Art. 30." }
     ]

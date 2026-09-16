@@ -5,6 +5,7 @@ import { LoadingState, EmptyState } from "@/components/States";
 import { apiFetch } from "@/lib/api";
 import { useLibraryStore, useToastStore } from "@/lib/store";
 import Link from "next/link";
+import { SignInPrompt } from "@/components/SignInPrompt";
 
 interface ProfileData {
   user: {
@@ -21,6 +22,7 @@ export default function ProfilePage() {
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [needsSignIn, setNeedsSignIn] = useState(false);
   const library = useLibraryStore();
   const toast = useToastStore((s) => s.push);
 
@@ -28,20 +30,17 @@ export default function ProfilePage() {
     let cancelled = false;
     async function load() {
       try {
-        const integrations = await apiFetch<{ integrations: Record<string, boolean> }>("/api/health");
-        const fakeUser = {
-          id: "demo",
-          email: "demo@animbook.com",
-          name: "AnimBook Reader",
-          tier: "PREMIUM",
-          subscriptionStatus: "ACTIVE"
-        };
+        const [me, integrations] = await Promise.all([
+          apiFetch<{ user: ProfileData["user"] }>("/api/account/me"),
+          apiFetch<{ integrations: Record<string, boolean> }>("/api/health")
+        ]);
         if (!cancelled) {
-          setData({ user: fakeUser, integrations: integrations.integrations });
+          setData({ user: me.user, integrations: integrations.integrations });
           setLoading(false);
         }
       } catch (err) {
         if (!cancelled) {
+          setNeedsSignIn((err as { status?: number }).status === 401);
           setError((err as Error).message);
           setLoading(false);
         }
@@ -67,6 +66,17 @@ export default function ProfilePage() {
     } catch (err) {
       toast(`Could not start checkout: ${(err as Error).message}`);
     }
+  }
+
+  if (needsSignIn) {
+    return (
+      <div className="app-shell">
+        <Topbar />
+        <main className="container">
+          <SignInPrompt message="Sign in to see your profile." />
+        </main>
+      </div>
+    );
   }
 
   if (error) {

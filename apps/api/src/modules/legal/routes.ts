@@ -6,6 +6,8 @@
  *   env vars when configured, otherwise the published IDs here are the
  *   canonical placeholders for the live account we provision.
  *
+ * - GET /api/account/me — the signed-in reader's account (profile page).
+ *
  * - POST /api/account/export — GDPR Art. 20 (data portability).
  *   Returns every record tied to the calling user as a downloadable JSON
  *   blob. Streaming download so even large libraries fit.
@@ -106,6 +108,23 @@ router.get("/legal/pricing", (_req: Request, res: Response) => {
     tiers: pricingTiers(),
     lastUpdated: "2026-08-16"
   });
+});
+
+/**
+ * GET /api/account/me — the signed-in reader's own account row.
+ * Drives the /profile page.
+ */
+router.get("/account/me", authMiddleware, async (req: AuthedRequest, res: Response) => {
+  const userId = requireUserId(req);
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, name: true, tier: true, subscriptionStatus: true, createdAt: true }
+  });
+  if (!user) {
+    res.status(404).json({ error: "Account not found" });
+    return;
+  }
+  res.json({ user });
 });
 
 /**
