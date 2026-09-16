@@ -1,0 +1,18 @@
+Refresh package-lock.json (ts-node + post-install entries)
+
+Ran `npm install --package-lock-only --legacy-peer-deps` from the
+monorepo root to pick up the new ts-node@10.9.2 devDependency in
+apps/api/package.json plus the allowScripts metadata npm added in
+recent versions. The lock file now reflects:
+
+- ts-node@10.9.2 + transitive deps (ts-node has a long dep tree:
+  @cspotcode/source-map-support, @tsconfig/node10/12/14/16,
+  acorn, acorn-walk, arg, diff, make-error, typescript, v8-compile-cache,
+  yn)
+- npm approve-scripts metadata for the 6 packages with install
+  scripts (@apollo/protobufjs, @prisma/client, @prisma/engines,
+  esbuild, prisma) — informational; doesn't run scripts during install
+  because we pass --ignore-scripts.
+
+No source code changed. apps/api/package.json already has ts-node
+declared (commit 57ab3d8). The lock file just needed to catch up.
