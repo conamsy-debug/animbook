@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { BookSummary, LibraryEntry, PageRecord } from "@/lib/api";
-import type { ReadingMode } from "@animbook/domain";
+import type { ReadingMode } from "../domain/index.js";
 
 export interface ReaderState {
   book: BookSummary;

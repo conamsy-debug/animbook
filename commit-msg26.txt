@@ -1,0 +1,29 @@
+Inline @animbook/domain into apps/web + Railway deploy config
+
+Mirrors the apps/api treatment from commit 9a8436c, applied to the
+web client so its NIXPACKS build doesn't need to pre-compile the
+workspace domain package.
+
+Changes:
+- apps/web/src/domain/index.ts: new file, verbatim copy of
+  packages/domain/src/index.ts (170 LOC). Header comment notes
+  packages/domain/src/index.ts remains the source of truth.
+- 3 import sites in apps/web updated from "@animbook/domain" to
+  relative paths:
+    - components/CheckpointOverlay.tsx (../domain/index.js)
+    - pages/edu/index.tsx          (../../domain/index.js)
+    - lib/store.ts                 (../domain/index.js)
+- apps/web/package.json: removed "@animbook/domain": "0.1.0"
+  from dependencies.
+- apps/web/railway.json:
+    buildCommand: npm install --include=dev --production=false
+      --legacy-peer-deps --ignore-scripts --workspace=apps/web
+      --include-workspace-root && cd apps/web && npx next build
+    startCommand: cd apps/web && npx next start -p 3000
+  Same install-with-workspace-filter pattern as the API service.
+
+apps/web/tsconfig.json was already self-contained (no extends)
+from commit a95d451 — nothing to change there.
+
+After deploy, both API and Web run with the domain types inlined
+inside each service, no inter-workspace dependency at build time.

@@ -2,10 +2,10 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "npm install --include=dev --legacy-peer-deps --ignore-scripts --workspace=apps/web --workspace=packages/domain --include-workspace-root && npm run build -w @animbook/domain && cd apps/web && npx next build"
+    "buildCommand": "npm install --include=dev --production=false --legacy-peer-deps --ignore-scripts --workspace=apps/web --include-workspace-root && cd apps/web && npx next build"
   },
   "deploy": {
-    "startCommand": "npm start",
+    "startCommand": "cd apps/web && npx next start -p 3000",
     "healthcheckPath": "/",
     "healthcheckTimeout": 120,
     "restartPolicyType": "ON_FAILURE",

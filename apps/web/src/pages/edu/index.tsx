@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Topbar } from "@/components/Topbar";
 import { apiFetch } from "@/lib/api";
-import type { TeacherDashboardSummary } from "@animbook/domain";
+import type { TeacherDashboardSummary } from "../../domain/index.js";
 
 interface DashboardResponse {
   summary: TeacherDashboardSummary;

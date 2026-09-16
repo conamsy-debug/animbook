@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import type { EduCheckpoint, DifficultyScore } from "@animbook/domain";
+import type { EduCheckpoint, DifficultyScore } from "../domain/index.js";
 
 interface Props {
   pageId: string;
