@@ -16,7 +16,6 @@
     "db:reset": "prisma migrate reset --force"
   },
   "dependencies": {
-    "@animbook/domain": "0.1.0",
     "@apollo/server": "^4.12.2",
     "@clerk/backend": "^3.13.1",
     "@prisma/client": "^6.19.0",

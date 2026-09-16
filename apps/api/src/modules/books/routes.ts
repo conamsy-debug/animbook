@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { Router } from "express";
 import { z } from "zod";
-import { VERTICALS, CONSUMER_WORLDS } from "@animbook/domain";
+import { VERTICALS, CONSUMER_WORLDS } from "../../domain/index.js";
 import { appEnv, isFeatureEnabled } from "../../config/env.js";
 import { prisma } from "../../db.js";
 import { withCache } from "../../cache/index.js";

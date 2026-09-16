@@ -3,7 +3,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { authMiddleware, requireUserId, type AuthedRequest } from "../../auth/middleware.js";
 import { prisma } from "../../db.js";
-import { CURRICULUM_FRAMEWORKS, type CurriculumFramework, type TeacherDashboardSummary } from "@animbook/domain";
+import { CURRICULUM_FRAMEWORKS, type CurriculumFramework, type TeacherDashboardSummary } from "../../domain/index.js";
 import { generateCheckpoint, type CheckpointCandidate } from "../../services/checkpointGenerator.js";
 import { calibrateDifficulty } from "../../services/difficultyCalibration.js";
 import { getMisconceptions } from "../../services/misconceptionDatabase.js";

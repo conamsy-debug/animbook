@@ -1,0 +1,30 @@
+Inline @animbook/domain into apps/api — drop workspace dep
+
+Railway's build kept tripping on packages/domain's pre-compile step
+(tsconfig.base.json error from cached Docker layer that ignored
+all our tsconfig fixes). Eliminate the workspace dependency for the
+API service so the build chain is one self-contained tsc.
+
+Changes:
+- New apps/api/src/domain/index.ts — verbatim copy of
+  packages/domain/src/index.ts (170 LOC). Header comment notes that
+  packages/domain/src/index.ts remains the source of truth.
+- 5 imports in apps/api/src updated from "@animbook/domain" to
+  relative paths: "../../domain/index.js"
+    - modules/books/routes.ts (VERTICALS, CONSUMER_WORLDS)
+    - modules/edu/routes.ts (CURRICULUM_FRAMEWORKS, types)
+    - services/difficultyCalibration.ts (DifficultyScore)
+    - services/checkpointGenerator.ts (EduQuestionType, DifficultyScore)
+    - services/curriculumMapping.ts (CURRICULUM_FRAMEWORKS, types)
+- apps/api/package.json: removed "@animbook/domain": "0.1.0" from
+  dependencies.
+- apps/api/railway.json buildCommand: dropped
+  "--workspace=packages/domain" from the install and removed
+  "npm run build -w @animbook/domain &&" entirely.
+
+Result: API build is now `npm install → prisma generate → tsc` with
+no inter-workspace dependency. NIXPACKS never has to compile the
+domain package.
+
+Not touched (deliberate): apps/web still uses @animbook/domain via
+the workspace; will get the same treatment when web deploys.
