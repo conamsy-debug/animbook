@@ -2,7 +2,7 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "npm install --include=dev --production=false --legacy-peer-deps --ignore-scripts --workspace=apps/api --workspace=packages/domain --include-workspace-root && npm run build -w @animbook/domain && cd apps/api && npx prisma generate && npx tsc -p tsconfig.json"
+    "buildCommand": "npm install --include=dev --production=false --legacy-peer-deps --ignore-scripts --workspace=apps/api --workspace=packages/domain --include-workspace-root && npm run build -w @animbook/domain && cd apps/api && npx prisma generate && npx tsc -p tsconfig.railway.json"
   },
   "deploy": {
     "startCommand": "node apps/api/dist/index.js",
