@@ -1,0 +1,22 @@
+Flatten apps/api/tsc output to dist/index.js (no src/ prefix)
+
+Railway's NIXPACKS runtime was looking for /app/apps/api/dist/index.js
+but the tsc output was at /app/apps/api/dist/src/index.js. Mismatch
+caused "Cannot find module ... dist/index.js".
+
+Root cause: apps/api/tsconfig.json had rootDir: "." (= apps/api/) with
+include: "src/**/*.ts". TypeScript preserves the within-rootDir
+structure, so src/index.ts compiled to dist/src/index.js.
+
+Fix:
+- tsconfig rootDir: "."  →  "src"
+  Now src/index.ts → dist/index.js (flat, conventional Node build)
+- include dropped "prisma/**/*.ts" (those are run via tsx, not compiled)
+- apps/api/package.json `start`  →  node dist/index.js
+- apps/api/railway.json startCommand  →  node apps/api/dist/index.js
+- root package.json `start:api`  →  node apps/api/dist/index.js
+- scripts/watch-shells.mjs (local supervisor cmd)  →  node dist/index.js
+- Dockerfile.api CMD  →  node apps/api/dist/index.js
+
+Build output is now unambiguous: apps/api/dist/index.js. Single path,
+matches Railway's startCommand and the local supervisor.

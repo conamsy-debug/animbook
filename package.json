@@ -16,7 +16,7 @@
     "build": "npm run build -w @animbook/domain && npm run build -w @animbook/api && npm run build -w @animbook/web",
     "build:api": "npm run build -w @animbook/api",
     "build:web": "npm run build -w @animbook/web",
-    "start:api": "node apps/api/dist/src/index.js",
+    "start:api": "node apps/api/dist/index.js",
     "start:web": "npm start -w @animbook/web",
     "typecheck": "npm run typecheck -w @animbook/domain && npm run typecheck -w @animbook/api && npm run typecheck -w @animbook/web",
     "test": "npm run test --workspaces --if-present",

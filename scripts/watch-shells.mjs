@@ -36,10 +36,11 @@ const SERVICES = [
     id: "api",
     name: "API",
     cwd: path.join(ROOT, "apps", "api"),
-    // Run from compiled `dist/src/index.js` — the API no longer uses
-    // tsx at runtime (see AGENTS.md "Operating invariant #12"). Faster
-    // boot, no esbuild resolution at startup.
-    cmd: "node dist/src/index.js",
+    // Run from compiled `dist/index.js` — the API no longer uses tsx at
+    // runtime (see AGENTS.md "Operating invariant #12"). Faster boot, no
+    // esbuild resolution at startup. apps/api/tsconfig.json sets
+    // rootDir: "src" so the output is a flat dist/ tree (no src/ prefix).
+    cmd: "node dist/index.js",
     env: process.env, // .env already loaded by the API itself
     port: Number(process.env.PORT ?? 4000),
     healthcheck: { path: "/api/health/ready", timeoutMs: 4_000, intervalMs: 5_000 }

@@ -4,11 +4,11 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "outDir": "dist",
-    "rootDir": ".",
+    "rootDir": "src",
     "types": [],
     "sourceMap": true,
     "exactOptionalPropertyTypes": false,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "src/types/**/*.d.ts", "prisma/**/*.ts"]
+  "include": ["src/**/*.ts", "src/types/**/*.d.ts"]
 }
