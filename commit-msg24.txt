@@ -1,0 +1,31 @@
+Switch API runtime from ts-node to tsx (esbuild-backed, no type checks)
+
+ts-node --transpile-only was crashing with TSError at runtime even
+though transpile-only is supposed to skip type checks. The likely
+cause: ts-node's `--transpile-only` uses swc internally but still
+runs a minimal type-resolution pass for module specifiers, and the
+combination of NodeNext + our @types/* state was hitting an edge
+case.
+
+tsx uses esbuild end-to-end and never touches tsc at all — it
+just emits JS on the fly. No type checking, no module-resolution
+pass, no TSError possible. tsx is also already in
+apps/api/package.json devDependencies at ^4.19.2 (was added in
+commit 31b446d for the original build path).
+
+Changes:
+- apps/api/package.json: dropped "ts-node": "^10.9.2" from
+  devDependencies. tsx stays.
+- apps/api/railway.json startCommand: was
+    npx ts-node --transpile-only --project tsconfig.railway.json \
+      apps/api/src/index.ts
+  now:
+    npx tsx apps/api/src/index.ts
+
+  No --project flag needed; tsx reads tsconfig.json from cwd by
+  default. tsconfig.railway.json was loaded only by ts-node's
+  --project; with tsx the project's regular tsconfig.json is used.
+  That's fine — the runtime doesn't depend on the relaxed flags.
+
+- package-lock.json refreshed via `npm install --package-lock-only`
+  to drop the ts-node transitive deps.
