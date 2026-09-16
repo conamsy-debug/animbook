@@ -31,11 +31,17 @@ export async function apiFetch<T>(path: string, options: FetchOptions = {}): Pro
     body: json === undefined ? (rest.body ?? null) : JSON.stringify(json)
   });
   if (!response.ok) {
+    // Read the body exactly once. Calling response.json() consumes the stream,
+    // so a fallback response.text() after a JSON parse failure throws
+    // "body stream already read". Read as text, then attempt JSON.parse locally.
     let details: unknown = undefined;
-    try {
-      details = await response.json();
-    } catch {
-      details = await response.text();
+    const raw = await response.text();
+    if (raw) {
+      try {
+        details = JSON.parse(raw);
+      } catch {
+        details = raw;
+      }
     }
     throw new ApiError(response.status, `${response.status} ${response.statusText}`, details);
   }
