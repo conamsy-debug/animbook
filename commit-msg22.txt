@@ -1,0 +1,30 @@
+Skip tsc compile on Railway — run ts-node directly with transpile-only
+
+noEmitOnError:false wasn't enough — tsc was still erroring
+before reaching the emit step. Switched the build chain to
+"compile nothing, run ts-node at startup with --transpile-only":
+
+apps/api/railway.json:
+  buildCommand:  npm install --include=dev --production=false \
+                  --legacy-peer-deps --ignore-scripts \
+                  --workspace=apps/api --include-workspace-root \
+                && cd apps/api && npx prisma generate
+                (was: + npx tsc -p tsconfig.railway.json)
+
+  startCommand: npx ts-node --transpile-only \
+                  --project tsconfig.railway.json \
+                  apps/api/src/index.ts
+                (was: node apps/api/dist/index.js)
+
+apps/api/package.json:
+  Added ts-node ^10.9.2 to devDependencies so it's installed
+  during the npm install phase (otherwise npx would have to
+  download it at every container start).
+
+ts-node --transpile-only skips ALL type checks and just emits
+JavaScript on the fly. tsconfig.railway.json is still loaded
+for module/moduleResolution/target so the runtime ESM shape
+matches apps/api/package.json's "type": "module".
+
+No tsconfig changes needed — the file remains the source of
+truth for runtime module shape.

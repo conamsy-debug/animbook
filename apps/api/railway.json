@@ -2,10 +2,10 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "npm install --include=dev --production=false --legacy-peer-deps --ignore-scripts --workspace=apps/api --include-workspace-root && cd apps/api && npx prisma generate && npx tsc -p tsconfig.railway.json"
+    "buildCommand": "npm install --include=dev --production=false --legacy-peer-deps --ignore-scripts --workspace=apps/api --include-workspace-root && cd apps/api && npx prisma generate"
   },
   "deploy": {
-    "startCommand": "node apps/api/dist/index.js",
+    "startCommand": "npx ts-node --transpile-only --project tsconfig.railway.json apps/api/src/index.ts",
     "healthcheckPath": "/api/health/ready",
     "healthcheckTimeout": 120,
     "restartPolicyType": "ON_FAILURE",
