@@ -1,0 +1,18 @@
+Build packages/domain before apps/api + apps/web in Docker
+
+TypeScript build failed on Railway with:
+  Cannot find module '@animbook/domain' or its corresponding type declarations
+
+Root cause: packages/domain/package.json declares
+  "main": "./dist/index.js"
+  "types": "./dist/index.d.ts"
+but `dist/` only exists after `npm run build -w @animbook/domain` runs.
+apps/api's tsc was running before the domain package was built, so
+`@animbook/domain` resolved to a path with no compiled output.
+
+Fix: build packages/domain first in both Dockerfiles:
+  RUN npm run build -w @animbook/domain
+  RUN cd apps/api && npx prisma generate && npx tsc -p tsconfig.json
+
+Same fix in Dockerfile.web — Next.js also resolves @animbook/domain the
+same way at build time.

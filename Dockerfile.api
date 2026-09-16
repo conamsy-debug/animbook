@@ -40,6 +40,11 @@ WORKDIR /app
 COPY packages/domain ./packages/domain
 COPY apps/api ./apps/api
 
+# Build packages/domain first — apps/api's `import "@animbook/domain"` resolves
+# to `packages/domain/dist/index.{js,d.ts}` (per packages/domain/package.json).
+# If dist/ doesn't exist when tsc runs in apps/api, the module is unresolvable.
+RUN npm run build -w @animbook/domain
+
 # Prisma client generation + TypeScript compile.
 RUN cd apps/api && npx prisma generate && npx tsc -p tsconfig.json
 

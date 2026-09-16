@@ -50,6 +50,10 @@ ENV NEXT_PUBLIC_RELEASE=$NEXT_PUBLIC_RELEASE
 COPY packages/domain ./packages/domain
 COPY apps/web ./apps/web
 
+# Build packages/domain first — apps/web imports `@animbook/domain` and Next.js
+# resolves it to packages/domain/dist/index.{js,d.ts}.
+RUN npm run build -w @animbook/domain
+
 # Build with the public env in scope.
 RUN cd apps/web && npx next build
 
