@@ -1,3 +1,15 @@
+// AnimBook API entry point.
+//
+// Boot sequence (see apps/api/railway.json for the deploy config):
+//   1. bootEnv() parses + validates apps/api/.env (production loads
+//      /app/apps/api/.env.production in Docker / Railway NIXPACKS).
+//   2. initSentry() — no-op unless SENTRY_DSN is set.
+//   3. appEnv.featureStatus() flips bookBrain / runway / elevenlabs /
+//      openai / stripe / cloudflare flags based on which integration
+//      keys are present. Stub fallbacks handle the rest.
+//   4. mountRoutes() wires 26 modules under /api/* — single source of
+//      truth in src/appRoutes.ts.
+//   5. listen on $PORT (Railway injects one; we default to 4000).
 import express, { type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";

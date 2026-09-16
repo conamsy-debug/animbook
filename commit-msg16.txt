@@ -1,0 +1,6 @@
+Add boot-sequence comment to apps/api/src/index.ts
+
+No-op commit to nudge the Railway deploy after the webhook went
+"Auto deploy unavailable". Includes a useful header comment that
+documents the runtime bootstrap order for the next person who
+opens this file.
