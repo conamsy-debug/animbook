@@ -2,6 +2,8 @@ import { useRouter } from "next/router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Topbar } from "@/components/Topbar";
 import { ReaderStage, READER_ASPECTS, type ReaderAspect } from "@/components/ReaderStage";
+import { ApiError } from "@/lib/api";
+import { BOOK_VOICE, VOICE_KEY, loadVoices, voiceErrorMessage, type VoiceOption } from "@/lib/voices";
 import { ReaderControls } from "@/components/ReaderControls";
 import { CheckpointOverlay } from "@/components/CheckpointOverlay";
 import { BedtimeStylesheet, BedtimeToggle } from "@/components/BedtimeToggle";
@@ -295,7 +297,40 @@ export default function ReaderPage() {
   const autoFlipTimer = useRef<number | null>(null);
   const flipStateRef = useRef({ autoFlip, pageIndex, total: pages.length });
   flipStateRef.current = { autoFlip, pageIndex, total: pages.length };
+  // Narrator choice — "book" is the book's own recording; others are recorded on demand.
+  const [voices, setVoices] = useState<VoiceOption[]>([]);
+  const [voice, setVoice] = useState<string>(BOOK_VOICE);
+  useEffect(() => {
+    loadVoices()
+      .then((r) => {
+        if (!r.available) return;
+        setVoices(r.voices);
+        try {
+          const saved = window.localStorage.getItem(VOICE_KEY);
+          if (saved && r.voices.some((v) => v.id === saved)) setVoice(saved);
+        } catch {
+          // storage unavailable
+        }
+      })
+      .catch(() => setVoices([]));
+  }, []);
+  function changeVoice(next: string) {
+    setVoice(next);
+    try {
+      window.localStorage.setItem(VOICE_KEY, next);
+    } catch {
+      // ignore
+    }
+  }
+  function handleVoiceError(err: unknown) {
+    toast(voiceErrorMessage(err));
+    if (err instanceof ApiError && (err.status === 401 || err.status === 429)) changeVoice(BOOK_VOICE);
+  }
+
   const narration = useNarration(currentPage, narrationRate, {
+    voice,
+    nextPage: pages[pageIndex + 1] ?? null,
+    onVoiceError: handleVoiceError,
     onFinished: () => {
       const { autoFlip: on, pageIndex: idx, total } = flipStateRef.current;
       if (!on) return;
@@ -421,6 +456,10 @@ export default function ReaderPage() {
             onAspectChange={changeAspect}
             fullscreen={fullscreen}
             onToggleFullscreen={toggleFullscreen}
+            voices={voices}
+            voice={voice}
+            onVoiceChange={changeVoice}
+            onVoiceNotice={(m) => toast(m)}
           />
         </ErrorBoundary>
         <AchievementToasts queue={achievements} onConsumed={(idx) => setAchievements((prev) => prev.filter((_, i) => i !== idx))} />

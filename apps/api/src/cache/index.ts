@@ -170,6 +170,30 @@ export async function writeJson(key: string, value: unknown, ttlSeconds: number)
   }
 }
 
+const memoryCounters = new Map<string, { value: number; expires: number }>();
+
+/**
+ * Increment a counter that expires after `ttlSeconds` (daily limits etc.).
+ * Uses Redis when available, otherwise a per-process fallback.
+ */
+export async function incrementCounter(key: string, by: number, ttlSeconds: number): Promise<number> {
+  const full = `animbook:counter:${key}`;
+  if (await ensureConnected()) {
+    try {
+      const value = await client().incrby(full, by);
+      if (value === by) await client().expire(full, ttlSeconds);
+      return value;
+    } catch {
+      // fall through to memory
+    }
+  }
+  const now = Date.now();
+  const current = memoryCounters.get(full);
+  const value = (current && current.expires > now ? current.value : 0) + by;
+  memoryCounters.set(full, { value, expires: current && current.expires > now ? current.expires : now + ttlSeconds * 1000 });
+  return value;
+}
+
 export async function shutdown(): Promise<void> {
   if (_redis) {
     try {

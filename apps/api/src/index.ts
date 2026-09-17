@@ -41,6 +41,7 @@ import school from "./modules/school/routes.js";
 import dream from "./modules/dream/routes.js";
 import studioPro, { studioProPublicRouter } from "./modules/studio-pro/routes.js";
 import legal from "./modules/legal/routes.js";
+import narration from "./modules/narration/routes.js";
 import docs from "./modules/docs/routes.js";
 import { startPipelineWorker, startPipelineEvents } from "./services/pipeline.js";
 
@@ -91,6 +92,7 @@ app.use("/api/memory", memory);
 app.use("/api/oracle", oracle);
 app.use("/api/live", live);
 app.use("/api/translation", translation);
+app.use("/api/narration", narration);
 app.use("/api/worlds", worlds);
 app.use("/api/stage", stage);
 app.use("/api/signal", signal);

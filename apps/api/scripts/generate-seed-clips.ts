@@ -22,6 +22,11 @@
  *   --max-credits 6000   hard budget; stops before exceeding it
  *   --no-covers          leave placeholder covers alone
  *   --no-claude          use the template prompt instead of Claude
+ *   --voice auto|<id>    narrator for --audio: "auto" (default) picks per book —
+ *                        African settings → Nigerian storyteller, learning/how-to
+ *                        books → British teacher, others → British storyteller.
+ *                        Or a voice id from src/config/voices.ts, or a raw
+ *                        ElevenLabs voice id.
  *   --force              regenerate pages (and covers) that already have real media
  *   --only cover,1,3     with --book: regenerate exactly these items (implies
  *                        --force for them only; everything else is left alone)
@@ -47,7 +52,8 @@ import { appEnv, isFeatureEnabled } from "../src/config/env.js";
 import { prisma } from "../src/db.js";
 import { generateClip, generateStill, generateStillWithFaces, estimateClipCredits, type ReferenceImage } from "../src/services/runway.js";
 import { mirrorToR2 } from "../src/services/cloudflare.js";
-import { characterQuota, generateNarration, listVoices, narratorVoiceId } from "../src/services/elevenlabs.js";
+import { characterQuota, generateNarration, listVoices } from "../src/services/elevenlabs.js";
+import { defaultVoiceIdFor, findVoice } from "../src/config/voices.js";
 
 // ---------- args ----------
 const argv = process.argv.slice(2);
@@ -284,6 +290,19 @@ function scrubText(prompt: string): string {
     .replace(/\s{2,}/g, " ")
     .replace(/\s+([.,;])/g, "$1")
     .trim();
+}
+
+/** The book's default narrator (catalog id + ElevenLabs id). */
+async function narratorFor(book: BookRow): Promise<{ label: string; elevenVoiceId: string }> {
+  if (VOICE && VOICE !== "auto") {
+    const known = findVoice(VOICE);
+    return known ? { label: known.label, elevenVoiceId: known.elevenVoiceId } : { label: VOICE, elevenVoiceId: VOICE };
+  }
+  if (book.brain?.narratorVoiceId) return { label: `brain:${book.brain.narratorVoiceId}`, elevenVoiceId: book.brain.narratorVoiceId };
+  const cast = await castFor(book);
+  const id = defaultVoiceIdFor({ vertical: book.vertical, setting: cast?.setting ?? book.synopsis });
+  const v = findVoice(id)!;
+  return { label: v.label, elevenVoiceId: v.elevenVoiceId };
 }
 
 function portraitPrompt(c: CastMember, style: string): string {
@@ -609,7 +628,8 @@ async function main() {
       cover ? "cover" : "",
       audioPages.length ? `${audioPages.length} narrations` : ""
     ].filter(Boolean);
-    console.log(`  ${book.slug.padEnd(44)} ${parts.join(" + ")}`);
+    const narratorNote = audioPages.length && DRY ? `  [${(await narratorFor(book)).label}]` : "";
+    console.log(`  ${book.slug.padEnd(44)} ${parts.join(" + ")}${narratorNote}`);
   }
   if (DRY) {
     if (flag("show-cast")) {
@@ -766,7 +786,9 @@ async function main() {
       }
     });
 
-    const voice = VOICE ?? narratorVoiceId(book.brain?.narratorVoiceId);
+    const narrator = audioPages.length ? await narratorFor(book) : null;
+    const voice = narrator?.elevenVoiceId;
+    if (narrator) console.log(`  narrator: ${narrator.label}`);
     for (const page of audioPages) {
       const text = page.textExcerpt.trim();
       if (charsUsed + text.length > MAX_CHARS) {

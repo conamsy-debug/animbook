@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { READER_ASPECTS, type ReaderAspect } from "@/components/ReaderStage";
+import { BOOK_VOICE, voiceErrorMessage, voiceSample, type VoiceOption } from "@/lib/voices";
 import { useReaderStore } from "@/lib/store";
 import type { Narration } from "@/lib/useNarration";
 
@@ -15,6 +16,11 @@ interface Props {
   onAspectChange?: (aspect: ReaderAspect) => void;
   fullscreen?: boolean;
   onToggleFullscreen?: () => void;
+  /** Narrators readers can choose; omit to hide the voice menu. */
+  voices?: VoiceOption[];
+  voice?: string;
+  onVoiceChange?: (voice: string) => void;
+  onVoiceNotice?: (message: string) => void;
 }
 
 type Mode = "WATCH" | "BOTH" | "READ";
@@ -57,6 +63,18 @@ const Icon = {
     <svg viewBox="0 0 24 24" aria-hidden>
       <path d="M4 7h11a4 4 0 0 1 0 8H9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       <path d="m12 12-3 3 3 3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  voice: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <circle cx="9" cy="8" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M3.5 19.5c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M17 7.5c1 1.2 1 3.8 0 5M19.6 5.5c2 2.4 2 6.6 0 9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  ),
+  spinner: (
+    <svg viewBox="0 0 24 24" aria-hidden className="spin">
+      <path d="M12 3a9 9 0 1 1-9 9" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
     </svg>
   ),
   screen: (
@@ -109,10 +127,57 @@ export function ReaderControls({
   aspect = "16:9",
   onAspectChange,
   fullscreen = false,
-  onToggleFullscreen
+  onToggleFullscreen,
+  voices,
+  voice = BOOK_VOICE,
+  onVoiceChange,
+  onVoiceNotice
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const [voiceMenuOpen, setVoiceMenuOpen] = useState(false);
+  const voiceMenuRef = useRef<HTMLDivElement | null>(null);
+  const [previewing, setPreviewing] = useState<string | null>(null);
+  const previewAudio = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (!voiceMenuOpen) return;
+    function onDown(ev: MouseEvent) {
+      if (voiceMenuRef.current && !voiceMenuRef.current.contains(ev.target as Node)) setVoiceMenuOpen(false);
+    }
+    function onEsc(ev: KeyboardEvent) {
+      if (ev.key === "Escape") setVoiceMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [voiceMenuOpen]);
+
+  useEffect(() => () => previewAudio.current?.pause(), []);
+
+  async function preview(id: string) {
+    previewAudio.current?.pause();
+    if (previewing === id) {
+      setPreviewing(null);
+      return;
+    }
+    setPreviewing(id);
+    try {
+      const url = await voiceSample(id);
+      const audio = previewAudio.current ?? new Audio();
+      previewAudio.current = audio;
+      audio.src = url;
+      audio.volume = narration.muted ? 0 : narration.volume;
+      audio.onended = () => setPreviewing(null);
+      await audio.play();
+    } catch (err) {
+      setPreviewing(null);
+      onVoiceNotice?.(voiceErrorMessage(err));
+    }
+  }
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -135,7 +200,8 @@ export function ReaderControls({
   const progress = total > 0 ? ((pageIndex + 1) / total) * 100 : 0;
   const next = onNext ?? flipNext;
   const prev = onPrev ?? flipPrev;
-  const { speaking, muted, volume } = narration;
+  const { speaking, muted, volume, preparing } = narration;
+  const busy = speaking || preparing;
 
   useEffect(() => {
     function onKey(ev: KeyboardEvent) {
@@ -145,7 +211,7 @@ export function ReaderControls({
       if (ev.key === "ArrowLeft") prev();
       if (ev.key === " ") {
         ev.preventDefault();
-        if (speaking) onPause();
+        if (busy) onPause();
         else onPlay();
       }
       if (ev.key === "m" || ev.key === "M") narration.toggleMute();
@@ -153,7 +219,7 @@ export function ReaderControls({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [next, prev, speaking, onPause, onPlay, narration, onToggleFullscreen]);
+  }, [next, prev, busy, onPause, onPlay, narration, onToggleFullscreen]);
 
   const shownVolume = muted ? 0 : volume;
 
@@ -187,12 +253,12 @@ export function ReaderControls({
           </button>
           <button
             type="button"
-            className="play-btn"
-            onClick={speaking ? onPause : onPlay}
-            aria-label={speaking ? "Pause" : "Play narration"}
-            title={speaking ? "Pause (space)" : "Play (space)"}
+            className={`play-btn${preparing ? " preparing" : ""}`}
+            onClick={busy ? onPause : onPlay}
+            aria-label={preparing ? "Preparing narration — press to cancel" : speaking ? "Pause" : "Play narration"}
+            title={preparing ? "Preparing this voice…" : speaking ? "Pause (space)" : "Play (space)"}
           >
-            {speaking ? Icon.pause : Icon.play}
+            {preparing ? Icon.spinner : speaking ? Icon.pause : Icon.play}
           </button>
           <button type="button" className="icon-btn" onClick={next} disabled={pageIndex >= total - 1} aria-label="Next page" title="Next page (→)">
             {Icon.next}
@@ -211,6 +277,58 @@ export function ReaderControls({
               {Icon.auto}
               <span className="chip-label">Auto-turn</span>
             </button>
+          )}
+          {voices && voices.length > 0 && onVoiceChange && (
+            <div className="menu-anchor" ref={voiceMenuRef}>
+              <button
+                type="button"
+                className={`icon-btn small${voiceMenuOpen ? " active" : ""}${voice !== BOOK_VOICE ? " chosen" : ""}`}
+                onClick={() => setVoiceMenuOpen((o) => !o)}
+                aria-haspopup="menu"
+                aria-expanded={voiceMenuOpen}
+                aria-label="Narrator voice"
+                title="Narrator voice"
+              >
+                {Icon.voice}
+              </button>
+              {voiceMenuOpen && (
+                <div className="player-menu voice-menu" role="menu" aria-label="Narrator voice">
+                  <div className="player-menu-title">Narrator</div>
+                  {[{ id: BOOK_VOICE, label: "This book's narrator", description: "Recorded for this book" }, ...voices].map((option) => (
+                    <div key={option.id} className={`voice-row${voice === option.id ? " selected" : ""}`}>
+                      <button
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={voice === option.id}
+                        className="voice-pick"
+                        onClick={() => {
+                          onVoiceChange(option.id);
+                          setVoiceMenuOpen(false);
+                        }}
+                      >
+                        <span className="player-menu-text">
+                          <span>{option.label}</span>
+                          <small>{option.description}</small>
+                        </span>
+                        {voice === option.id && <span className="player-menu-check">{Icon.check}</span>}
+                      </button>
+                      {option.id !== BOOK_VOICE && (
+                        <button
+                          type="button"
+                          className="voice-preview"
+                          onClick={() => void preview(option.id)}
+                          aria-label={previewing === option.id ? `Stop ${option.label} sample` : `Play ${option.label} sample`}
+                          title="Hear a sample"
+                        >
+                          {previewing === option.id ? Icon.pause : Icon.play}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <p className="voice-note">Other voices are recorded the first time a page is played, so they may take a few seconds.</p>
+                </div>
+              )}
+            </div>
           )}
           {onAspectChange && (
             <div className="menu-anchor" ref={menuRef}>

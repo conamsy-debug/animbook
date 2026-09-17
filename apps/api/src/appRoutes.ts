@@ -94,6 +94,16 @@ export const APP_ROUTES: Module[] = [
     ]
   },
   {
+    id: "narration",
+    title: "Narration voices",
+    description: "Reader-selectable narrators, recorded once per page and voice, then shared.",
+    routes: [
+      { method: "GET", path: "/api/narration/voices", auth: "public", summary: "Narrator voices readers can choose." },
+      { method: "GET", path: "/api/narration/voices/:voice/sample", auth: "public", summary: "Short sample of a voice (cached)." },
+      { method: "GET", path: "/api/narration/pages/:pageId?voice=ID", auth: "user", summary: "Narration for one page in the chosen voice.", notes: "Recorded on first request; daily limits per reader and account-wide." }
+    ]
+  },
+  {
     id: "legal",
     title: "Pricing & Legal",
     description: "Public pricing + GDPR export/erase.",

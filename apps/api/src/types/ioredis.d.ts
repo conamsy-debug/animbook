@@ -39,6 +39,8 @@ declare module "ioredis" {
     get(key: string): Promise<string | null>;
     set(key: string, value: RedisValue, ...args: unknown[]): Promise<unknown>;
     del(...keys: string[]): Promise<number>;
+    incrby(key: string, increment: number): Promise<number>;
+    expire(key: string, seconds: number): Promise<number>;
     scanStream(opts: { match?: string; count?: number }): ScanStream;
     publish(channel: string, message: string): Promise<number>;
     subscribe(channel: string): Promise<unknown>;

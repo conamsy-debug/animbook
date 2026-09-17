@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PageRecord } from "@/lib/api";
 import { speakWithBrowser, stopSpeaking } from "@/lib/speech";
+import { BOOK_VOICE, narrationUrl } from "@/lib/voices";
 
 const VOLUME_KEY = "animbook:volume";
 
@@ -31,8 +32,19 @@ function readStoredVolume(): { volume: number; muted: boolean } {
  *   flip to is narrated until they press Pause.
  * - "speaking" is whether narration for the current page is sounding now.
  * - Pages with a recorded ElevenLabs MP3 play that; others use the browser voice.
+ * - When the reader picks another narrator (options.voice), that voice's
+ *   recording is fetched (recorded on first request) and played instead.
  */
-export function useNarration(page: PageRecord | null, rate: number, options: { onFinished?: () => void } = {}) {
+export function useNarration(
+  page: PageRecord | null,
+  rate: number,
+  options: {
+    onFinished?: () => void;
+    voice?: string;
+    nextPage?: PageRecord | null;
+    onVoiceError?: (err: unknown) => void;
+  } = {}
+) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // Every start/stop bumps the token, so "ended" events from narration we
   // cancelled ourselves (page flips, pause) are ignored.
@@ -41,6 +53,10 @@ export function useNarration(page: PageRecord | null, rate: number, options: { o
   const listeningRef = useRef(false);
   const onFinishedRef = useRef(options.onFinished);
   onFinishedRef.current = options.onFinished;
+  const onVoiceErrorRef = useRef(options.onVoiceError);
+  onVoiceErrorRef.current = options.onVoiceError;
+  const voice = options.voice ?? BOOK_VOICE;
+  const [preparing, setPreparing] = useState(false);
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [volume, setVolumeState] = useState(1);
@@ -86,6 +102,7 @@ export function useNarration(page: PageRecord | null, rate: number, options: { o
     audioRef.current?.pause();
     stopSpeaking();
     setSpeaking(false);
+    setPreparing(false);
   }, []);
 
   const start = useCallback(
@@ -93,10 +110,12 @@ export function useNarration(page: PageRecord | null, rate: number, options: { o
       if (!page) return;
       const audio = audioRef.current;
       const token = ++tokenRef.current;
-      if (hasRecordedNarration(page) && audio) {
+
+      const playFile = (url: string) => {
+        if (!audio) return;
         stopSpeaking();
-        if (audio.src !== page.audioUrl) {
-          audio.src = page.audioUrl;
+        if (audio.src !== url) {
+          audio.src = url;
         } else if (fromBeginning || audio.ended) {
           audio.currentTime = 0;
         }
@@ -104,7 +123,13 @@ export function useNarration(page: PageRecord | null, rate: number, options: { o
         audio.playbackRate = rate;
         audio.volume = effectiveVolume;
         void audio.play().catch(() => setSpeaking(false));
-      } else {
+      };
+
+      const playBookNarrator = () => {
+        if (hasRecordedNarration(page) && audio) {
+          playFile(page.audioUrl);
+          return;
+        }
         audio?.pause();
         setSpeaking(true);
         speakWithBrowser(
@@ -116,10 +141,55 @@ export function useNarration(page: PageRecord | null, rate: number, options: { o
             if (listeningRef.current) onFinishedRef.current?.();
           }
         );
+      };
+
+      if (voice === BOOK_VOICE) {
+        playBookNarrator();
+        return;
       }
+
+      // Another narrator: fetch (or record) this page in that voice first.
+      audio?.pause();
+      stopSpeaking();
+      setPreparing(true);
+      narrationUrl(page.id, voice)
+        .then((url) => {
+          if (token !== tokenRef.current) return;
+          setPreparing(false);
+          if (url) playFile(url);
+          else playBookNarrator();
+        })
+        .catch((err) => {
+          if (token !== tokenRef.current) return;
+          setPreparing(false);
+          onVoiceErrorRef.current?.(err);
+          playBookNarrator();
+        });
     },
-    [page, rate, effectiveVolume]
+    [page, rate, effectiveVolume, voice]
   );
+
+  // A different narrator was chosen: restart the current page in that voice.
+  const voiceRef = useRef(voice);
+  useEffect(() => {
+    if (voiceRef.current === voice) return;
+    voiceRef.current = voice;
+    if (listeningRef.current) {
+      stopAll();
+      start(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice]);
+
+  // While listening in a chosen voice, get the next page ready so auto-turn doesn't wait.
+  const nextPageId = options.nextPage?.id;
+  useEffect(() => {
+    if (!listening || voice === BOOK_VOICE || !nextPageId) return;
+    const t = window.setTimeout(() => {
+      narrationUrl(nextPageId, voice).catch(() => undefined);
+    }, 1500);
+    return () => window.clearTimeout(t);
+  }, [listening, voice, nextPageId]);
 
   // Flipping to a new page: stop the old narration; keep going if listening.
   useEffect(() => {
@@ -177,6 +247,8 @@ export function useNarration(page: PageRecord | null, rate: number, options: { o
     volume,
     muted,
     recorded: hasRecordedNarration(page),
+    preparing,
+    voice,
     play,
     pause,
     toggle,
