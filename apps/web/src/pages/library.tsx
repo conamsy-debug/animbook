@@ -5,7 +5,7 @@ import { ErrorBoundary, ErrorState } from "@/components/ErrorBoundary";
 import { BookCard } from "@/components/BookCard";
 import { EmptyState, LoadingState } from "@/components/States";
 import { apiFetch, type BookSummary } from "@/lib/api";
-import { VERTICALS, verticalById } from "@/lib/verticals";
+import { VERTICALS, subcategoriesFor, subcategoryLabel, verticalById } from "@/lib/verticals";
 
 export default function LibraryPage() {
   const router = useRouter();
@@ -15,6 +15,7 @@ export default function LibraryPage() {
   const [query, setQuery] = useState("");
 
   const vertical = typeof router.query.vertical === "string" ? router.query.vertical.toUpperCase() : "ALL";
+  const sub = typeof router.query.sub === "string" ? router.query.sub : null;
 
   useEffect(() => {
     if (typeof router.query.q === "string") setQuery(router.query.q);
@@ -44,18 +45,27 @@ export default function LibraryPage() {
     return map;
   }, [books]);
 
+  const inVertical = useMemo(() => books.filter((b) => vertical === "ALL" || b.vertical === vertical), [books, vertical]);
+
+  const subCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const b of inVertical) if (b.subcategory) map.set(b.subcategory, (map.get(b.subcategory) ?? 0) + 1);
+    return map;
+  }, [inVertical]);
+
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return books.filter(
+    return inVertical.filter(
       (b) =>
-        (vertical === "ALL" || b.vertical === vertical) &&
+        (!sub || b.subcategory === sub) &&
         (!q || `${b.title} ${b.subtitle ?? ""} ${b.author} ${b.synopsis}`.toLowerCase().includes(q))
     );
-  }, [books, vertical, query]);
+  }, [inVertical, sub, query]);
 
-  function choose(id: string) {
+  function choose(id: string, subId: string | null = null) {
     const nextQuery: Record<string, string> = {};
     if (id !== "ALL") nextQuery.vertical = id;
+    if (subId) nextQuery.sub = subId;
     if (query.trim()) nextQuery.q = query.trim();
     void router.replace({ pathname: "/library", query: nextQuery }, undefined, { shallow: true, scroll: false });
   }
@@ -76,8 +86,14 @@ export default function LibraryPage() {
           <header className="library-head">
             <div>
               <span className="label">The AnimBook library</span>
-              <h1>{current ? current.label : "Every AnimBook"}</h1>
-              <p className="muted">{current ? current.blurb : "Read, watch and listen. Pick a vertical or search for a title."}</p>
+              <h1>{subcategoryLabel(vertical, sub) ?? (current ? current.label : "Every AnimBook")}</h1>
+              <p className="muted">
+                {sub && current
+                  ? `${current.label} · ${shown.length} ${shown.length === 1 ? "book" : "books"}`
+                  : current
+                    ? current.blurb
+                    : "Read, watch and listen. Pick a vertical or search for a title."}
+              </p>
             </div>
             <label className="search-box">
               <span className="visually-hidden">Search the library</span>
@@ -116,12 +132,36 @@ export default function LibraryPage() {
             })}
           </nav>
 
+          {current && (
+            <nav className="filter-chips subs" aria-label={`Shelves in ${current.label}`}>
+              <button type="button" className={!sub ? "active" : ""} onClick={() => choose(current.id)}>
+                All {current.label} <span>{inVertical.length || ""}</span>
+              </button>
+              {subcategoriesFor(current.id).map((option) => {
+                const n = subCounts.get(option.id) ?? 0;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={sub === option.id ? "active" : ""}
+                    onClick={() => choose(current.id, option.id)}
+                    disabled={!loading && n === 0}
+                    style={sub === option.id ? { background: current.accent, borderColor: current.accent } : undefined}
+                    title={!loading && n === 0 ? "Nothing on this shelf yet" : undefined}
+                  >
+                    {option.label} {n > 0 && <span>{n}</span>}
+                  </button>
+                );
+              })}
+            </nav>
+          )}
+
           {loading && <LoadingState variant="card" skeleton={8} message="Curating your library…" />}
           {error && <EmptyState title="The library is offline" message="Please try again in a moment." cta={{ href: "/library", label: "Retry" }} />}
           {!loading && !error && shown.length === 0 && (
             <EmptyState
-              title={query ? "No books match your search" : "No books here yet"}
-              message={query ? "Try another word, or clear the search." : "This vertical is coming soon."}
+              title={query ? "No books match your search" : "Nothing on this shelf yet"}
+              message={query ? "Try another word, or clear the search." : "New AnimBooks arrive here as creators publish them."}
               cta={{ href: "/library", label: "See all books" }}
             />
           )}

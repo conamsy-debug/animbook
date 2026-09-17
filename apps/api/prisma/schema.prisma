@@ -150,6 +150,7 @@ model Book {
   slug                 String             @unique
   title                String
   subtitle             String?
+  subcategory          String?
   author               String
   synopsis             String             @db.Text
   isbn                 String?            @unique
@@ -181,7 +182,9 @@ model Book {
   worldMembership      WorldMember?
   archiveProject       ArchiveProject?
 
+  @@index([vertical, subcategory, status])
   @@index([vertical, status])
+  @@index([vertical, subcategory, status])
   @@index([title])
   @@index([status, language])
   @@index([status, vertical, updatedAt])

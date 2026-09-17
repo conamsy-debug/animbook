@@ -12,6 +12,7 @@ import { emitPipelineEvent, subscribeProject, writeSseEvent, writeSseHeaders, ty
 import { rateLimit } from "../../middleware/rateLimit.js";
 import { ExtractError, extractManuscript } from "../../services/manuscriptExtract.js";
 import { uploadAsset } from "../../services/cloudflare.js";
+import { isValidSubcategory } from "../../config/subcategories.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -34,6 +35,7 @@ const createSchema = z.object({
   ]),
   title: z.string().min(1),
   subtitle: z.string().trim().max(200).optional(),
+  subcategory: z.string().trim().max(40).optional(),
   author: z.string().min(1),
   synopsis: z.string().min(1).optional(),
   language: z.string().default("en")
@@ -149,7 +151,11 @@ router.post("/projects", async (req: AuthedRequest, res: Response) => {
     res.status(400).json({ error: "Invalid project", details: parsed.error.flatten() });
     return;
   }
-  const { name, vertical, title, subtitle, author, synopsis, language } = parsed.data;
+  const { name, vertical, title, subtitle, subcategory, author, synopsis, language } = parsed.data;
+  if (!isValidSubcategory(vertical, subcategory)) {
+    res.status(400).json({ error: "Unknown subcategory for this vertical" });
+    return;
+  }
   const slugBase = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
   const slug = `${slugBase}-${Date.now().toString(36)}`;
   const requiresExpertReview = vertical === "EDU" || vertical === "FAITH";
@@ -158,6 +164,7 @@ router.post("/projects", async (req: AuthedRequest, res: Response) => {
       slug,
       title,
       subtitle: subtitle || null,
+      subcategory: subcategory || null,
       author,
       synopsis: synopsis ?? "",
       vertical,

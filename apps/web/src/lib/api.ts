@@ -85,6 +85,7 @@ export interface BookSummary {
   slug: string;
   title: string;
   subtitle?: string | null;
+  subcategory?: string | null;
   author: string;
   synopsis: string;
   vertical: string;

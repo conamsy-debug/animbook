@@ -1899,3 +1899,6 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
   .reader-stage .video-poster.ken-burns { animation: none; }
 }
+
+.filter-chips.subs { margin-top: -10px; margin-bottom: 20px; }
+.filter-chips.subs button { font-size: 0.8rem; padding: 6px 12px; }

@@ -15,7 +15,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma migrate reset --force",
     "clips:seed": "tsx scripts/generate-seed-clips.ts",
-    "clips:probe": "tsx scripts/probe-runway-refs.ts"
+    "clips:probe": "tsx scripts/probe-runway-refs.ts",
+    "books:subcategories": "tsx scripts/assign-subcategories.ts"
   },
   "dependencies": {
     "@apollo/server": "^4.12.2",

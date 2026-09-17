@@ -10,6 +10,7 @@ const router = Router();
 
 const querySchema = z.object({
   vertical: z.string().optional(),
+  subcategory: z.string().max(40).optional(),
   world: z.string().optional(),
   status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).optional(),
   language: z.string().optional(),
@@ -27,11 +28,12 @@ router.get(
     res.status(400).json({ error: "Invalid query", details: parsed.error.flatten() });
     return;
   }
-  const { vertical, world, status, language, q, limit, offset } = parsed.data;
+  const { vertical, subcategory, world, status, language, q, limit, offset } = parsed.data;
 
   const where: Parameters<typeof prisma.book.findMany>[0] = { where: {} };
   const bookWhere = where.where as Record<string, unknown>;
   if (vertical) bookWhere.vertical = vertical;
+  if (subcategory) bookWhere.subcategory = subcategory;
   if (status) bookWhere.status = status;
   else bookWhere.status = "PUBLISHED";
   if (language) bookWhere.language = language;
@@ -55,6 +57,7 @@ router.get(
         slug: true,
         title: true,
         subtitle: true,
+        subcategory: true,
         author: true,
         synopsis: true,
         vertical: true,

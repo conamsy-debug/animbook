@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Topbar } from "@/components/Topbar";
 import { apiFetch, apiStreamUrl, type BookBrainJson, type PageRecord, type PipelineEvent, type StudioProjectSummary } from "@/lib/api";
 import { useToastStore } from "@/lib/store";
-import { VERTICALS, verticalById } from "@/lib/verticals";
+import { VERTICALS, subcategoriesFor, verticalById } from "@/lib/verticals";
 import { ImportError, readManuscriptFile } from "@/lib/manuscriptImport";
 import { detectSections, parseManuscript, type Section } from "@/lib/manuscriptSections";
 
@@ -115,6 +115,7 @@ export default function StudioPage() {
   const [author, setAuthor] = useState("");
   const [synopsis, setSynopsis] = useState("");
   const [vertical, setVertical] = useState("CONSUMER");
+  const [subcategory, setSubcategory] = useState("");
 
   // Manuscript
   const [manuscriptText, setManuscriptText] = useState("");
@@ -258,6 +259,7 @@ export default function StudioPage() {
           vertical,
           title: title.trim(),
           subtitle: subtitle.trim() || undefined,
+          subcategory: subcategory || undefined,
           author: author.trim(),
           synopsis: synopsis.trim() || undefined,
           language: "en"
@@ -550,7 +552,10 @@ export default function StudioPage() {
                           type="button"
                           className={`choice${vertical === v.id ? " selected" : ""}`}
                           style={vertical === v.id ? { borderColor: v.accent } : undefined}
-                          onClick={() => setVertical(v.id)}
+                          onClick={() => {
+                            setVertical(v.id);
+                            setSubcategory("");
+                          }}
                         >
                           <strong style={{ color: v.accent }}>{v.label}</strong>
                           <small>{v.promise}</small>
@@ -559,6 +564,17 @@ export default function StudioPage() {
                     </div>
                   </div>
                 </div>
+                <label className="field wide" style={{ marginTop: 16 }}>
+                  <span>Shelf in {verticalById(vertical)?.label ?? vertical}</span>
+                  <select value={subcategory} onChange={(e) => setSubcategory(e.target.value)}>
+                    <option value="">Choose a shelf (optional)</option>
+                    {subcategoriesFor(vertical).map((sc) => (
+                      <option key={sc.id} value={sc.id}>
+                        {sc.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <div className="panel-actions">
                   <button type="button" className="btn primary" disabled={busy || !title.trim() || !author.trim()} onClick={createProject}>
                     {busy ? "Creating…" : "Create project"}
