@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ErrorBoundary, ErrorState } from "@/components/ErrorBoundary";
 import { AuthBridge } from "@/components/AuthBridge";
+import { AccessGate } from "@/components/AccessGate";
 import "@/styles/globals.css";
 
 const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
@@ -33,7 +34,11 @@ export default function App({ Component, pageProps }: AppProps) {
             name="description"
             content="AnimBook transforms text manuscripts into animated books. Every page becomes a living, narrated scene."
           />
-          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="manifest" href="/site.webmanifest" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
           <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
           <link
             href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap"
@@ -55,8 +60,8 @@ export default function App({ Component, pageProps }: AppProps) {
       publishableKey={PUBLISHABLE_KEY}
       signInUrl="/sign-in"
       signUpUrl="/sign-up"
-      afterSignInUrl="/"
-      afterSignUpUrl="/"
+      afterSignInUrl="/library"
+      afterSignUpUrl="/library"
       appearance={{
         variables: {
           colorPrimary: "#C49A1C",
@@ -78,6 +83,10 @@ export default function App({ Component, pageProps }: AppProps) {
           name="description"
           content="AnimBook transforms text manuscripts into animated books. Every page becomes a living, narrated scene."
         />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="manifest" href="/site.webmanifest" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link
@@ -91,7 +100,9 @@ export default function App({ Component, pageProps }: AppProps) {
           <ErrorState error={err} onRetry={reset} title="AnimBook ran into a snag" />
         )}
       >
-        <Component {...pageProps} />
+        <AccessGate>
+          <Component {...pageProps} />
+        </AccessGate>
       </ErrorBoundary>
     </ClerkProvider>
   );

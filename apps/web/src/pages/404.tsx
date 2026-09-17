@@ -13,7 +13,7 @@ export default function NotFound() {
       <div style={{ textAlign: "center" }}>
         <h1 style={{ fontFamily: "var(--serif)" }}>This page hasn't been animated yet.</h1>
         <p className="muted">The path {router.asPath} doesn't exist.</p>
-        <Link href="/" className="btn primary" style={{ marginTop: 16 }}>Back to the library</Link>
+        <Link href="/library" className="btn primary" style={{ marginTop: 16 }}>Back to the library</Link>
       </div>
     </div>
   );

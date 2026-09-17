@@ -194,7 +194,7 @@ export default function ProfilePage() {
               <EmptyState
                 title="Your library is empty"
                 message="Open a book and tap Save · it will show up here with progress and mode."
-                cta={{ href: "/", label: "Browse the library" }}
+                cta={{ href: "/library", label: "Browse the library" }}
               />
             ) : (
               <ul>

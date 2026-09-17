@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
+import { UserButton, useAuth } from "@clerk/nextjs";
+import { LogoMark } from "@/components/Logo";
 
 const links = [
-  { href: "/", label: "Library" },
+  { href: "/library", label: "Library" },
   { href: "/worlds", label: "Worlds" },
   { href: "/studio", label: "Studio" },
   { href: "/edu", label: "EDU" },
@@ -29,7 +30,8 @@ export function Topbar() {
     <header className="topbar">
       <div className="container topbar-inner">
         <Link href="/" className="brand" aria-label="AnimBook home">
-          AnimBook<span className="dot" aria-hidden />
+          <LogoMark size={30} />
+          <span className="brand-word">AnimBook</span>
         </Link>
         <nav className="nav" aria-label="Primary">
           {links.map((link) => (
@@ -44,36 +46,7 @@ export function Topbar() {
         </nav>
         <div className="topbar-actions">
           {HAS_CLERK ? (
-            <>
-              <SignedOut>
-                <SignInButton mode="modal" forceRedirectUrl="/">
-                  <button type="button" className="btn ghost" aria-label="Sign in">
-                    Sign In
-                  </button>
-                </SignInButton>
-                <SignUpButton mode="modal" forceRedirectUrl="/">
-                  <button type="button" className="btn primary" aria-label="Create account">
-                    Get Started
-                  </button>
-                </SignUpButton>
-              </SignedOut>
-              <SignedIn>
-                <span className="avatar-slot">
-                <UserButton
-                  afterSignOutUrl="/"
-                  appearance={{
-                    variables: { colorPrimary: "#C49A1C" },
-                    elements: {
-                      avatarBox: { width: "36px", height: "36px" },
-                      userButtonAvatarBox: { width: "36px", height: "36px" },
-                      userButtonPopoverCard: { background: "#0F1422", border: "1px solid rgba(196, 154, 28, 0.3)" },
-                      userButtonPopoverText: { color: "#F4E9D8" }
-                    }
-                  }}
-                />
-                </span>
-              </SignedIn>
-            </>
+            <TopbarAuth />
           ) : (
             <Link href="/pricing" className="btn primary" aria-label="Get started">
               Get Started
@@ -82,5 +55,41 @@ export function Topbar() {
         </div>
       </div>
     </header>
+  );
+}
+
+/** Avatar when signed in; Sign in / Get started otherwise (also while sign-in is loading). */
+function TopbarAuth() {
+  const router = useRouter();
+  const { isSignedIn } = useAuth();
+  if (isSignedIn) {
+    return (
+      <span className="avatar-slot">
+        <UserButton
+          afterSignOutUrl="/"
+          appearance={{
+            variables: { colorPrimary: "#C49A1C" },
+            elements: {
+              avatarBox: { width: "36px", height: "36px" },
+              userButtonAvatarBox: { width: "36px", height: "36px" },
+              userButtonPopoverCard: { background: "#0F1422", border: "1px solid rgba(196, 154, 28, 0.3)" },
+              userButtonPopoverText: { color: "#F4E9D8" }
+            }
+          }}
+        />
+      </span>
+    );
+  }
+  const onAuthPage = router.pathname.startsWith("/sign-");
+  const back = encodeURIComponent(router.pathname === "/" || onAuthPage ? "/library" : router.asPath);
+  return (
+    <>
+      <Link href={`/sign-in?redirect_url=${back}`} className="btn ghost" aria-label="Sign in">
+        Sign in
+      </Link>
+      <Link href={`/sign-up?redirect_url=${back}`} className="btn primary" aria-label="Create account">
+        Get started
+      </Link>
+    </>
   );
 }

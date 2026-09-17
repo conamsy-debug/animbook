@@ -98,7 +98,7 @@ export default function BookDetailPage() {
           <EmptyState
             title="This book is unavailable"
             message={error ?? "The record is missing or the AnimBook was unpublished."}
-            cta={{ href: "/", label: "Back to library" }}
+            cta={{ href: "/library", label: "Back to library" }}
           />
         </main>
       </div>
