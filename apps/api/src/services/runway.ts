@@ -135,13 +135,36 @@ async function waitForTask(id: string, timeoutMs = 15 * 60_000): Promise<string>
  * Runway fetches reference images itself; sending them inline (data URIs)
  * avoids failures when it can't reach or read our media domain.
  */
+const inlineCache = new Map<string, Promise<string>>();
+
 async function inlineImage(uri: string): Promise<string> {
   if (!/^https?:\/\//i.test(uri)) return uri;
-  const res = await fetch(uri);
-  if (!res.ok) throw new RunwayError(`Could not load reference image (${res.status}) ${uri.slice(0, 80)}`);
-  const type = res.headers.get("content-type")?.split(";")[0] || "image/png";
-  const buf = Buffer.from(await res.arrayBuffer());
-  return `data:${type};base64,${buf.toString("base64")}`;
+  // The same portraits are used on many pages: download each once per run.
+  let pending = inlineCache.get(uri);
+  if (!pending) {
+    pending = downloadAsDataUri(uri);
+    inlineCache.set(uri, pending);
+    pending.catch(() => inlineCache.delete(uri));
+  }
+  return pending;
+}
+
+async function downloadAsDataUri(uri: string, attempts = 5): Promise<string> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(uri);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const type = res.headers.get("content-type")?.split(";")[0] || "image/png";
+      const buf = Buffer.from(await res.arrayBuffer());
+      return `data:${type};base64,${buf.toString("base64")}`;
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[runway] loading reference ${uri.split("/").pop()} failed (${(err as Error).message}), retry ${i + 1}/${attempts}`);
+      await sleep(Math.min(30_000, 3_000 * 2 ** i));
+    }
+  }
+  throw new RunwayError(`Could not load reference image ${uri.slice(0, 80)}: ${(lastErr as Error)?.message}`);
 }
 
 /** Runway sometimes fails a task with an internal error; those are worth one or two more tries. */
@@ -152,7 +175,10 @@ async function withTaskRetry(label: string, run: () => Promise<string>, attempts
       return await run();
     } catch (err) {
       lastErr = err;
-      const retryable = err instanceof RunwayError && err.retryable;
+      // Runway internal errors, and network drops ("terminated", "fetch failed").
+      const retryable =
+        (err instanceof RunwayError && err.retryable) ||
+        (!(err instanceof RunwayError) && /terminated|fetch failed|socket|ECONNRESET|ETIMEDOUT/i.test((err as Error).message));
       if (!retryable || i === attempts - 1) throw err;
       console.warn(`[runway] ${label} failed (${(err as Error).message}), retry ${i + 1}/${attempts - 1}`);
       await sleep(10_000);

@@ -650,7 +650,7 @@ async function main() {
           if (coverRef.people.length) console.log(`    faces: ${coverRef.people.join(", ")}`);
           console.log("  ✓ cover");
         } catch (err) {
-          report.push({ book: book.slug, page: "cover", status: "failed", error: (err as Error).message });
+          report.push({ book: book.slug, page: "cover", status: "failed", error: `${(err as Error).message}${(err as Error).cause ? ` (${String((err as Error).cause)})` : ""}` });
           console.warn(`  ✗ cover: ${(err as Error).message}`);
         }
       }
