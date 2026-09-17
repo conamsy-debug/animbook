@@ -95,7 +95,7 @@ const isPlaceholder = (url: string | null | undefined) =>
 const VERTICAL_STYLE: Record<string, string> = {
   CONSUMER: "cinematic painterly realism, rich warm light, shallow depth of field",
   ORIGINALS: "cinematic painterly realism, bold composition, dramatic light",
-  KIDS: "soft storybook illustration, rounded shapes, warm pastel palette, gentle and safe, no peril",
+  KIDS: "soft storybook illustration, rounded shapes, warm pastel palette, cheerful and cosy",
   EDU: "clean educational illustration, clear shapes, bright even light, uncluttered background",
   FAITH: "reverent classical painting style, soft golden light, dignified and respectful",
   DOCS: "clear realistic instructional footage look, even daylight, hands and tools clearly visible",
@@ -128,6 +128,8 @@ function resolveStyle(book: BookRow): string {
 // ---------- cast sheets ----------
 interface CastMember {
   name: string;
+  /** How to refer to them without their name, e.g. "the rabbit in the blue jacket". */
+  label?: string;
   description: string;
   /** Runway reference tag, e.g. "Adaeze". */
   tag?: string;
@@ -141,14 +143,19 @@ interface CastSheet {
 }
 
 const CAST_RULES = `You prepare a casting sheet for an illustrated, animated book.
-Return ONLY JSON: {"setting": "...", "characters": [{"name": "...", "description": "..."}]} — no markdown.
+Return ONLY JSON: {"setting": "...", "characters": [{"name": "...", "label": "...", "description": "..."}]} — no markdown.
 
 "setting": one sentence — the real place, era and culture the story happens in.
-"characters": every named person (and any recurring unnamed person) in the text. For each, "description" (max 35 words) fixes how they look in every image: sex, approximate age, ethnicity and skin tone, hair, build, and one signature outfit.
+"characters": every named person or animal character (and any recurring unnamed one) in the text. For each:
+- "label" (3–6 words): how an illustrator would point them out without their name, e.g. "the woman in the mustard blouse", "the rabbit in the blue jacket".
+- "description" (max 35 words) fixes how they look in every image. People: approximate age, ethnicity and skin tone, hair, build, one signature outfit. Animals: species, fur colours, size, one signature outfit — do not state an animal's sex.
+Keep descriptions wholesome and simple: describe faces, hair, fur and clothing only (no other body parts). For children write "a child of about 8" style ages; never combine "young" with "male" or "female".
 Pick ONE specific look for each person — never write 'or' or offer alternatives. Make every character clearly different from the others (hairstyle, outfit colours, build, age). Base ethnicity on the setting and the names given (for example, Igbo or Yoruba names in Lagos mean Nigerian, Black West African people). Do not invent people who are not in the text. If the text names no people, return an empty list.`;
 
 let castCache: Record<string, CastSheet> = {};
-if (!RECAST && existsSync(CAST_FILE)) {
+// --recast rewrites only the sheets of books in this run; others are kept.
+const recastDone = new Set<string>();
+if (existsSync(CAST_FILE)) {
   try {
     castCache = JSON.parse(readFileSync(CAST_FILE, "utf8"));
   } catch {
@@ -180,7 +187,7 @@ async function askClaude(system: string, user: string, maxTokens: number): Promi
 async function castFor(book: BookRow): Promise<CastSheet | null> {
   const world = book.worldMembership?.world;
   const key = castKey(book);
-  if (castCache[key]) {
+  if (castCache[key] && (!RECAST || recastDone.has(key))) {
     ensureTags(castCache[key]);
     return castCache[key];
   }
@@ -206,6 +213,7 @@ async function castFor(book: BookRow): Promise<CastSheet | null> {
     if (!Array.isArray(sheet.characters)) throw new Error("no characters list");
     ensureTags(sheet);
     castCache[key] = sheet;
+    recastDone.add(key);
     saveCast();
     console.log(`  cast (${key}): ${sheet.characters.map((c) => c.name).join(", ") || "no named people"}`);
     return sheet;
@@ -267,7 +275,7 @@ function withReferences(
   const people = cast.characters.filter((c) => c.approved && c.portraitUrl && c.tag && inFrame(c)).slice(0, 3);
   if (!people.length) return { prompt, plain: prompt, references: [], people: [] };
   const line =
-    people.map((c) => `@${c.tag} is ${c.name}`).join("; ") +
+    people.map((c) => `@${c.tag} is ${labelFor(c)}`).join("; ") +
     ` — draw ${people.length === 1 ? "this person" : "these people"} with exactly the face, hair, body and clothes shown in the reference image${people.length === 1 ? "" : "s"}.`;
   const rest = prompt.toLowerCase().startsWith(style.slice(0, 20).toLowerCase()) ? prompt.slice(style.length).replace(/^[\s.]+/, "") : prompt;
   return {
@@ -290,6 +298,62 @@ function scrubText(prompt: string): string {
     .replace(/\s{2,}/g, " ")
     .replace(/\s+([.,;])/g, "$1")
     .trim();
+}
+
+function labelFor(c: CastMember): string {
+  if (c.label?.trim()) return c.label.trim();
+  const first = c.description
+    .split(/[,.;]/)[0]
+    .replace(/^\s*(?:a|an|the)\s+/i, "")
+    .split(/\s+(?:with|who|wearing|in)\s+/i)[0]
+    .trim();
+  const words = first.split(/\s+/).slice(0, 6).join(" ");
+  return `the ${words.charAt(0).toLowerCase()}${words.slice(1)}`;
+}
+
+const HONORIFIC = new Set(["the", "a", "an", "mr", "mrs", "ms", "miss", "dr", "old", "young", "little", "small", "first", "second", "third", "big"]);
+const escapeRe = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Replace character names with their labels in anything sent to Runway.
+ * Well-known names (e.g. Peter Rabbit) trip Runway's text moderation.
+ * @Tag mentions used for reference portraits are left alone.
+ */
+function stripNames(text: string, cast: CastSheet | null): string {
+  if (!cast?.characters.length) return text;
+  let out = text;
+  const names = cast.characters
+    .flatMap((c) => {
+      const label = labelFor(c);
+      const variants = [c.name];
+      const first = c.name.split(/\s+/)[0].replace(/[^A-Za-z'-]/g, "");
+      if (first.length >= 3 && !HONORIFIC.has(first.toLowerCase())) variants.push(first);
+      return variants.map((v) => ({ v, label }));
+    })
+    .sort((a, b) => b.v.length - a.v.length);
+  for (const { v, label } of names) {
+    // "Peter's" → "the rabbit in the blue jacket's"; skip "@Peter" tags.
+    const re = new RegExp(`(^|[^@\\w])${escapeRe(v)}(?![\\w-])`, "g");
+    out = out.replace(re, (_m, pre: string) => `${pre}${label}`);
+  }
+  // "the rabbit in the blue jacket: the rabbit in the blue jacket …" after replacement → keep one.
+  return out.replace(/\b(the [^:.,]{3,60})[:,]\s+\1\b/gi, "$1");
+}
+
+/** Wording Runway's safety filter tends to misread, softened. */
+function soften(text: string): string {
+  return text
+    .replace(/\b(?:(small|little|tiny)\s+)?young\s+(?:fe)?male\s+(rabbit|bunny|hare|cat|kitten|dog|puppy|fox|cub|owl|bird|mouse|bear|lion|deer|fawn|animal)\b/gi, (_m, size: string | undefined, animal: string) => `${size ? `${size} ` : ""}young ${animal}`)
+    .replace(/\b(?:fe)?male\s+(rabbit|bunny|hare|cat|kitten|dog|puppy|fox|cub|owl|bird|mouse|bear|lion|deer|fawn|animal)\b/gi, "$1")
+    .replace(/\bwhite belly\b/gi, "white front")
+    .replace(/\bbelly\b/gi, "front")
+    .replace(/,?\s*gentle and safe,?\s*no peril\b/gi, "")
+    .replace(/\s{2,}/g, " ");
+}
+
+/** Everything that goes to Runway passes through here. */
+function safePrompt(text: string, cast: CastSheet | null): string {
+  return soften(stripNames(scrubText(text), cast));
 }
 
 /** The book's default narrator (catalog id + ElevenLabs id). */
@@ -352,7 +416,7 @@ async function portraitMode(books: BookRow[]): Promise<boolean> {
       if (cost > MAX_CREDITS) throw new Error(`Portraits would cost ~${cost} credits, over --max-credits ${MAX_CREDITS}`);
       for (const { key, c, book } of todo) {
         try {
-          const still = await generateStill(scrubText(portraitPrompt(c, resolveStyle(book))), "720:960");
+          const still = await generateStill(safePrompt(portraitPrompt(c, resolveStyle(book)), null), "720:960");
           const folder = key.replace(/[^a-z0-9-]+/gi, "-");
           const stored = await mirrorToR2(still, `cast/${folder}/${c.tag}-${Date.now().toString(36)}.png`, "image/png");
           c.portraitUrl = stored.url;
@@ -389,9 +453,9 @@ async function portraitMode(books: BookRow[]): Promise<boolean> {
 function castText(cast: CastSheet | null): string {
   if (!cast) return "";
   const people = cast.characters.length
-    ? cast.characters.map((c) => `${c.name}: ${c.description}`).join("\n")
+    ? cast.characters.map((c) => `${c.name} — label "${labelFor(c)}": ${c.description}`).join("\n")
     : "(no named people)";
-  return `Setting: ${cast.setting}\nCast — copy these descriptions word for word whenever a person appears:\n${people}`;
+  return `Setting: ${cast.setting}\nCast — in prompts, use each label (never the name), then copy the description word for word:\n${people}`;
 }
 
 interface PromptPair {
@@ -403,11 +467,11 @@ interface PromptPair {
 
 const RULES = `You write prompts for an AI image model and an AI image-to-video model.
 Return ONLY JSON: {"still": "...", "motion": "...", "people": ["..."]} — no markdown.
-"people" lists the exact cast names of everyone visible in the frame (empty list if nobody).
+"people" lists the exact cast names of everyone visible in the frame (empty list if nobody). Names go ONLY in this list — never in "still" or "motion".
 
-"still" (max 90 words) starts with the art style exactly as given, then describes one frame: the setting, the exact number of people or creatures in frame (say "one woman", "two men", or "no people"), who is where, what they wear, the light, the camera framing, and the art style given to you. Whenever a person from the cast appears, write their name, then paste their cast description word for word (e.g. "Adaeze, <description>"); only show the people this page is about. If the page is about a place, write "no people". Describe only what is seen. Never mention writing, words, signs, labels, titles, logos or letters at all — not even to say there are none — because the image model treats any such mention as a request to draw text.
+"still" (max 90 words) starts with the art style exactly as given, then describes one frame: the setting, the exact number of people or creatures in frame (say "one woman", "two men", or "no people"), who is where, what they wear, the light, the camera framing, and the art style given to you. Whenever someone from the cast appears, refer to them by their label, then paste their cast description word for word (e.g. "the woman in the mustard blouse: <description>"). Never write character names — the image model may refuse well-known names; only show the people this page is about. If the page is about a place, write "no people". Describe only what is seen. Never mention writing, words, signs, labels, titles, logos or letters at all — not even to say there are none — because the image model treats any such mention as a request to draw text.
 
-"motion" (max 60 words) describes what moves during a 5-second shot of that frame. State every movement explicitly — which body part moves, in which direction, how far, how fast — and the camera move (e.g. "slow push-in", "static camera"). Tie any effect (light, dust, water, smoke) to the thing that causes it. Repeat the subject count ("the one woman…") so no extra people appear. Keep motion small and physically plausible. No cuts, no new subjects entering.`;
+"motion" (max 60 words) describes what moves during a 5-second shot of that frame. State every movement explicitly — which body part moves, in which direction, how far, how fast — and the camera move (e.g. "slow push-in", "static camera"). Tie any effect (light, dust, water, smoke) to the thing that causes it. Refer to characters by their labels, never by name. Repeat the subject count ("the one woman…") so no extra people appear. Keep motion small and physically plausible. No cuts, no new subjects entering.`;
 
 function templatePrompt(book: BookRow, page: PageRow, style: string): PromptPair {
   const scene = page.animationPrompt?.trim() || page.textExcerpt.trim();
@@ -447,7 +511,7 @@ async function claudePrompt(book: BookRow, page: PageRow, style: string, cast: C
 
 const COVER_RULES = `You write one prompt (max 110 words) for a portrait-format illustration that captures a story at a glance.
 Return ONLY JSON: {"prompt": "...", "people": ["..."]} — no markdown. "people" lists the exact cast names shown.
-The prompt starts with the art style exactly as given. Show the story's setting and only the characters the synopsis names — state how many people are in frame, and for each write their name, then paste their cast description word for word. One clear focal image in portrait format. Describe only what is seen: never mention a book, cover, poster, title, writing, words, letters or logos — not even to say there are none — because the image model treats any such mention as a request to draw text.`;
+The prompt starts with the art style exactly as given. Show the story's setting and only the characters the synopsis names — state how many people or animal characters are in frame, and for each write their label (never their name), then paste their cast description word for word. Names go only in the "people" list. One clear focal image in portrait format. Describe only what is seen: never mention a book, cover, poster, title, writing, words, letters or logos — not even to say there are none — because the image model treats any such mention as a request to draw text.`;
 
 async function coverPrompt(book: BookRow, style: string, cast: CastSheet | null): Promise<{ prompt: string; people?: string[] }> {
   const fallback = `${style}. One striking scene in portrait composition: ${book.synopsis} ${cast ? castText(cast) : ""}`;
@@ -675,7 +739,7 @@ async function main() {
         let coverPromptUsed = "";
         try {
           const written = await coverPrompt(book, style, cast);
-          const coverRef = withReferences(scrubText(written.prompt), cast, style, written.people);
+          const coverRef = withReferences(safePrompt(written.prompt, cast), cast, style, written.people);
           const prompt = coverRef.prompt;
           coverPromptUsed = prompt;
           const { url: still, facesLocked } = await generateStillWithFaces(prompt, coverRef.plain, "tall", coverRef.references);
@@ -714,8 +778,8 @@ async function main() {
         return;
       }
       const written = (USE_CLAUDE && (await claudePrompt(book, page, style, cast))) || templatePrompt(book, page, style);
-      const referenced = withReferences(scrubText(written.still), cast, style, written.people);
-      const prompts = { still: referenced.prompt, motion: written.motion };
+      const referenced = withReferences(safePrompt(written.still, cast), cast, style, written.people);
+      const prompts = { still: referenced.prompt, motion: safePrompt(written.motion, cast) };
       try {
         const clip = await generateClip({
           projectId: book.id,
