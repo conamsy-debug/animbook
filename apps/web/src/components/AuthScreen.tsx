@@ -9,7 +9,26 @@ import { LogoMark } from "@/components/Logo";
  * (the pop-up keeps Clerk's own styling), then returns the reader to the
  * page they came from.
  */
+const HAS_CLERK = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+
 export function AuthScreen({ mode }: { mode: "sign-in" | "sign-up" }) {
+  if (!HAS_CLERK) {
+    return (
+      <div className="auth-screen">
+        <div className="auth-panel">
+          <h1>Sign-in isn&apos;t configured</h1>
+          <p className="muted">This build has no Clerk key, so accounts are unavailable.</p>
+          <Link href="/library" className="auth-back">
+            ← Browse the library
+          </Link>
+        </div>
+      </div>
+    );
+  }
+  return <ClerkAuthScreen mode={mode} />;
+}
+
+function ClerkAuthScreen({ mode }: { mode: "sign-in" | "sign-up" }) {
   const router = useRouter();
   const clerk = useClerk();
   const { isLoaded, isSignedIn } = useAuth();

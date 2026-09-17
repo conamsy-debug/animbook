@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useMemo, useRef, type ReactNode, type Ref } from "react";
+import { motion } from "framer-motion";
 import { useReaderStore } from "@/lib/store";
 import type { BookSummary, PageRecord } from "@/lib/api";
 
@@ -16,6 +16,10 @@ interface Props {
   paused?: boolean;
   /** Frame shape for the video, e.g. "16:9", "3:4". */
   aspect?: ReaderAspect;
+  /** The video frame element (this is what goes full screen). */
+  videoFrameRef?: Ref<HTMLElement>;
+  /** Controls and captions shown over the video while it is full screen. */
+  fullscreenOverlay?: ReactNode;
 }
 
 export type ReaderAspect = "16:9" | "4:3" | "3:4" | "1:1" | "9:16";
@@ -51,7 +55,7 @@ function pickAccent(vertical: string): string {
   return map[vertical] ?? "#1B6B8A";
 }
 
-export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false, onWordTap, paletteHint = "default", motionScale = 1, fontSize = 18, paused = false, aspect = "16:9" }: Props) {
+export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false, onWordTap, paletteHint = "default", motionScale = 1, fontSize = 18, paused = false, aspect = "16:9", videoFrameRef, fullscreenOverlay }: Props) {
   const { pageIndex, mode, isFlipping, flippingDirection, setBook, flipNext, flipPrev, finishFlip } = useReaderStore();
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -106,19 +110,19 @@ export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false,
       style={{ ["--accent-page" as string]: bannerAccent, ["--ar" as string]: aspectNumber(aspect).toFixed(4) }}
       data-aspect={aspect}
     >
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={current.id}
-          className="spread"
-          initial={{ opacity: 0, rotateY: flippingDirection === "next" ? -8 * motionScale : 8 * motionScale }}
-          animate={{ opacity: 1, rotateY: 0 }}
-          exit={{ opacity: 0, rotateY: flippingDirection === "next" ? 8 * motionScale : -8 * motionScale }}
-          transition={{ duration: bedtime ? 0.8 : 0.5, ease: [0.34, 1.56, 0.64, 1] }}
-          onAnimationComplete={finishFlip}
-          style={{ transformStyle: "preserve-3d" }}
-        >
-          {mode !== "WATCH" && (
-            <article className="page text">
+      {/* The spread and the video frame stay mounted across page turns, so full
+          screen isn't interrupted; only the page content fades in. (The old
+          exit-then-enter animation could stall and leave the stage blank.) */}
+      <div className="spread">
+        {mode !== "WATCH" && (
+          <article className="page text">
+            <motion.div
+              key={current.id}
+              initial={{ opacity: 0, y: 6 * motionScale }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: bedtime ? 0.6 : 0.35, ease: "easeOut" }}
+              onAnimationComplete={finishFlip}
+            >
               <div className="page-kicker" style={{ color: bannerAccent }}>
                 {book.title} · Page {current.pageNum}
               </div>
@@ -137,10 +141,19 @@ export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false,
               >
                 {lensEnabled ? "You see " : ""}{renderWords(current.textExcerpt)}
               </p>
-            </article>
-          )}
-          {mode !== "READ" && (
-            <article className="page video" aria-label={`Page ${current.pageNum} animation`}>
+            </motion.div>
+          </article>
+        )}
+        {mode !== "READ" && (
+          <article className="page video" aria-label={`Page ${current.pageNum} animation`} ref={videoFrameRef}>
+            <motion.div
+              key={current.id}
+              className="video-layer"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: bedtime ? 0.6 : 0.35, ease: "easeOut" }}
+              onAnimationComplete={finishFlip}
+            >
               {current.videoUrl && !/\.(png|jpe?g|webp)(\?|$)|placehold\.co/i.test(current.videoUrl) ? (
                 <video
                   ref={videoRef}
@@ -152,15 +165,18 @@ export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false,
                   playsInline
                   style={lensEnabled ? { transform: "scale(1.6)", transformOrigin: "center" } : undefined}
                 />
-              ) : current.posterUrl || current.videoUrl ? (
-                <img src={current.posterUrl ?? current.videoUrl ?? ""} alt="" className="video-poster" />
+              ) : current.posterUrl && !/placehold\.co/i.test(current.posterUrl) ? (
+                <img src={current.posterUrl} alt="" className="video-poster" />
               ) : (
-                <div className="video-empty">Animation coming soon</div>
+                <div className="video-empty">
+                  <span>Animation coming soon</span>
+                </div>
               )}
-            </article>
-          )}
-        </motion.div>
-      </AnimatePresence>
+            </motion.div>
+            {fullscreenOverlay}
+          </article>
+        )}
+      </div>
 
       {isFlipping && (
         <motion.div

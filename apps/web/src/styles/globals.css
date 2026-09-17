@@ -432,15 +432,15 @@ h1 {
 .reader-stage {
   position: relative;
   perspective: 1800px;
-  width: min(1240px, 100%);
+  width: min(1480px, 100%);
   margin: 0 auto;
   flex: 1;
 }
 .reader-stage .spread {
   display: grid;
-  grid-template-columns: minmax(0, 1.65fr) minmax(280px, 1fr);
+  grid-template-columns: minmax(0, 2.2fr) minmax(280px, 1fr);
   gap: 20px;
-  align-items: stretch;
+  align-items: start;
 }
 .reader-stage.mode-watch .spread,
 .reader-stage.mode-read .spread { grid-template-columns: 1fr; }
@@ -611,7 +611,7 @@ h1 {
   position: sticky;
   bottom: 0;
   z-index: 5;
-  width: min(1240px, 100%);
+  width: min(1480px, 100%);
   margin: 20px auto 0;
   padding: 0 0 16px;
   background: linear-gradient(to top, var(--bg) 70%, transparent);
@@ -1451,3 +1451,109 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 .auth-note { margin-top: 16px !important; font-size: 0.88rem; }
 .auth-back { display: inline-block; margin-top: 24px; font-size: 0.9rem; color: var(--muted); text-decoration: none; }
 .auth-back:hover { color: var(--text); }
+
+/* ==== Video frame: layer, empty state, full screen ==== */
+.reader-stage .page.video { overflow: hidden; }
+.reader-stage .page.video .video-layer { position: absolute; inset: 0; }
+.reader-stage .page.video .video-layer video,
+.reader-stage .page.video .video-layer .video-poster { width: 100%; height: 100%; object-fit: cover; display: block; }
+.reader-stage .video-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  background:
+    radial-gradient(90% 80% at 30% 20%, rgba(27, 107, 138, 0.25), transparent 60%),
+    radial-gradient(80% 80% at 80% 90%, rgba(196, 154, 28, 0.18), transparent 60%),
+    #0b111a;
+}
+
+.reader-stage .page.video:fullscreen {
+  width: 100vw !important;
+  height: 100vh;
+  max-height: none;
+  aspect-ratio: auto;
+  border: 0;
+  border-radius: 0;
+  background: #000;
+  box-shadow: none;
+}
+.reader-stage .page.video:-webkit-full-screen {
+  width: 100vw !important;
+  height: 100vh;
+  max-height: none;
+  aspect-ratio: auto;
+  border: 0;
+  border-radius: 0;
+  background: #000;
+}
+.reader-stage .page.video:fullscreen .video-layer video,
+.reader-stage .page.video:fullscreen .video-layer .video-poster { object-fit: contain; }
+.reader-stage .page.video:-webkit-full-screen .video-layer video,
+.reader-stage .page.video:-webkit-full-screen .video-layer .video-poster { object-fit: contain; }
+
+.fs-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 18px;
+  padding: 0 4vw 28px;
+  pointer-events: none;
+  cursor: none;
+}
+.fs-overlay.show { cursor: auto; }
+.fs-caption {
+  max-width: min(980px, 92vw);
+  margin: 0;
+  padding: 10px 18px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(1.15rem, 2.2vw, 1.7rem);
+  line-height: 1.4;
+  text-align: center;
+  transition: transform 0.3s ease;
+}
+.fs-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(760px, 92vw);
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(10, 14, 22, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px);
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.fs-overlay.show .fs-bar { opacity: 1; transform: translateY(0); }
+.fs-overlay:not(.show) .fs-bar { pointer-events: none; }
+.fs-btn, .fs-play {
+  display: grid;
+  place-items: center;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  background: transparent;
+  border-radius: 50%;
+}
+.fs-btn { width: 42px; height: 42px; }
+.fs-btn svg { width: 22px; height: 22px; }
+.fs-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); }
+.fs-btn:disabled { opacity: 0.35; cursor: default; }
+.fs-btn.on { color: var(--accent); }
+.fs-play { width: 52px; height: 52px; background: var(--accent); color: #0b111a; }
+.fs-play svg { width: 24px; height: 24px; }
+.fs-count { color: rgba(255, 255, 255, 0.8); font-size: 0.9rem; font-variant-numeric: tabular-nums; margin-left: 4px; }
+.fs-spacer { flex: 1; }

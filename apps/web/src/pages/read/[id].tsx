@@ -2,6 +2,7 @@ import { useRouter } from "next/router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Topbar } from "@/components/Topbar";
 import { ReaderStage, READER_ASPECTS, type ReaderAspect } from "@/components/ReaderStage";
+import { FullscreenOverlay } from "@/components/FullscreenOverlay";
 import { ApiError } from "@/lib/api";
 import { BOOK_VOICE, VOICE_KEY, loadVoices, voiceErrorMessage, type VoiceOption } from "@/lib/voices";
 import { ReaderControls } from "@/components/ReaderControls";
@@ -59,7 +60,7 @@ export default function ReaderPage() {
   const [dreamSessionId, setDreamSessionId] = useState<string | null>(null);
   const [oracleOpen, setOracleOpen] = useState(false);
   const [translationWord, setTranslationWord] = useState<string | null>(null);
-  const { pageIndex, flipNext, flipPrev } = useReaderStore();
+  const { pageIndex, flipNext, flipPrev, mode: readerMode } = useReaderStore();
   // Select pieces, not the whole store: depending on the store object made the
   // load effect re-run after every library update, reloading the book and
   // resetting the reader to page 1.
@@ -251,26 +252,47 @@ export default function ReaderPage() {
     }
   }
 
-  // Full screen: the whole reader (video, text and player) when the browser
-  // allows it; otherwise (iPhone Safari) the video's own full-screen player.
+  // Full screen: the video frame itself (with its own controls and captions).
+  // In Read mode, the whole reader. iPhone Safari only allows the video's own
+  // native full-screen player.
   const readerRef = useRef<HTMLElement | null>(null);
+  const videoFrameRef = useRef<HTMLElement | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [frameFullscreen, setFrameFullscreen] = useState(false);
   useEffect(() => {
-    const onChange = () => setFullscreen(Boolean(document.fullscreenElement));
+    const onChange = () => {
+      const d = document as Document & { webkitFullscreenElement?: Element | null };
+      const el = document.fullscreenElement ?? d.webkitFullscreenElement ?? null;
+      setFullscreen(Boolean(el));
+      setFrameFullscreen(Boolean(el) && el === videoFrameRef.current);
+    };
     document.addEventListener("fullscreenchange", onChange);
-    return () => document.removeEventListener("fullscreenchange", onChange);
+    document.addEventListener("webkitfullscreenchange", onChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      document.removeEventListener("webkitfullscreenchange", onChange);
+    };
   }, []);
   function toggleFullscreen() {
-    if (document.fullscreenElement) {
-      void document.exitFullscreen().catch(() => undefined);
+    type FsDoc = Document & { webkitFullscreenElement?: Element | null; webkitExitFullscreen?: () => void };
+    type FsEl = HTMLElement & { webkitRequestFullscreen?: () => void };
+    const d = document as FsDoc;
+    if (document.fullscreenElement || d.webkitFullscreenElement) {
+      if (document.exitFullscreen) void document.exitFullscreen().catch(() => undefined);
+      else d.webkitExitFullscreen?.();
       return;
     }
-    const el = readerRef.current;
-    if (el && document.fullscreenEnabled && el.requestFullscreen) {
+    const target = (readerMode !== "READ" ? videoFrameRef.current : null) ?? readerRef.current;
+    const el = target as FsEl | null;
+    if (el?.requestFullscreen && document.fullscreenEnabled) {
       void el.requestFullscreen().catch(() => undefined);
       return;
     }
-    const video = el?.querySelector("video") as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+    if (el?.webkitRequestFullscreen) {
+      el.webkitRequestFullscreen();
+      return;
+    }
+    const video = readerRef.current?.querySelector("video") as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
     video?.webkitEnterFullscreen?.();
   }
 
@@ -410,7 +432,7 @@ export default function ReaderPage() {
       <Topbar />
       <BedtimeStylesheet enabled={bedtime || dreamActive} />
       <main
-        className={`reader${fullscreen ? " is-fullscreen" : ""}`}
+        className={`reader${fullscreen && !frameFullscreen ? " is-fullscreen" : ""}`}
         ref={readerRef}
         style={isProjection ? { minHeight: "100vh" } : undefined}
       >
@@ -449,6 +471,21 @@ export default function ReaderPage() {
             fontSize={dreamActive ? (dreamProfile?.fontSize ?? 22) : (memory?.fontSize ?? 18)}
             paused={userPaused}
             aspect={aspect}
+            videoFrameRef={videoFrameRef}
+            fullscreenOverlay={
+              <FullscreenOverlay
+                active={frameFullscreen}
+                narration={narration}
+                onPlay={playNarration}
+                onPause={pauseNarration}
+                onPrev={flipPrev}
+                onNext={flipNext}
+                onExit={toggleFullscreen}
+                pageNumber={pageIndex + 1}
+                total={pages.length}
+                caption={currentPage?.textExcerpt ?? ""}
+              />
+            }
           />
           <ReaderControls narration={narration} onPlay={playNarration} onPause={pauseNarration} onNext={flipNext} onPrev={flipPrev} autoFlip={autoFlip}
             onToggleAutoFlip={toggleAutoFlip}
