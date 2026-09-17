@@ -54,6 +54,7 @@ router.get(
         id: true,
         slug: true,
         title: true,
+        subtitle: true,
         author: true,
         synopsis: true,
         vertical: true,

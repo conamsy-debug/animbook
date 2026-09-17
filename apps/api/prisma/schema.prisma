@@ -149,6 +149,7 @@ model Book {
   id                   String             @id @default(cuid())
   slug                 String             @unique
   title                String
+  subtitle             String?
   author               String
   synopsis             String             @db.Text
   isbn                 String?            @unique

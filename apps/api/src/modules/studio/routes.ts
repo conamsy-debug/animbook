@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { Router } from "express";
+import express, { Router } from "express";
 import { z } from "zod";
 import { authMiddleware, requireUserId, type AuthedRequest } from "../../auth/middleware.js";
 import { prisma } from "../../db.js";
@@ -10,6 +10,7 @@ import {
 } from "../../services/pipeline.js";
 import { emitPipelineEvent, subscribeProject, writeSseEvent, writeSseHeaders, type PipelineEvent } from "../../studio/events.js";
 import { rateLimit } from "../../middleware/rateLimit.js";
+import { ExtractError, extractManuscript } from "../../services/manuscriptExtract.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -31,10 +32,41 @@ const createSchema = z.object({
     "ORIGINALS"
   ]),
   title: z.string().min(1),
+  subtitle: z.string().trim().max(200).optional(),
   author: z.string().min(1),
   synopsis: z.string().min(1).optional(),
   language: z.string().default("en")
 });
+
+/**
+ * POST /api/studio/extract — body is the raw file (any content type), with
+ * the file name in the X-Filename header. Returns the manuscript as plain text.
+ */
+router.post(
+  "/extract",
+  rateLimit({ name: "studio.extract", max: 20, windowSeconds: 60 }),
+  express.raw({ type: () => true, limit: "25mb" }),
+  async (req: AuthedRequest, res: Response) => {
+    requireUserId(req);
+    const body = req.body as unknown;
+    if (!Buffer.isBuffer(body) || body.length === 0) {
+      res.status(400).json({ error: "No file received" });
+      return;
+    }
+    const filename = decodeURIComponent(String(req.header("x-filename") ?? "manuscript"));
+    try {
+      const { text, kind } = await extractManuscript(filename, body);
+      res.json({ text, kind, characters: text.length });
+    } catch (err) {
+      if (err instanceof ExtractError) {
+        res.status(422).json({ error: err.message });
+        return;
+      }
+      console.warn(`[studio/extract] ${filename}: ${(err as Error).message}`);
+      res.status(422).json({ error: "Couldn't read that file. Try saving it as .docx or PDF again, or paste the text." });
+    }
+  }
+);
 
 router.get("/projects", async (req: AuthedRequest, res: Response) => {
   const userId = requireUserId(req);
@@ -66,7 +98,7 @@ router.post("/projects", async (req: AuthedRequest, res: Response) => {
     res.status(400).json({ error: "Invalid project", details: parsed.error.flatten() });
     return;
   }
-  const { name, vertical, title, author, synopsis, language } = parsed.data;
+  const { name, vertical, title, subtitle, author, synopsis, language } = parsed.data;
   const slugBase = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
   const slug = `${slugBase}-${Date.now().toString(36)}`;
   const requiresExpertReview = vertical === "EDU" || vertical === "FAITH";
@@ -74,6 +106,7 @@ router.post("/projects", async (req: AuthedRequest, res: Response) => {
     data: {
       slug,
       title,
+      subtitle: subtitle || null,
       author,
       synopsis: synopsis ?? "",
       vertical,

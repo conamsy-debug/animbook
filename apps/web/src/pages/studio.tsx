@@ -100,6 +100,7 @@ export default function StudioPage() {
 
   // Setup form
   const [title, setTitle] = useState("");
+  const [subtitle, setSubtitle] = useState("");
   const [author, setAuthor] = useState("");
   const [synopsis, setSynopsis] = useState("");
   const [vertical, setVertical] = useState("CONSUMER");
@@ -108,6 +109,8 @@ export default function StudioPage() {
   const [manuscriptText, setManuscriptText] = useState("");
   const parsed = useMemo(() => parseManuscript(manuscriptText), [manuscriptText]);
   const fileInput = useRef<HTMLInputElement | null>(null);
+  const [importing, setImporting] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   // Brain / style / review
   const [styleId, setStyleId] = useState<string>(styleOptions[0]!.id);
@@ -206,6 +209,7 @@ export default function StudioPage() {
     setProject(null);
     setEvents([]);
     setTitle("");
+    setSubtitle("");
     setAuthor("");
     setSynopsis("");
     setManuscriptText("");
@@ -221,6 +225,7 @@ export default function StudioPage() {
           name: title.trim(),
           vertical,
           title: title.trim(),
+          subtitle: subtitle.trim() || undefined,
           author: author.trim(),
           synopsis: synopsis.trim() || undefined,
           language: "en"
@@ -239,12 +244,30 @@ export default function StudioPage() {
   }
 
   async function importFile(file: File) {
-    if (!/\.(txt|md|markdown)$/i.test(file.name)) {
-      toast("Please choose a .txt or .md file (paste Word text directly for now)");
+    setImportError(null);
+    if (file.size > 25 * 1024 * 1024) {
+      setImportError("That file is over 25 MB. Please split it or save a smaller copy.");
       return;
     }
-    setManuscriptText(await file.text());
-    toast(`Loaded ${file.name}`);
+    setImporting(file.name);
+    try {
+      if (/\.(txt|md|markdown)$/i.test(file.name)) {
+        setManuscriptText(await file.text());
+      } else {
+        const res = await apiFetch<{ text: string; kind: string }>("/api/studio/extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/octet-stream", "X-Filename": encodeURIComponent(file.name) },
+          body: file
+        });
+        setManuscriptText(res.text);
+      }
+      toast(`Imported ${file.name}`);
+    } catch (err) {
+      const detail = (err as { details?: { error?: string } }).details?.error;
+      setImportError(detail ?? `Couldn't import ${file.name}: ${(err as Error).message}`);
+    } finally {
+      setImporting(null);
+    }
   }
 
   async function uploadManuscript() {
@@ -424,6 +447,10 @@ export default function StudioPage() {
                     <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. The Night Train" />
                   </label>
                   <label className="field">
+                    <span>Subtitle</span>
+                    <input value={subtitle} onChange={(e) => setSubtitle(e.target.value)} placeholder="Optional — e.g. A Novel of the Lagos Waterfront" maxLength={200} />
+                  </label>
+                  <label className="field">
                     <span>Author *</span>
                     <input value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="Your name or pen name" />
                   </label>
@@ -470,7 +497,7 @@ export default function StudioPage() {
                   </div>
                 ) : (
                   <>
-                    <p className="muted">Paste the text or import a .txt / .md file. Pages split at blank lines (about 480 characters each); a line starting with “Chapter” starts a new chapter.</p>
+                    <p className="muted">Import a Word (.docx), PDF or text file, or paste the text. Pages split at blank lines (about 480 characters each); a line starting with “Chapter” starts a new chapter.</p>
                     <textarea
                       className="manuscript"
                       rows={12}
@@ -482,7 +509,7 @@ export default function StudioPage() {
                       <input
                         ref={fileInput}
                         type="file"
-                        accept=".txt,.md,.markdown,text/plain,text/markdown"
+                        accept=".docx,.pdf,.txt,.md,.markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
                         hidden
                         onChange={(e) => {
                           const f = e.target.files?.[0];
@@ -490,13 +517,14 @@ export default function StudioPage() {
                           e.target.value = "";
                         }}
                       />
-                      <button type="button" className="btn ghost" onClick={() => fileInput.current?.click()}>
-                        Import file
+                      <button type="button" className="btn ghost" onClick={() => fileInput.current?.click()} disabled={importing !== null}>
+                        {importing ? `Reading ${importing}…` : "Import Word, PDF or text file"}
                       </button>
                       <span className="muted small">
                         {parsed.length} {parsed.length === 1 ? "page" : "pages"} · {manuscriptText.trim().length.toLocaleString()} characters
                       </span>
                     </div>
+                    {importError && <p className="notice">{importError}</p>}
                     {parsed.length > 0 && (
                       <div className="page-preview">
                         {parsed.slice(0, 6).map((page) => (

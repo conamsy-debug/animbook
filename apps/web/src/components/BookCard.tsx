@@ -12,6 +12,7 @@ export function BookCard({ book, compact = false }: { book: BookSummary; compact
         {compact ? "" : ` · ${book.author}`}
       </span>
       <h3>{book.title}</h3>
+      {book.subtitle && !compact && <span className="book-card-subtitle">{book.subtitle}</span>}
       {!compact && (
         <p className="muted" style={{ margin: 0, fontSize: ".9rem" }}>
           {book.synopsis.slice(0, 110)}

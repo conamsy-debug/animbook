@@ -49,7 +49,7 @@ export default function LibraryPage() {
     return books.filter(
       (b) =>
         (vertical === "ALL" || b.vertical === vertical) &&
-        (!q || `${b.title} ${b.author} ${b.synopsis}`.toLowerCase().includes(q))
+        (!q || `${b.title} ${b.subtitle ?? ""} ${b.author} ${b.synopsis}`.toLowerCase().includes(q))
     );
   }, [books, vertical, query]);
 

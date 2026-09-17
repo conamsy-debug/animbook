@@ -9,6 +9,9 @@ const securityHeaders = [
 const nextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  // AnimBook doesn't use next/image. Turning the optimizer off removes the
+  // /_next/image attack surface (Next 14 has unpatched advisories there).
+  images: { unoptimized: true },
   transpilePackages: ["@animbook/domain"],
   // Standalone output is required for the production Docker image.
   // `next build` will emit a self-contained server in .next/standalone.
