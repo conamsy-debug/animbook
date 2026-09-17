@@ -184,7 +184,6 @@ model Book {
 
   @@index([vertical, subcategory, status])
   @@index([vertical, status])
-  @@index([vertical, subcategory, status])
   @@index([title])
   @@index([status, language])
   @@index([status, vertical, updatedAt])
