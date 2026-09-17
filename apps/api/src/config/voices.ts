@@ -35,6 +35,12 @@ const BUILT_IN: NarratorVoice[] = [
     elevenVoiceId: "Xb7hH8MSUJpSbSDYk0k2"
   },
   {
+    id: "calm-guide",
+    label: "Calm guide",
+    description: "Slow, soothing and gentle (River)",
+    elevenVoiceId: "SAz9YHcvj6GT2YYXdXww"
+  },
+  {
     id: "american-friendly",
     label: "American, friendly",
     description: "Upbeat and easy to follow (Matilda)",
@@ -65,14 +71,17 @@ export function findVoice(id: string | undefined | null): NarratorVoice | undefi
   return narratorVoices().find((v) => v.id === id);
 }
 
-/** Default narrator id for a book, from its setting/vertical. */
+/** Default narrator id for a book, from its type and setting. */
 export function defaultVoiceIdFor(book: { vertical: string; setting?: string | null }): string {
+  // Learning and how-to books get the teacher wherever they are set.
+  if (["EDU", "DOCS", "BUSINESS", "LAW"].includes(book.vertical)) return "british-teacher";
+  // Wellness, meditation and sleep content gets the calm guide.
+  if (book.vertical === "WELLNESS") return "calm-guide";
   const setting = (book.setting ?? "").toLowerCase();
   const african =
     /\b(africa|african|nigeria|lagos|abuja|ghana|accra|kenya|nairobi|mombasa|uganda|jinja|kampala|tanzania|cameroon|douala|yaound|south africa|cape town|johannesburg|senegal|dakar|ethiopia|rwanda|zimbabwe|zambia|malawi|congo|ivory coast|abidjan)\b/.test(
       setting
     );
   if (african) return "nigerian-storyteller";
-  if (["EDU", "DOCS", "BUSINESS", "WELLNESS", "LAW"].includes(book.vertical)) return "british-teacher";
   return "british-storyteller";
 }
