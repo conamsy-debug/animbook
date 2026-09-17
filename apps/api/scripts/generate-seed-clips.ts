@@ -45,7 +45,7 @@ import "./slow-link-db.js"; // must stay first: lengthens DB timeouts before Pri
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { appEnv, isFeatureEnabled } from "../src/config/env.js";
 import { prisma } from "../src/db.js";
-import { generateClip, generateStill, estimateClipCredits } from "../src/services/runway.js";
+import { generateClip, generateStill, estimateClipCredits, type ReferenceImage } from "../src/services/runway.js";
 import { mirrorToR2 } from "../src/services/cloudflare.js";
 import { characterQuota, generateNarration, listVoices, narratorVoiceId } from "../src/services/elevenlabs.js";
 
@@ -61,6 +61,12 @@ const ONLY_ITEMS = opt("only")?.split(",").map((s) => s.trim().toLowerCase()).fi
 const FORCE = flag("force") || Boolean(ONLY_ITEMS);
 const RECAST = flag("recast");
 const CAST_FILE = "seed-clips-cast.json";
+const PORTRAITS = flag("portraits");
+const REDO_PORTRAITS = opt("redo-portraits")?.split(",").map((n) => n.trim().toLowerCase()).filter(Boolean);
+const APPROVE = flag("approve-portraits");
+const APPROVE_NAMES = opt("approve-portraits")?.split(",").map((n) => n.trim().toLowerCase()).filter(Boolean);
+const NO_PORTRAITS = flag("no-portraits");
+const PORTRAIT_CREDITS = 5;
 const AUDIO_ONLY = flag("audio-only");
 const AUDIO = AUDIO_ONLY || flag("audio");
 const VIDEO = !AUDIO_ONLY;
@@ -114,9 +120,18 @@ function resolveStyle(book: BookRow): string {
 }
 
 // ---------- cast sheets ----------
+interface CastMember {
+  name: string;
+  description: string;
+  /** Runway reference tag, e.g. "Adaeze". */
+  tag?: string;
+  portraitUrl?: string;
+  approved?: boolean;
+}
+
 interface CastSheet {
   setting: string;
-  characters: { name: string; description: string }[];
+  characters: CastMember[];
 }
 
 const CAST_RULES = `You prepare a casting sheet for an illustrated, animated book.
@@ -158,8 +173,11 @@ async function askClaude(system: string, user: string, maxTokens: number): Promi
 /** One sheet per World (shared characters) or per standalone book. */
 async function castFor(book: BookRow): Promise<CastSheet | null> {
   const world = book.worldMembership?.world;
-  const key = world ? `world:${world.slug}` : `book:${book.slug}`;
-  if (castCache[key]) return castCache[key];
+  const key = castKey(book);
+  if (castCache[key]) {
+    ensureTags(castCache[key]);
+    return castCache[key];
+  }
   if (!USE_CLAUDE) return null;
 
   const books = world ? world.members.map((m) => m.book) : [book];
@@ -180,14 +198,145 @@ async function castFor(book: BookRow): Promise<CastSheet | null> {
   try {
     const sheet = JSON.parse(await askClaude(CAST_RULES, source, 1200)) as CastSheet;
     if (!Array.isArray(sheet.characters)) throw new Error("no characters list");
+    ensureTags(sheet);
     castCache[key] = sheet;
-    writeFileSync(CAST_FILE, JSON.stringify(castCache, null, 2));
+    saveCast();
     console.log(`  cast (${key}): ${sheet.characters.map((c) => c.name).join(", ") || "no named people"}`);
     return sheet;
   } catch (err) {
     console.warn(`  ! cast sheet failed for ${key} (${(err as Error).message}) — continuing without it`);
     return null;
   }
+}
+
+function saveCast(): void {
+  writeFileSync(CAST_FILE, JSON.stringify(castCache, null, 2));
+}
+
+function castKey(book: BookRow): string {
+  const world = book.worldMembership?.world;
+  return world ? `world:${world.slug}` : `book:${book.slug}`;
+}
+
+/** Runway tags: 3–16 chars, letters/digits/underscore, starting with a letter, unique per sheet. */
+function ensureTags(cast: CastSheet): void {
+  const used = new Set(cast.characters.map((c) => c.tag).filter(Boolean) as string[]);
+  for (const c of cast.characters) {
+    if (c.tag) continue;
+    let base = c.name.normalize("NFKD").replace(/[^A-Za-z0-9]/g, "");
+    if (!/^[A-Za-z]/.test(base)) base = `C${base}`;
+    base = (base + "Char").slice(0, Math.max(3, Math.min(14, base.length)));
+    let tag = base;
+    for (let i = 2; used.has(tag); i++) tag = `${base.slice(0, 13)}${i}`;
+    used.add(tag);
+    c.tag = tag;
+  }
+}
+
+function mentions(text: string, c: CastMember): boolean {
+  const lower = text.toLowerCase();
+  const first = c.name.split(/\s+/)[0].toLowerCase();
+  if (first.length >= 3 && new RegExp(`\\b${first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(lower)) return true;
+  return lower.includes(c.description.slice(0, 40).toLowerCase());
+}
+
+/**
+ * Which approved portraits to send with a prompt, and the prompt rewritten to
+ * mention them (@Tag). Returns the prompt unchanged when nobody appears.
+ */
+function withReferences(prompt: string, cast: CastSheet | null, style: string): { prompt: string; references: ReferenceImage[] } {
+  if (NO_PORTRAITS || !cast || /\bno people\b/i.test(prompt)) return { prompt, references: [] };
+  const people = cast.characters.filter((c) => c.approved && c.portraitUrl && c.tag && mentions(prompt, c)).slice(0, 3);
+  if (!people.length) return { prompt, references: [] };
+  const line =
+    people.map((c) => `@${c.tag} is ${c.name}`).join("; ") +
+    ` — draw ${people.length === 1 ? "this person" : "these people"} with exactly the face, hair, body and clothes shown in the reference image${people.length === 1 ? "" : "s"}.`;
+  const rest = prompt.toLowerCase().startsWith(style.slice(0, 20).toLowerCase()) ? prompt.slice(style.length).replace(/^[\s.]+/, "") : prompt;
+  return {
+    prompt: `${style}. ${line} ${rest}`,
+    references: people.map((c) => ({ uri: c.portraitUrl!, tag: c.tag! }))
+  };
+}
+
+function portraitPrompt(c: CastMember, style: string): string {
+  return `${style}. Character reference portrait of exactly one person: ${c.description} Full body visible from head to feet, standing upright and facing the viewer, arms relaxed at the sides, calm neutral expression, soft even light, plain softly blurred background. Only one person in the image. No text, no letters, no logos.`;
+}
+
+/** --portraits / --redo-portraits / --approve-portraits. Returns true if it handled the run. */
+async function portraitMode(books: BookRow[]): Promise<boolean> {
+  if (!PORTRAITS && !REDO_PORTRAITS && !APPROVE) return false;
+  const seen = new Map<string, { cast: CastSheet; book: BookRow }>();
+  for (const book of books) {
+    const key = castKey(book);
+    if (seen.has(key)) continue;
+    const cast = await castFor(book);
+    if (cast) {
+      ensureTags(cast);
+      seen.set(key, { cast, book });
+    }
+  }
+  saveCast();
+
+  if (APPROVE) {
+    let n = 0;
+    for (const { cast } of seen.values()) {
+      for (const c of cast.characters) {
+        if (!c.portraitUrl) continue;
+        if (APPROVE_NAMES && !APPROVE_NAMES.includes(c.name.toLowerCase()) && !APPROVE_NAMES.includes((c.tag ?? "").toLowerCase())) continue;
+        c.approved = true;
+        n++;
+      }
+    }
+    saveCast();
+    console.log(`Approved ${n} portrait${n === 1 ? "" : "s"}.`);
+  }
+
+  if (PORTRAITS || REDO_PORTRAITS) {
+    const todo: Array<{ key: string; c: CastMember; book: BookRow }> = [];
+    for (const [key, { cast, book }] of seen) {
+      for (const c of cast.characters) {
+        const redo = REDO_PORTRAITS?.some((n) => n === c.name.toLowerCase() || n === (c.tag ?? "").toLowerCase());
+        if (redo || (PORTRAITS && !c.portraitUrl)) todo.push({ key, c, book });
+      }
+    }
+    const cost = todo.length * PORTRAIT_CREDITS;
+    console.log(`\nPortraits to make: ${todo.length} (~${cost} Runway credits)`);
+    if (!DRY) {
+      if (cost > MAX_CREDITS) throw new Error(`Portraits would cost ~${cost} credits, over --max-credits ${MAX_CREDITS}`);
+      for (const { key, c, book } of todo) {
+        try {
+          const still = await generateStill(portraitPrompt(c, resolveStyle(book)), "720:960");
+          const folder = key.replace(/[^a-z0-9-]+/gi, "-");
+          const stored = await mirrorToR2(still, `cast/${folder}/${c.tag}-${Date.now().toString(36)}.png`, "image/png");
+          c.portraitUrl = stored.url;
+          c.approved = false;
+          saveCast();
+          console.log(`  ✓ ${c.name}`);
+        } catch (err) {
+          console.warn(`  ✗ ${c.name}: ${(err as Error).message}`);
+        }
+      }
+    }
+  }
+
+  // Summary + a contact sheet to look at the faces side by side.
+  const rows: string[] = [];
+  console.log("\nCast portraits:");
+  for (const [key, { cast }] of seen) {
+    console.log(`  ${key}`);
+    for (const c of cast.characters) {
+      const state = !c.portraitUrl ? "no portrait" : c.approved ? "APPROVED" : "waiting for approval";
+      console.log(`    ${c.name.padEnd(20)} @${(c.tag ?? "").padEnd(16)} ${state}${c.portraitUrl ? `  ${c.portraitUrl}` : ""}`);
+      rows.push(
+        `<figure><div class="img">${c.portraitUrl ? `<img src="${c.portraitUrl}" alt="">` : "no portrait"}</div>` +
+          `<figcaption><b>${c.name}</b> <span class="${c.approved ? "ok" : "wait"}">${c.approved ? "approved" : c.portraitUrl ? "waiting" : "—"}</span><br><small>${key}</small><p>${c.description}</p></figcaption></figure>`
+      );
+    }
+  }
+  const html = `<!doctype html><meta charset="utf-8"><title>AnimBook cast portraits</title><style>body{font-family:system-ui;background:#0b0f17;color:#eee;margin:24px}main{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:20px}figure{margin:0;background:#141b2a;border-radius:14px;overflow:hidden}.img{aspect-ratio:3/4;display:grid;place-items:center;color:#888}.img img{width:100%;height:100%;object-fit:cover}figcaption{padding:12px 14px;font-size:14px}p{color:#aaa;font-size:12px}.ok{color:#6c6}.wait{color:#e0b13a}</style><h1>Cast portraits</h1><main>${rows.join("")}</main>`;
+  writeFileSync("seed-cast-portraits.html", html);
+  console.log("\nContact sheet written to seed-cast-portraits.html");
+  return true;
 }
 
 function castText(cast: CastSheet | null): string {
@@ -346,7 +495,7 @@ async function withDbRetry<T>(label: string, fn: () => Promise<T>, attempts = 6)
 interface ReportRow {
   book: string;
   page: number | "cover" | `audio-${number}`;
-  status: "done" | "failed" | "skipped-budget";
+  status: "done" | "failed" | "skipped-budget" | "skipped-portraits";
   videoUrl?: string;
   posterUrl?: string;
   prompt?: string;
@@ -384,6 +533,7 @@ async function main() {
 
   if (ONLY_ITEMS && !ONLY) throw new Error("--only needs --book <slug>");
   const books = await withDbRetry("loading books", () => loadBooks());
+  if (await portraitMode(books)) return;
   let pagesPlanned = 0;
   const wanted = (p: PageRow, existing: string | null) =>
     ONLY_ITEMS ? ONLY_ITEMS.includes(String(p.pageNum)) : FORCE || isPlaceholder(existing);
@@ -431,6 +581,9 @@ async function main() {
       for (const { book } of plan) {
         const cast = await castFor(book);
         console.log(`\n${book.slug} — style: ${resolveStyle(book)}\n${castText(cast) || "(no cast sheet)"}`);
+        for (const c of cast?.characters ?? []) {
+          console.log(`  portrait ${c.name}: ${!c.portraitUrl ? "none" : c.approved ? "approved" : "waiting for approval"}`);
+        }
       }
     }
     return;
@@ -449,14 +602,25 @@ async function main() {
     const style = resolveStyle(book);
     console.log(`\n▶ ${book.title}`);
     const cast = VIDEO ? await castFor(book) : null;
+    const missingFaces =
+      VIDEO && !NO_PORTRAITS && cast ? cast.characters.filter((c) => !(c.approved && c.portraitUrl)).map((c) => c.name) : [];
+    const blockVideo = missingFaces.length > 0 && (pages.length > 0 || cover);
+    if (blockVideo) {
+      console.warn(
+        `  ! skipping video for this book — portraits not approved yet for: ${missingFaces.join(", ")}.\n` +
+          `    Run with --portraits, check them, then --approve-portraits (or use --no-portraits).`
+      );
+      report.push({ book: book.slug, page: "cover", status: "skipped-portraits" });
+    }
 
-    if (cover) {
+    if (cover && !blockVideo) {
       if (!reserve(COVER_CREDITS)) {
         report.push({ book: book.slug, page: "cover", status: "skipped-budget" });
       } else {
         try {
-          const prompt = await coverPrompt(book, style, cast);
-          const still = await generateStill(prompt, "720:960");
+          const coverRef = withReferences(await coverPrompt(book, style, cast), cast, style);
+          const prompt = coverRef.prompt;
+          const still = await generateStill(prompt, "720:960", coverRef.references);
           const stored = await mirrorToR2(still, `books/${book.slug}/cover-${Date.now().toString(36)}.png`, "image/png");
           await withDbRetry("cover save", () =>
             prisma.book.update({ where: { id: book.id }, data: { coverUrl: stored.url } })
@@ -470,12 +634,14 @@ async function main() {
       }
     }
 
-    await pool<PageRow>(pages, CONCURRENCY, async (page) => {
+    await pool<PageRow>(blockVideo ? [] : pages, CONCURRENCY, async (page) => {
       if (!reserve(PAGE_CREDITS)) {
         report.push({ book: book.slug, page: page.pageNum, status: "skipped-budget" });
         return;
       }
-      const prompts = (USE_CLAUDE && (await claudePrompt(book, page, style, cast))) || templatePrompt(book, page, style);
+      const written = (USE_CLAUDE && (await claudePrompt(book, page, style, cast))) || templatePrompt(book, page, style);
+      const referenced = withReferences(written.still, cast, style);
+      const prompts = { still: referenced.prompt, motion: written.motion };
       try {
         const clip = await generateClip({
           projectId: book.id,
@@ -485,7 +651,8 @@ async function main() {
           negativePrompt: page.negativePrompt ?? undefined,
           durationSeconds: DURATION,
           storagePrefix: `books/${book.slug}`,
-          strict: true
+          strict: true,
+          references: referenced.references
         });
         try {
           await withDbRetry(`p${page.pageNum} save`, () =>

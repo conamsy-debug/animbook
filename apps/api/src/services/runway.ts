@@ -21,6 +21,13 @@ const STUB_BASE = "https://placehold.co/1280x720/080C14/C49A1C/png?text=AnimBook
 
 export type RunwayRatio = "1280:720" | "720:1280" | "960:960";
 
+/** A reference image Runway should copy (face, outfit, style). Mention it in the prompt as @tag. */
+export interface ReferenceImage {
+  uri: string;
+  /** 3–16 letters/digits/underscores, starting with a letter. */
+  tag: string;
+}
+
 export interface RunwayJobInput {
   projectId: string;
   pageNum: number;
@@ -36,6 +43,8 @@ export interface RunwayJobInput {
   storagePrefix?: string;
   /** Throw instead of returning a stub. */
   strict?: boolean;
+  /** Up to 3 reference images for the still (character portraits). */
+  references?: ReferenceImage[];
 }
 
 export interface RunwayJobResult {
@@ -122,8 +131,10 @@ async function waitForTask(id: string, timeoutMs = 15 * 60_000): Promise<string>
   throw new RunwayError(`Runway task ${id} timed out`, true);
 }
 
-export async function generateStill(prompt: string, ratio: string = "1280:720"): Promise<string> {
-  const id = await createTask("/text_to_image", { model: "gen4_image", promptText: prompt.slice(0, 1000), ratio });
+export async function generateStill(prompt: string, ratio: string = "1280:720", references: ReferenceImage[] = []): Promise<string> {
+  const body: Record<string, unknown> = { model: "gen4_image", promptText: prompt.slice(0, 1000), ratio };
+  if (references.length) body.referenceImages = references.slice(0, 3);
+  const id = await createTask("/text_to_image", body);
   return waitForTask(id);
 }
 
@@ -151,7 +162,7 @@ export async function generateClip(input: RunwayJobInput): Promise<RunwayJobResu
   }
   try {
     const stillPrompt = input.negativePrompt ? `${input.prompt} Avoid: ${input.negativePrompt}.` : input.prompt;
-    const stillUrl = await generateStill(stillPrompt, ratio);
+    const stillUrl = await generateStill(stillPrompt, ratio, input.references ?? []);
     const clipUrl = await animateStill(stillUrl, input.motionPrompt ?? input.prompt, duration, ratio);
 
     const prefix = (input.storagePrefix ?? `runway/${input.projectId}`).replace(/\/+$/, "");
