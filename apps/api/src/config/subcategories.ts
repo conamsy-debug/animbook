@@ -46,6 +46,7 @@ export const SUBCATEGORIES: Record<string, { id: string; label: string }[]> = {
     { id: "health-first-aid", label: "Health & First Aid" },
     { id: "gardening", label: "Gardening" },
     { id: "home-craft", label: "Home & Craft" },
+    { id: "fitness-movement", label: "Fitness & Movement" },
     { id: "technology", label: "Technology" },
     { id: "money-skills", label: "Money Skills" }
   ],

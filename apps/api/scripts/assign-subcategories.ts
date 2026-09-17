@@ -25,13 +25,13 @@ const BY_SLUG: Record<string, string> = {
   "first-aid-for-the-road": "health-first-aid",
   "boil-an-egg-and-other-kitchen-basics": "cooking",
   "growing-tomatoes-on-a-balcony": "gardening",
-  "the-six-minute-stretch": "movement",
+  "the-six-minute-stretch": "fitness-movement",
   "a-poem-for-accra": "city-poems",
   "a-poem-for-lagos": "city-poems",
   "lagos-nights-prologue-the-bridge": "city-poems",
-  "lagos-nights-1-the-last-train": "city-journeys",
+  "lagos-nights-1-the-last-train": "literary-fiction",
   "lagos-nights-2-the-lagoon": "city-journeys",
-  "lagos-nights-3-the-letter": "city-journeys",
+  "lagos-nights-3-the-letter": "city-poems",
   "a-rainy-afternoon-in-cape-town": "city-journeys",
   "the-coast-of-mombasa": "coast-islands",
   "tide-and-bell": "sleep-stories",
@@ -64,11 +64,14 @@ const books = await prisma.book.findMany({ select: { id: true, slug: true, title
 let changed = 0;
 for (const book of books) {
   if (book.subcategory) continue;
-  const want = BY_SLUG[book.slug] ?? DEFAULT_BY_VERTICAL[book.vertical];
+  // A named shelf only applies if it belongs to this book's vertical.
+  const named = BY_SLUG[book.slug];
+  const want = named && isValidSubcategory(book.vertical, named) ? named : DEFAULT_BY_VERTICAL[book.vertical];
   if (!want || !isValidSubcategory(book.vertical, want)) {
     console.warn(`  ? ${book.slug}: no shelf for ${book.vertical}`);
     continue;
   }
+  if (named && want !== named) console.log(`  (${book.slug}: "${named}" isn't a ${book.vertical} shelf — using "${want}")`);
   console.log(`  ${dry ? "would set" : "set"} ${book.slug.padEnd(40)} ${book.vertical} → ${want}`);
   if (!dry) await prisma.book.update({ where: { id: book.id }, data: { subcategory: want } });
   changed++;
