@@ -14,7 +14,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma migrate reset --force",
-    "clips:seed": "tsx scripts/generate-seed-clips.ts"
+    "clips:seed": "tsx scripts/generate-seed-clips.ts",
+    "clips:probe": "tsx scripts/probe-runway-refs.ts"
   },
   "dependencies": {
     "@apollo/server": "^4.12.2",

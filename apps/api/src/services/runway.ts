@@ -187,14 +187,19 @@ async function withTaskRetry(label: string, run: () => Promise<string>, attempts
   throw lastErr;
 }
 
-export async function generateStill(prompt: string, ratio: string = "1280:720", references: ReferenceImage[] = []): Promise<string> {
+export async function generateStill(
+  prompt: string,
+  ratio: string = "1280:720",
+  references: ReferenceImage[] = [],
+  options: { attempts?: number } = {}
+): Promise<string> {
   const body: Record<string, unknown> = { model: "gen4_image", promptText: prompt.slice(0, 1000), ratio };
   if (references.length) {
     body.referenceImages = await Promise.all(
       references.slice(0, 3).map(async (r) => ({ uri: await inlineImage(r.uri), tag: r.tag }))
     );
   }
-  return withTaskRetry("image", async () => waitForTask(await createTask("/text_to_image", body)));
+  return withTaskRetry("image", async () => waitForTask(await createTask("/text_to_image", body)), options.attempts ?? 3);
 }
 
 export async function animateStill(imageUrl: string, motionPrompt: string, durationSeconds = 5, ratio: RunwayRatio = "1280:720"): Promise<string> {
