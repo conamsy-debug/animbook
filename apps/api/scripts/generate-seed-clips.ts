@@ -325,10 +325,21 @@ function stripNames(text: string, cast: CastSheet | null): string {
   const names = cast.characters
     .flatMap((c) => {
       const label = labelFor(c);
-      const variants = [c.name];
-      const first = c.name.split(/\s+/)[0].replace(/[^A-Za-z'-]/g, "");
-      if (first.length >= 3 && !HONORIFIC.has(first.toLowerCase())) variants.push(first);
-      return variants.map((v) => ({ v, label }));
+      // "Mrs Rabbit (Mother)" → "Mrs Rabbit", "Mother"; honorifics may carry a full stop.
+      const bare = c.name.replace(/\(.*?\)/g, " ").replace(/\s+/g, " ").trim();
+      const inParens = [...c.name.matchAll(/\(([^)]+)\)/g)].map((m) => m[1].trim()).filter((t) => t.length >= 3);
+      const tokens = bare.split(" ").map((t) => t.replace(/[^A-Za-z'-]/g, "")).filter(Boolean);
+      const variants = new Set<string>([c.name, bare, ...inParens]);
+      const firstReal = tokens.find((t) => !HONORIFIC.has(t.toLowerCase()));
+      if (firstReal && firstReal.length >= 3) variants.add(firstReal);
+      if (tokens.length > 1 && HONORIFIC.has(tokens[0].toLowerCase())) {
+        // "Mr McGregor" also matches "Mr. McGregor"
+        variants.add(`${tokens[0]}. ${tokens.slice(1).join(" ")}`);
+        const last = tokens[tokens.length - 1];
+        if (last.length >= 3 && !HONORIFIC.has(last.toLowerCase())) variants.add(last);
+      }
+      for (const v of [...variants]) if (v.includes("-")) variants.add(v.replace(/-/g, ""));
+      return [...variants].filter((v) => v.length >= 3).map((v) => ({ v, label }));
     })
     .sort((a, b) => b.v.length - a.v.length);
   for (const { v, label } of names) {
