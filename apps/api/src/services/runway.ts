@@ -45,6 +45,8 @@ export interface RunwayJobInput {
   strict?: boolean;
   /** Up to 3 reference images for the still (character portraits). */
   references?: ReferenceImage[];
+  /** Prompt to use if Runway keeps rejecting the referenced one (descriptions only). */
+  fallbackPrompt?: string;
 }
 
 export interface RunwayJobResult {
@@ -53,13 +55,17 @@ export interface RunwayJobResult {
   durationSeconds: number;
   source: "runway" | "stub";
   creditsEstimate: number;
+  /** True when the reference portraits were actually used for the still. */
+  facesLocked?: boolean;
 }
 
 export class RunwayError extends Error {
-  constructor(message: string, readonly retryable = false, readonly moderation = false) {
+  constructor(message: string, readonly retryable = false, readonly moderation = false, readonly code = "") {
     super(message);
   }
 }
+
+const isBadOutput = (err: unknown) => err instanceof RunwayError && err.code.startsWith("INTERNAL.BAD_OUTPUT");
 
 interface RunwayTask {
   id: string;
@@ -124,7 +130,8 @@ async function waitForTask(id: string, timeoutMs = 15 * 60_000): Promise<string>
       throw new RunwayError(
         `Runway task ${id} ${task.status}${code ? ` [${code}]` : ""}: ${task.failure ?? "unknown"}`,
         code.startsWith("INTERNAL"),
-        code.startsWith("SAFETY")
+        code.startsWith("SAFETY"),
+        code
       );
     }
   }
@@ -213,6 +220,44 @@ export async function animateStill(imageUrl: string, motionPrompt: string, durat
   return withTaskRetry("video", async () => waitForTask(await createTask("/image_to_video", body)));
 }
 
+/**
+ * Stills with reference portraits are often rejected by Runway
+ * (INTERNAL.BAD_OUTPUT, refunded). Try: references at 1080p (x2), then at
+ * 720p (x1), then the description-only prompt at 720p, which reliably works.
+ */
+export async function generateStillWithFaces(
+  prompt: string,
+  fallbackPrompt: string,
+  shape: "wide" | "tall",
+  references: ReferenceImage[]
+): Promise<{ url: string; facesLocked: boolean }> {
+  const hi = shape === "wide" ? "1920:1080" : "1080:1440";
+  const lo = shape === "wide" ? "1280:720" : "720:960";
+  if (!references.length) return { url: await generateStill(fallbackPrompt || prompt, lo), facesLocked: false };
+  const plan: Array<[string, number]> = [
+    [hi, 2],
+    [lo, 1]
+  ];
+  for (const [ratio, attempts] of plan) {
+    try {
+      return { url: await generateStill(prompt, ratio, references, { attempts: 1 }), facesLocked: true };
+    } catch (err) {
+      if (!isBadOutput(err)) throw err;
+      console.warn(`[runway] portrait-referenced image rejected at ${ratio}`);
+      if (attempts > 1) {
+        try {
+          return { url: await generateStill(prompt, ratio, references, { attempts: 1 }), facesLocked: true };
+        } catch (again) {
+          if (!isBadOutput(again)) throw again;
+          console.warn(`[runway] portrait-referenced image rejected at ${ratio} again`);
+        }
+      }
+    }
+  }
+  console.warn("[runway] falling back to descriptions only for this image");
+  return { url: await generateStill(fallbackPrompt, lo), facesLocked: false };
+}
+
 export function estimateClipCredits(durationSeconds = 5): number {
   return 5 + 5 * durationSeconds;
 }
@@ -226,7 +271,17 @@ export async function generateClip(input: RunwayJobInput): Promise<RunwayJobResu
   }
   try {
     const stillPrompt = input.negativePrompt ? `${input.prompt} Avoid: ${input.negativePrompt}.` : input.prompt;
-    const stillUrl = await generateStill(stillPrompt, ratio, input.references ?? []);
+    const shape = ratio === "1280:720" ? "wide" : "tall";
+    const refs = input.references ?? [];
+    const fallback = input.fallbackPrompt
+      ? input.negativePrompt
+        ? `${input.fallbackPrompt} Avoid: ${input.negativePrompt}.`
+        : input.fallbackPrompt
+      : stillPrompt;
+    const { url: stillUrl, facesLocked } =
+      refs.length > 0 && ratio !== "960:960"
+        ? await generateStillWithFaces(stillPrompt, fallback, shape, refs)
+        : { url: await generateStill(stillPrompt, ratio), facesLocked: false };
     const clipUrl = await animateStill(stillUrl, input.motionPrompt ?? input.prompt, duration, ratio);
 
     const prefix = (input.storagePrefix ?? `runway/${input.projectId}`).replace(/\/+$/, "");
@@ -241,7 +296,8 @@ export async function generateClip(input: RunwayJobInput): Promise<RunwayJobResu
       posterUrl: poster.source === "r2" ? poster.url : stillUrl,
       durationSeconds: duration,
       source: "runway",
-      creditsEstimate: estimateClipCredits(duration)
+      creditsEstimate: estimateClipCredits(duration),
+      facesLocked
     };
   } catch (err) {
     if (input.strict) throw err;

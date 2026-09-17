@@ -45,7 +45,7 @@ import "./slow-link-db.js"; // must stay first: lengthens DB timeouts before Pri
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { appEnv, isFeatureEnabled } from "../src/config/env.js";
 import { prisma } from "../src/db.js";
-import { generateClip, generateStill, estimateClipCredits, type ReferenceImage } from "../src/services/runway.js";
+import { generateClip, generateStill, generateStillWithFaces, estimateClipCredits, type ReferenceImage } from "../src/services/runway.js";
 import { mirrorToR2 } from "../src/services/cloudflare.js";
 import { characterQuota, generateNarration, listVoices, narratorVoiceId } from "../src/services/elevenlabs.js";
 
@@ -79,8 +79,8 @@ const LIMIT = Number(opt("limit", "0")) || Infinity;
 const DURATION = Math.min(10, Math.max(2, Number(opt("duration", "5"))));
 const CONCURRENCY = Math.max(1, Number(opt("concurrency", "2")));
 const MAX_CREDITS = Number(opt("max-credits", "6000"));
-const COVER_CREDITS = 5;
-const PAGE_CREDITS = estimateClipCredits(DURATION);
+const COVER_CREDITS = 8; // 1080p when portraits are used
+const PAGE_CREDITS = estimateClipCredits(DURATION) + 3; // 1080p still when portraits are used
 
 const isPlaceholder = (url: string | null | undefined) =>
   !url || url.includes("placehold.co") || url.startsWith("data:") || url.includes("animbook.r2.dev");
@@ -253,19 +253,20 @@ function withReferences(
   cast: CastSheet | null,
   style: string,
   named: string[] = []
-): { prompt: string; references: ReferenceImage[]; people: string[] } {
-  if (NO_PORTRAITS || !cast) return { prompt, references: [], people: [] };
+): { prompt: string; plain: string; references: ReferenceImage[]; people: string[] } {
+  if (NO_PORTRAITS || !cast) return { prompt, plain: prompt, references: [], people: [] };
   const listed = new Set(named.map(squash));
   const inFrame = (c: CastMember) =>
     listed.size > 0 ? listed.has(squash(c.name)) || listed.has(squash(c.name).split(" ")[0]) : !/\bno people\b/i.test(prompt) && mentions(prompt, c);
   const people = cast.characters.filter((c) => c.approved && c.portraitUrl && c.tag && inFrame(c)).slice(0, 3);
-  if (!people.length) return { prompt, references: [], people: [] };
+  if (!people.length) return { prompt, plain: prompt, references: [], people: [] };
   const line =
     people.map((c) => `@${c.tag} is ${c.name}`).join("; ") +
     ` — draw ${people.length === 1 ? "this person" : "these people"} with exactly the face, hair, body and clothes shown in the reference image${people.length === 1 ? "" : "s"}.`;
   const rest = prompt.toLowerCase().startsWith(style.slice(0, 20).toLowerCase()) ? prompt.slice(style.length).replace(/^[\s.]+/, "") : prompt;
   return {
     prompt: `${style}. ${line} ${rest}`,
+    plain: prompt,
     references: people.map((c) => ({ uri: c.portraitUrl!, tag: c.tag! })),
     people: people.map((c) => c.name)
   };
@@ -530,8 +531,10 @@ interface ReportRow {
   posterUrl?: string;
   prompt?: string;
   motion?: string;
-  /** Cast members whose portraits were sent. */
+  /** Cast members whose portraits were used. */
   references?: string[];
+  /** Portraits were wanted but Runway refused them; made from descriptions only. */
+  facesFallback?: boolean;
   error?: string;
 }
 
@@ -655,13 +658,22 @@ async function main() {
           const coverRef = withReferences(scrubText(written.prompt), cast, style, written.people);
           const prompt = coverRef.prompt;
           coverPromptUsed = prompt;
-          const still = await generateStill(prompt, "720:960", coverRef.references);
+          const { url: still, facesLocked } = await generateStillWithFaces(prompt, coverRef.plain, "tall", coverRef.references);
           const stored = await mirrorToR2(still, `books/${book.slug}/cover-${Date.now().toString(36)}.png`, "image/png");
           await withDbRetry("cover save", () =>
             prisma.book.update({ where: { id: book.id }, data: { coverUrl: stored.url } })
           );
-          report.push({ book: book.slug, page: "cover", status: "done", posterUrl: stored.url, prompt, references: coverRef.people });
-          if (coverRef.people.length) console.log(`    faces: ${coverRef.people.join(", ")}`);
+          report.push({
+            book: book.slug,
+            page: "cover",
+            status: "done",
+            posterUrl: stored.url,
+            prompt: facesLocked ? prompt : coverRef.plain,
+            references: facesLocked ? coverRef.people : [],
+            facesFallback: coverRef.people.length > 0 && !facesLocked
+          });
+          if (coverRef.people.length)
+            console.log(`    faces: ${coverRef.people.join(", ")}${facesLocked ? "" : " (Runway refused portraits — descriptions only; redo later with --only cover)"}`);
           console.log("  ✓ cover");
         } catch (err) {
           report.push({
@@ -694,7 +706,8 @@ async function main() {
           durationSeconds: DURATION,
           storagePrefix: `books/${book.slug}`,
           strict: true,
-          references: referenced.references
+          references: referenced.references,
+          fallbackPrompt: referenced.plain
         });
         try {
           await withDbRetry(`p${page.pageNum} save`, () =>
@@ -728,11 +741,17 @@ async function main() {
           status: "done",
           videoUrl: clip.videoUrl,
           posterUrl: clip.posterUrl,
-          prompt: prompts.still,
+          prompt: clip.facesLocked ? prompts.still : referenced.plain,
           motion: prompts.motion,
-          references: referenced.people
+          references: clip.facesLocked ? referenced.people : [],
+          facesFallback: referenced.people.length > 0 && !clip.facesLocked
         });
-        console.log(`  ✓ p${page.pageNum}${referenced.people.length ? ` (faces: ${referenced.people.join(", ")})` : ""}`);
+        const faceNote = !referenced.people.length
+          ? ""
+          : clip.facesLocked
+            ? ` (faces: ${referenced.people.join(", ")})`
+            : ` (faces: ${referenced.people.join(", ")} — Runway refused portraits, descriptions only; redo later with --only ${page.pageNum})`;
+        console.log(`  ✓ p${page.pageNum}${faceNote}`);
       } catch (err) {
         report.push({
           book: book.slug,
@@ -779,8 +798,13 @@ async function main() {
   const done = report.filter((r) => r.status === "done").length;
   const failed = report.filter((r) => r.status === "failed").length;
   const skipped = report.filter((r) => r.status === "skipped-budget").length;
+  const fallbacks = report.filter((r) => r.facesFallback).map((r) => `${r.book} ${r.page}`);
   console.log(`\nDone ${done} · failed ${failed} · skipped for budget ${skipped} · ~${spent} Runway credits · ${charsUsed} narration characters. Report: ${file}`);
-  if (failed) console.log("Re-run the same command to retry failures — finished pages are skipped.");
+  if (fallbacks.length) {
+    console.log(`Made from descriptions only (Runway refused the portraits): ${fallbacks.join(", ")}`);
+    console.log("  Redo any of these later with --book <slug> --only <cover|page numbers>.");
+  }
+  if (failed) console.log("Re-run without --force to retry failures (pages that still have placeholders), or use --only for specific pages.");
 }
 
 main()
