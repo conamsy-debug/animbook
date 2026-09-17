@@ -422,6 +422,15 @@ h1 {
   line-height: 1.55;
   margin: 0;
 }
+.page-card .sample-poster {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 10px;
+  margin-top: 4px;
+  background: #05080d;
+}
 
 /* ==== Reader stage ==== */
 .reader {

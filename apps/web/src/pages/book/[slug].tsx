@@ -168,8 +168,8 @@ export default function BookDetailPage() {
                   <span>{page.emotionalRegister ?? "—"}</span>
                 </div>
                 <p className="excerpt">{page.textExcerpt}</p>
-                {page.videoUrl && (
-                  <video src={page.videoUrl} poster={page.posterUrl ?? undefined} muted loop autoPlay playsInline />
+                {page.posterUrl && (
+                  <img className="sample-poster" src={page.posterUrl} alt={`Page ${page.pageNum} preview`} loading="lazy" />
                 )}
               </article>
             ))}
