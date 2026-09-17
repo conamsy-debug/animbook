@@ -203,14 +203,91 @@ export function buildFallbackBrain(input: ManuscriptLike, opts: { vertical?: str
   };
 }
 
+const CHUNK_THRESHOLD = 40;
+const CHUNK_PAGES = 25;
+
+const OVERVIEW_SYSTEM = `You are the AnimBook Book Brain engine. You are given the opening of a manuscript plus samples from later in it. Return ONE JSON object describing the book as a whole — no page_manifest.
+Keys: title, author, genre[], cultural_origin, target_audience, narrative_arc{setup_pages[],climax_pages[],resolution_pages[]}, emotional_register[{chapter,emotion,intensity_1_to_10}], characters[{name,description,first_page,role,visual_keywords[]}], settings[{name,description,time_period,atmosphere,visual_keywords[]}], visual_motifs[], pacing_profile[], style_recommendation.
+Character descriptions fix how each person looks in every illustration: age, build, skin tone, hair, one signature outfit — no other body parts, and never pair "young" with "male" or "female".
+style_recommendation must be one of: desert-realism, painterly-mysticism, graphic-novel, anime-inspired, watercolour, cinematic-dark, scientific-microscopy, sacred-realism.
+Return valid JSON only. No prose.`;
+
+const MANIFEST_SYSTEM = `You are the AnimBook Book Brain engine. You are given a book overview and a slice of its pages. Return ONE JSON object: {"page_manifest": [...]} covering EXACTLY the page numbers given, in order.
+Each entry: {page_num, text_excerpt (verbatim first sentence or two), setting, characters_present[] (names from the overview), primary_action, emotion, camera_angle, animation_prompt_draft}.
+animation_prompt_draft describes one frame to illustrate that page: who is in it (by look, not name), where, the light and the framing. Never mention text, titles, letters or logos.
+Return valid JSON only. No prose.`;
+
+function sampleForOverview(pages: ManuscriptLike["pages"]): ManuscriptLike["pages"] {
+  if (pages.length <= 18) return pages;
+  const opening = pages.slice(0, 10);
+  const rest = pages.slice(10);
+  const step = Math.max(1, Math.floor(rest.length / 8));
+  const samples = rest.filter((_, i) => i % step === 0).slice(0, 8);
+  return [...opening, ...samples];
+}
+
+/** Long manuscripts are read in sections: one overview pass, then page batches. */
+async function chunkedBrain(input: { title?: string; author?: string; vertical?: string; manuscript: ManuscriptLike }): Promise<BookBrain> {
+  const pages = input.manuscript.pages;
+  const overviewText = await callAnthropic(
+    JSON.stringify({
+      book: { title: input.title, author: input.author, vertical: input.vertical, total_pages: pages.length },
+      opening_and_samples: sampleForOverview(pages).map((p) => ({ page_num: p.pageNum, chapter: p.chapter ?? null, text: p.text }))
+    }),
+    OVERVIEW_SYSTEM
+  );
+  const overview = extractJson(overviewText);
+  if (!overview) throw new Error("Overview pass returned no JSON");
+
+  const manifest: BookBrainPageManifest[] = [];
+  for (let i = 0; i < pages.length; i += CHUNK_PAGES) {
+    const slice = pages.slice(i, i + CHUNK_PAGES);
+    const text = await callAnthropic(
+      JSON.stringify({
+        overview: {
+          title: overview.title,
+          cultural_origin: overview.cultural_origin,
+          style_recommendation: overview.style_recommendation,
+          characters: overview.characters,
+          settings: overview.settings
+        },
+        pages: slice.map((p) => ({ page_num: p.pageNum, chapter: p.chapter ?? null, text: p.text }))
+      }),
+      MANIFEST_SYSTEM
+    );
+    const parsed = extractJson(text) as unknown as { page_manifest?: BookBrainPageManifest[] } | null;
+    if (parsed?.page_manifest?.length) {
+      manifest.push(...parsed.page_manifest);
+    } else {
+      // Keep going: a missing batch falls back to the page's own text.
+      manifest.push(
+        ...slice.map((p) => ({
+          page_num: p.pageNum,
+          text_excerpt: p.text.slice(0, 200),
+          setting: overview.settings?.[0]?.name ?? "",
+          characters_present: [],
+          primary_action: "a quiet moment",
+          emotion: "calm",
+          camera_angle: "medium shot",
+          animation_prompt_draft: p.text.slice(0, 220)
+        }))
+      );
+    }
+  }
+  manifest.sort((a, b) => a.page_num - b.page_num);
+  return { ...overview, page_manifest: manifest };
+}
+
 export async function generateBookBrain(input: { title?: string; author?: string; vertical?: string; manuscript: ManuscriptLike }): Promise<{
   brain: BookBrain;
   source: "anthropic" | "fallback";
 }> {
-  const userPrompt = buildUserPrompt(input);
   if (isFeatureEnabled("BOOK_BRAIN")) {
     try {
-      const text = await callAnthropic(userPrompt, SYSTEM_PROMPT);
+      if (input.manuscript.pages.length > CHUNK_THRESHOLD) {
+        return { brain: await chunkedBrain(input), source: "anthropic" };
+      }
+      const text = await callAnthropic(buildUserPrompt(input), SYSTEM_PROMPT);
       const parsed = extractJson(text);
       if (parsed) return { brain: parsed, source: "anthropic" };
     } catch (err) {

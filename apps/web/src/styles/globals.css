@@ -1823,3 +1823,79 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 .book-subtitle { margin: -4px 0 12px; font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(1.15rem, 2.2vw, 1.5rem); color: var(--muted); font-style: italic; }
 .book-card-subtitle { display: block; margin-top: -4px; color: var(--muted); font-size: 0.85rem; font-style: italic; }
 .studio .notice { margin-top: 12px; }
+
+/* ==== Studio: clean-up, modes, cover ==== */
+.field-inline { display: inline-flex; align-items: center; gap: 6px; }
+.chip {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.chip.on { background: rgba(196, 154, 28, 0.14); border-color: rgba(196, 154, 28, 0.5); color: var(--accent); }
+
+.sections { margin-top: 20px; padding: 16px; border-radius: 14px; border: 1px solid var(--border); background: #0b111a; }
+.sections h3 { margin: 0 0 4px; font-size: 0.95rem; }
+.sections > p { margin: 0 0 12px; }
+.sections ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.sections li.off { opacity: 0.55; }
+.sections label { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.sections input[type="checkbox"] { width: 16px; height: 16px; margin-top: 3px; accent-color: var(--accent); }
+.sections label span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sections small { color: var(--muted); font-size: 0.78rem; }
+
+.mode-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+.mode-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: #0b111a;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.mode-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(196, 154, 28, 0.22); }
+.mode-card small { color: var(--muted); font-size: 0.85rem; line-height: 1.45; }
+.mode-cost { margin-top: 4px; color: var(--accent); font-size: 0.88rem; }
+
+.cover-panel { display: flex; gap: 24px; align-items: flex-start; justify-content: space-between; }
+.cover-panel h2 { margin-bottom: 6px; }
+.cover-panel p { max-width: 460px; }
+.cover-preview {
+  width: 140px;
+  height: 210px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #0b111a center / cover no-repeat;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: center;
+  padding: 8px;
+}
+@media (max-width: 720px) {
+  .mode-grid { grid-template-columns: 1fr; }
+  .cover-panel { flex-direction: column-reverse; align-items: stretch; }
+  .cover-preview { width: 120px; height: 180px; }
+}
+
+/* Painted pages (no video) drift slowly so the page still feels alive. */
+@keyframes kenBurns {
+  0% { transform: scale(1.06) translate3d(-1.2%, -0.8%, 0); }
+  50% { transform: scale(1.12) translate3d(1.2%, 0.8%, 0); }
+  100% { transform: scale(1.06) translate3d(-1.2%, -0.8%, 0); }
+}
+.reader-stage .video-poster.ken-burns { animation: kenBurns 26s ease-in-out infinite; will-change: transform; }
+@media (prefers-reduced-motion: reduce) {
+  .reader-stage .video-poster.ken-burns { animation: none; }
+}

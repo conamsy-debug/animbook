@@ -4,6 +4,8 @@ import { Topbar } from "@/components/Topbar";
 import { apiFetch, apiStreamUrl, type BookBrainJson, type PageRecord, type PipelineEvent, type StudioProjectSummary } from "@/lib/api";
 import { useToastStore } from "@/lib/store";
 import { VERTICALS, verticalById } from "@/lib/verticals";
+import { ImportError, readManuscriptFile } from "@/lib/manuscriptImport";
+import { detectSections, parseManuscript, type Section } from "@/lib/manuscriptSections";
 
 type Stage = "SETUP" | "UPLOAD" | "BRAIN" | "STYLE" | "REVIEW";
 
@@ -16,6 +18,8 @@ interface ProjectDetail extends StudioProjectSummary {
     synopsis: string;
     vertical: string;
     language: string;
+    coverUrl?: string | null;
+    subtitle?: string | null;
     status?: string;
     styleId?: string | null;
     requiresExpertReview?: boolean;
@@ -53,7 +57,14 @@ const steps: { id: Stage; label: string; hint: string }[] = [
   { id: "REVIEW", label: "Review", hint: "Approve & publish" }
 ];
 const ORDER: Stage[] = steps.map((s) => s.id);
-const CREDITS_PER_PAGE = 30;
+const CREDITS_PER_PAGE = 30; // a page with video
+const CREDITS_PER_STILL = 5; // a painted page the reader pans across
+const keyPageCount = (pages: number) => Math.max(1, Math.ceil(pages / 10));
+function estimateCredits(pages: number, mode: "full" | "illustrated"): number {
+  if (mode === "full") return pages * CREDITS_PER_PAGE;
+  const key = keyPageCount(pages);
+  return (pages - key) * CREDITS_PER_STILL + key * CREDITS_PER_PAGE;
+}
 const styleName = (id: string | null | undefined) => styleOptions.find((o) => o.id === id)?.label ?? id ?? "";
 const PAGE_STATUS: Record<string, string> = { PENDING: "To review", APPROVED: "Approved", FLAGGED: "Failed", REGENERATING: "Re-animating" };
 
@@ -107,13 +118,34 @@ export default function StudioPage() {
 
   // Manuscript
   const [manuscriptText, setManuscriptText] = useState("");
-  const parsed = useMemo(() => parseManuscript(manuscriptText), [manuscriptText]);
+  const [pageLength, setPageLength] = useState(1200);
+  const parsed = useMemo(() => parseManuscript(manuscriptText, pageLength), [manuscriptText, pageLength]);
+  const sections = useMemo(() => detectSections(parsed), [parsed]);
+  const [skipped, setSkipped] = useState<Record<string, boolean>>({});
+  const sectionKey = (sec: Section) => `${sec.kind}:${sec.from}`;
+  useEffect(() => {
+    // Default: leave out contents, copyright and index.
+    setSkipped(Object.fromEntries(sections.filter((sec) => sec.skipByDefault).map((sec) => [sectionKey(sec), true])));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parsed.length, pageLength]);
+  const skippedPages = useMemo(() => {
+    const set = new Set<number>();
+    for (const sec of sections) if (skipped[sectionKey(sec)]) sec.pages.forEach((n) => set.add(n));
+    return set;
+  }, [sections, skipped]);
+  const kept = useMemo(
+    () => parsed.filter((p) => !skippedPages.has(p.pageNum)).map((p, i) => ({ ...p, pageNum: i + 1 })),
+    [parsed, skippedPages]
+  );
   const fileInput = useRef<HTMLInputElement | null>(null);
   const [importing, setImporting] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
 
   // Brain / style / review
   const [styleId, setStyleId] = useState<string>(styleOptions[0]!.id);
+  const [mode, setMode] = useState<"full" | "illustrated">("illustrated");
+  const [coverBusy, setCoverBusy] = useState(false);
+  const coverInput = useRef<HTMLInputElement | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [workingPage, setWorkingPage] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -245,38 +277,60 @@ export default function StudioPage() {
 
   async function importFile(file: File) {
     setImportError(null);
-    if (file.size > 25 * 1024 * 1024) {
-      setImportError("That file is over 25 MB. Please split it or save a smaller copy.");
+    if (file.size > 60 * 1024 * 1024) {
+      setImportError("That file is over 60 MB. Please split it or save a smaller copy.");
       return;
     }
-    setImporting(file.name);
+    setImporting(`Reading ${file.name}…`);
     try {
-      if (/\.(txt|md|markdown)$/i.test(file.name)) {
-        setManuscriptText(await file.text());
-      } else {
-        const res = await apiFetch<{ text: string; kind: string }>("/api/studio/extract", {
-          method: "POST",
-          headers: { "Content-Type": "application/octet-stream", "X-Filename": encodeURIComponent(file.name) },
-          body: file
-        });
-        setManuscriptText(res.text);
-      }
+      // Read in the browser first — no upload needed.
+      const text = await readManuscriptFile(file, (msg) => setImporting(msg));
+      setManuscriptText(text);
       toast(`Imported ${file.name}`);
     } catch (err) {
-      const detail = (err as { details?: { error?: string } }).details?.error;
-      setImportError(detail ?? `Couldn't import ${file.name}: ${(err as Error).message}`);
+      if (err instanceof ImportError) {
+        setImportError(err.message);
+      } else if (file.size <= 25 * 1024 * 1024 && /\.(docx|pdf)$/i.test(file.name)) {
+        // Unexpected browser failure: let the server try.
+        await importOnServer(file);
+      } else {
+        setImportError(`Couldn't read ${file.name}: ${(err as Error).message}`);
+      }
     } finally {
       setImporting(null);
     }
   }
 
+  async function importOnServer(file: File) {
+    setImporting(`Uploading ${file.name} to read it on the server…`);
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 5 * 60 * 1000);
+    try {
+      const res = await apiFetch<{ text: string }>("/api/studio/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream", "X-Filename": encodeURIComponent(file.name) },
+        body: file,
+        signal: controller.signal
+      });
+      setManuscriptText(res.text);
+      toast(`Imported ${file.name}`);
+    } catch (err) {
+      const detail = (err as { details?: { error?: string } }).details?.error;
+      setImportError(
+        detail ?? ((err as Error).name === "AbortError" ? `Reading ${file.name} took too long. Try a smaller file or paste the text.` : `Couldn't import ${file.name}: ${(err as Error).message}`)
+      );
+    } finally {
+      window.clearTimeout(timer);
+    }
+  }
+
   async function uploadManuscript() {
-    if (!projectId || parsed.length === 0) return;
+    if (!projectId || kept.length === 0) return;
     setBusy(true);
     try {
       await apiFetch(`/api/studio/projects/${projectId}/upload`, {
         method: "POST",
-        json: { sourceFilename: "manuscript.txt", sha256: await sha256(manuscriptText), pages: parsed }
+        json: { sourceFilename: "manuscript.txt", sha256: await sha256(manuscriptText), pages: kept }
       });
       await apiFetch(`/api/studio/projects/${projectId}/analyze`, { method: "POST" });
       void subscribe(projectId);
@@ -305,12 +359,13 @@ export default function StudioPage() {
 
   async function generate() {
     if (!projectId) return;
-    const estimate = pages.length * CREDITS_PER_PAGE;
-    if (!window.confirm(`Animate ${pages.length} pages in this style? This uses about ${estimate} Runway credits.`)) return;
+    const estimate = estimateCredits(pages.length, mode);
+    const what = mode === "full" ? "Animate" : "Illustrate";
+    if (!window.confirm(`${what} ${pages.length} pages in this style? This uses about ${estimate} Runway credits (≈ $${(estimate / 100).toFixed(2)}).`)) return;
     setBusy(true);
     try {
       await apiFetch(`/api/studio/projects/${projectId}/style`, { method: "POST", json: { styleId } });
-      await apiFetch(`/api/studio/projects/${projectId}/generate`, { method: "POST" });
+      await apiFetch(`/api/studio/projects/${projectId}/generate`, { method: "POST", json: { mode } });
       void subscribe(projectId);
       await refresh(projectId);
       toast("Generation started");
@@ -318,6 +373,34 @@ export default function StudioPage() {
       toast(`Could not start: ${(err as Error).message}`);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function uploadCover(file: File) {
+    if (!projectId) return;
+    if (!/\.(png|jpe?g|webp)$/i.test(file.name)) {
+      toast("Please choose a PNG, JPG or WebP image");
+      return;
+    }
+    if (file.size > 12 * 1024 * 1024) {
+      toast("That image is over 12 MB — please save a smaller copy");
+      return;
+    }
+    setCoverBusy(true);
+    try {
+      await apiFetch(`/api/studio/projects/${projectId}/cover`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/octet-stream", "X-Filename": encodeURIComponent(file.name) },
+        body: file
+      });
+      await refresh(projectId);
+      void loadProjects();
+      toast("Cover updated");
+    } catch (err) {
+      const detail = (err as { details?: { error?: string } }).details?.error;
+      toast(detail ?? `Could not upload the cover: ${(err as Error).message}`);
+    } finally {
+      setCoverBusy(false);
     }
   }
 
@@ -497,7 +580,7 @@ export default function StudioPage() {
                   </div>
                 ) : (
                   <>
-                    <p className="muted">Import a Word (.docx), PDF or text file, or paste the text. Pages split at blank lines (about 480 characters each); a line starting with “Chapter” starts a new chapter.</p>
+                    <p className="muted">Import a Word (.docx), PDF or text file, or paste the text. Pages split at blank lines (about {pageLength.toLocaleString()} characters each); a line starting with “Chapter” starts a new chapter.</p>
                     <textarea
                       className="manuscript"
                       rows={12}
@@ -506,6 +589,23 @@ export default function StudioPage() {
                       placeholder="Paste your manuscript here…"
                     />
                     <div className="panel-row">
+                      <span className="field-inline">
+                        <span className="muted small">Page length</span>
+                        {[
+                          { v: 480, label: "Short" },
+                          { v: 1200, label: "Standard" },
+                          { v: 1800, label: "Long" }
+                        ].map((o) => (
+                          <button
+                            key={o.v}
+                            type="button"
+                            className={`chip${pageLength === o.v ? " on" : ""}`}
+                            onClick={() => setPageLength(o.v)}
+                          >
+                            {o.label}
+                          </button>
+                        ))}
+                      </span>
                       <input
                         ref={fileInput}
                         type="file"
@@ -518,16 +618,51 @@ export default function StudioPage() {
                         }}
                       />
                       <button type="button" className="btn ghost" onClick={() => fileInput.current?.click()} disabled={importing !== null}>
-                        {importing ? `Reading ${importing}…` : "Import Word, PDF or text file"}
+                        {importing ? "Importing…" : "Import Word, PDF or text file"}
                       </button>
                       <span className="muted small">
-                        {parsed.length} {parsed.length === 1 ? "page" : "pages"} · {manuscriptText.trim().length.toLocaleString()} characters
+                        {importing ? `${importing} · ` : ""}
+                        {kept.length} {kept.length === 1 ? "page" : "pages"}
+                        {skippedPages.size > 0 ? ` (${skippedPages.size} left out)` : ""} · {manuscriptText.trim().length.toLocaleString()} characters
                       </span>
                     </div>
                     {importError && <p className="notice">{importError}</p>}
-                    {parsed.length > 0 && (
+                    {sections.length > 1 && (
+                      <div className="sections">
+                        <h3>What should be animated?</h3>
+                        <p className="muted small">
+                          Contents pages, copyright notices and the index are left out by default. Tick anything you want
+                          to keep.
+                        </p>
+                        <ul>
+                          {sections.map((sec) => {
+                            const key = `${sec.kind}:${sec.from}`;
+                            const include = !skipped[key];
+                            return (
+                              <li key={key} className={include ? "" : "off"}>
+                                <label>
+                                  <input
+                                    type="checkbox"
+                                    checked={include}
+                                    onChange={() => setSkipped((prev) => ({ ...prev, [key]: include }))}
+                                  />
+                                  <span>
+                                    <strong>{sec.label}</strong>
+                                    <small>
+                                      {sec.pages.length === 1 ? `page ${sec.from}` : `pages ${sec.from}–${sec.to}`} ·{" "}
+                                      {sec.sample.replace(/\s+/g, " ").slice(0, 70)}…
+                                    </small>
+                                  </span>
+                                </label>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
+                    {kept.length > 0 && (
                       <div className="page-preview">
-                        {parsed.slice(0, 6).map((page) => (
+                        {kept.slice(0, 6).map((page) => (
                           <div key={page.pageNum} className="preview-card">
                             <span className="label">
                               Page {page.pageNum}
@@ -536,16 +671,45 @@ export default function StudioPage() {
                             <p>{page.text.slice(0, 140)}{page.text.length > 140 ? "…" : ""}</p>
                           </div>
                         ))}
-                        {parsed.length > 6 && <div className="preview-card more">+ {parsed.length - 6} more pages</div>}
+                        {kept.length > 6 && <div className="preview-card more">+ {kept.length - 6} more pages</div>}
                       </div>
                     )}
                     <div className="panel-actions">
-                      <button type="button" className="btn primary" disabled={busy || parsed.length === 0} onClick={uploadManuscript}>
-                        {busy ? "Uploading…" : "Upload & analyse"}
+                      <button type="button" className="btn primary" disabled={busy || kept.length === 0} onClick={uploadManuscript}>
+                        {busy ? "Uploading…" : `Upload & analyse ${kept.length} pages`}
                       </button>
                     </div>
                   </>
                 )}
+              </article>
+            )}
+
+            {project && (view === "UPLOAD" || view === "REVIEW") && (
+              <article className="studio-panel cover-panel">
+                <div>
+                  <h2>Cover</h2>
+                  <p className="muted">
+                    Upload your own cover art — the image readers see in the library. PNG, JPG or WebP; portrait
+                    (about 2:3) looks best.
+                  </p>
+                  <input
+                    ref={coverInput}
+                    type="file"
+                    accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+                    hidden
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void uploadCover(f);
+                      e.target.value = "";
+                    }}
+                  />
+                  <button type="button" className="btn ghost" onClick={() => coverInput.current?.click()} disabled={coverBusy}>
+                    {coverBusy ? "Uploading…" : project.book?.coverUrl ? "Replace cover" : "Upload cover"}
+                  </button>
+                </div>
+                <div className="cover-preview" style={{ backgroundImage: project.book?.coverUrl ? `url(${project.book.coverUrl})` : undefined }}>
+                  {!project.book?.coverUrl && <span>No cover yet</span>}
+                </div>
               </article>
             )}
 
@@ -623,12 +787,31 @@ export default function StudioPage() {
                         </button>
                       ))}
                     </div>
+                    <h3>How much motion?</h3>
+                    <div className="mode-grid">
+                      <button type="button" className={`mode-card${mode === "illustrated" ? " selected" : ""}`} onClick={() => setMode("illustrated")}>
+                        <strong>Illustrated + key scenes</strong>
+                        <small>
+                          Every page painted and slowly panned; chapter openings and key moments fully animated
+                          ({keyPageCount(pages.length)} of {pages.length} pages move).
+                        </small>
+                        <span className="mode-cost">≈ {estimateCredits(pages.length, "illustrated")} credits · ${(estimateCredits(pages.length, "illustrated") / 100).toFixed(2)}</span>
+                      </button>
+                      <button type="button" className={`mode-card${mode === "full" ? " selected" : ""}`} onClick={() => setMode("full")}>
+                        <strong>Every page animated</strong>
+                        <small>A five-second animation on every page. Best for short, visual books.</small>
+                        <span className="mode-cost">≈ {estimateCredits(pages.length, "full")} credits · ${(estimateCredits(pages.length, "full") / 100).toFixed(2)}</span>
+                      </button>
+                    </div>
                     <div className="cost-note">
-                      <strong>{pages.length} pages</strong> · about <strong>{pages.length * CREDITS_PER_PAGE} Runway credits</strong> (≈ ${((pages.length * CREDITS_PER_PAGE) / 100).toFixed(2)}), plus narration.
+                      <strong>{pages.length} pages</strong> · about <strong>{estimateCredits(pages.length, mode)} Runway credits</strong> (≈ ${(estimateCredits(pages.length, mode) / 100).toFixed(2)}).{" "}
+                      {pages.length > 60
+                        ? "The opening pages are narrated now; the rest are recorded the first time a reader plays them."
+                        : "Narration for every page is recorded too."}
                     </div>
                     <div className="panel-actions">
                       <button type="button" className="btn primary" onClick={generate} disabled={busy || pages.length === 0}>
-                        {busy ? "Starting…" : "Animate my book"}
+                        {busy ? "Starting…" : mode === "full" ? "Animate my book" : "Illustrate my book"}
                       </button>
                     </div>
                   </>
@@ -718,34 +901,6 @@ export default function StudioPage() {
       </main>
     </div>
   );
-}
-
-function parseManuscript(raw: string): { pageNum: number; chapter: string | null; text: string }[] {
-  if (!raw.trim()) return [];
-  const paragraphs = raw.split(/\n\s*\n+/).map((p) => p.trim()).filter(Boolean);
-  let buffer: string[] = [];
-  let pages: { pageNum: number; chapter: string | null; text: string }[] = [];
-  const targetLength = 480;
-  let chapter = "Chapter 1";
-  let pageNum = 1;
-  for (const para of paragraphs) {
-    const chapterMatch = para.match(/^chapter\s+([\w\-:.]+)/i);
-    if (chapterMatch && chapterMatch[1]) {
-      if (buffer.length > 0) {
-        pages.push({ pageNum: pageNum++, chapter, text: buffer.join("\n\n") });
-        buffer = [];
-      }
-      chapter = `Chapter ${chapterMatch[1]}`;
-      continue;
-    }
-    buffer.push(para);
-    if (buffer.join(" ").length >= targetLength) {
-      pages.push({ pageNum: pageNum++, chapter, text: buffer.join("\n\n") });
-      buffer = [];
-    }
-  }
-  if (buffer.length > 0) pages.push({ pageNum, chapter, text: buffer.join("\n\n") });
-  return pages;
 }
 
 async function sha256(input: string): Promise<string> {

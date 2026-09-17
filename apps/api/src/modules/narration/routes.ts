@@ -16,7 +16,7 @@ import { Router } from "express";
 import { authMiddleware, requireUserId, type AuthedRequest } from "../../auth/middleware.js";
 import { incrementCounter } from "../../cache/index.js";
 import { isFeatureEnabled } from "../../config/env.js";
-import { findVoice, narratorVoices } from "../../config/voices.js";
+import { defaultVoiceIdFor, findVoice, narratorVoices } from "../../config/voices.js";
 import { prisma } from "../../db.js";
 import { cdnUrl } from "../../services/cloudflare.js";
 import { generateNarration } from "../../services/elevenlabs.js";
@@ -105,17 +105,27 @@ router.get("/voices/:voice/sample", async (req: Request, res: Response) => {
 router.get("/pages/:pageId", authMiddleware, async (req: AuthedRequest, res: Response) => {
   if (!ready(res)) return;
   const userId = requireUserId(req);
-  const voice = findVoice(typeof req.query.voice === "string" ? req.query.voice : undefined);
-  if (!voice) {
-    res.status(400).json({ error: "Unknown voice" });
-    return;
-  }
+  const asked = typeof req.query.voice === "string" ? req.query.voice : undefined;
   const page = await prisma.page.findUnique({
     where: { id: String(req.params["pageId"]) },
-    select: { id: true, bookId: true, textExcerpt: true }
+    select: {
+      id: true,
+      bookId: true,
+      textExcerpt: true,
+      book: { select: { vertical: true, brain: { select: { narratorVoiceId: true, culturalOrigin: true } } } }
+    }
   });
   if (!page) {
     res.status(404).json({ error: "Page not found" });
+    return;
+  }
+  // "book" means this book's own narrator — used when a page has no recording yet.
+  const voice =
+    asked === "book"
+      ? findVoice(defaultVoiceIdFor({ vertical: page.book.vertical, setting: page.book.brain?.culturalOrigin }))
+      : findVoice(asked);
+  if (!voice) {
+    res.status(400).json({ error: "Unknown voice" });
     return;
   }
   const text = page.textExcerpt.trim();

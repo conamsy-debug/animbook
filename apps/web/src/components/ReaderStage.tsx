@@ -166,7 +166,11 @@ export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false,
                   style={lensEnabled ? { transform: "scale(1.6)", transformOrigin: "center" } : undefined}
                 />
               ) : current.posterUrl && !/placehold\.co/i.test(current.posterUrl) ? (
-                <img src={current.posterUrl} alt="" className="video-poster" />
+                <img
+                  src={current.posterUrl}
+                  alt=""
+                  className={`video-poster${paused || motionScale < 0.4 ? "" : " ken-burns"}`}
+                />
               ) : (
                 <div className="video-empty">
                   <span>Animation coming soon</span>

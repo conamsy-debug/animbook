@@ -125,11 +125,7 @@ export function useNarration(
         void audio.play().catch(() => setSpeaking(false));
       };
 
-      const playBookNarrator = () => {
-        if (hasRecordedNarration(page) && audio) {
-          playFile(page.audioUrl);
-          return;
-        }
+      const speakInBrowser = () => {
         audio?.pause();
         setSpeaking(true);
         speakWithBrowser(
@@ -141,6 +137,33 @@ export function useNarration(
             if (listeningRef.current) onFinishedRef.current?.();
           }
         );
+      };
+
+      const playBookNarrator = () => {
+        if (hasRecordedNarration(page) && audio) {
+          playFile(page.audioUrl);
+          return;
+        }
+        // No recording yet (long books record on demand): ask for this book's
+        // own narrator, and fall back to the browser voice if that isn't possible.
+        if (audio) {
+          audio.pause();
+          setPreparing(true);
+          narrationUrl(page.id, BOOK_VOICE)
+            .then((url) => {
+              if (token !== tokenRef.current) return;
+              setPreparing(false);
+              if (url) playFile(url);
+              else speakInBrowser();
+            })
+            .catch(() => {
+              if (token !== tokenRef.current) return;
+              setPreparing(false);
+              speakInBrowser();
+            });
+          return;
+        }
+        speakInBrowser();
       };
 
       if (voice === BOOK_VOICE) {
@@ -184,7 +207,7 @@ export function useNarration(
   // While listening in a chosen voice, get the next page ready so auto-turn doesn't wait.
   const nextPageId = options.nextPage?.id;
   useEffect(() => {
-    if (!listening || voice === BOOK_VOICE || !nextPageId) return;
+    if (!listening || !nextPageId) return;
     const t = window.setTimeout(() => {
       narrationUrl(nextPageId, voice).catch(() => undefined);
     }, 1500);

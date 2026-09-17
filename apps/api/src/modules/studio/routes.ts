@@ -11,6 +11,7 @@ import {
 import { emitPipelineEvent, subscribeProject, writeSseEvent, writeSseHeaders, type PipelineEvent } from "../../studio/events.js";
 import { rateLimit } from "../../middleware/rateLimit.js";
 import { ExtractError, extractManuscript } from "../../services/manuscriptExtract.js";
+import { uploadAsset } from "../../services/cloudflare.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -64,6 +65,56 @@ router.post(
       }
       console.warn(`[studio/extract] ${filename}: ${(err as Error).message}`);
       res.status(422).json({ error: "Couldn't read that file. Try saving it as .docx or PDF again, or paste the text." });
+    }
+  }
+);
+
+const COVER_TYPES: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp"
+};
+
+/**
+ * PUT /api/studio/projects/:id/cover — the author's own cover art, sent as the
+ * raw image with its file name in X-Filename. Stored in R2; sets book.coverUrl.
+ */
+router.put(
+  "/projects/:id/cover",
+  rateLimit({ name: "studio.cover", max: 20, windowSeconds: 60 }),
+  express.raw({ type: () => true, limit: "12mb" }),
+  async (req: AuthedRequest, res: Response) => {
+    const userId = requireUserId(req);
+    const id = req.params["id"];
+    const project = await prisma.studioProject.findFirst({ where: { id: String(id), ownerId: userId }, include: { book: true } });
+    if (!project?.book) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
+    const body = req.body as unknown;
+    if (!Buffer.isBuffer(body) || body.length === 0) {
+      res.status(400).json({ error: "No image received" });
+      return;
+    }
+    const filename = decodeURIComponent(String(req.header("x-filename") ?? "cover.png")).toLowerCase();
+    const ext = filename.split(".").pop() ?? "";
+    const contentType = COVER_TYPES[ext];
+    if (!contentType) {
+      res.status(415).json({ error: "Please upload a PNG, JPG or WebP image." });
+      return;
+    }
+    try {
+      const stored = await uploadAsset({
+        key: `books/${project.book.slug}/cover-${Date.now().toString(36)}.${ext === "jpeg" ? "jpg" : ext}`,
+        body,
+        contentType
+      });
+      await prisma.book.update({ where: { id: project.book.id }, data: { coverUrl: stored.url } });
+      res.json({ coverUrl: stored.url });
+    } catch (err) {
+      console.warn(`[studio/cover] ${(err as Error).message}`);
+      res.status(502).json({ error: "Could not store the cover. Please try again." });
     }
   }
 );
@@ -332,8 +383,10 @@ router.post("/projects/:id/generate", async (req: AuthedRequest, res: Response) 
     res.status(409).json({ error: "Run the Book Brain analysis first" });
     return;
   }
+  const modeSchema = z.object({ mode: z.enum(["full", "illustrated"]).optional() });
+  const mode = modeSchema.safeParse(req.body ?? {}).data?.mode ?? "full";
   await prisma.studioProject.update({ where: { id }, data: { status: "GENERATING", currentStage: "PROMPT_GENERATION" } });
-  const jobId = await enqueuePipeline({ projectId: id, triggerStage: "VIDEO_GENERATION" });
+  const jobId = await enqueuePipeline({ projectId: id, triggerStage: "VIDEO_GENERATION", mode });
   emitPipelineEvent(id, {
     stage: "VIDEO_GENERATION",
     status: "queued",

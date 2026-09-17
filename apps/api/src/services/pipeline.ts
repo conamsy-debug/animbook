@@ -4,9 +4,9 @@ import { appEnv } from "../config/env.js";
 import { prisma } from "../db.js";
 import { emitPipelineEvent, type PipelineEvent } from "../studio/events.js";
 import { generateBookBrain, type BookBrain } from "./bookBrain.js";
-import { generateClip } from "./runway.js";
+import { generateClip, generateStill } from "./runway.js";
 import { generateNarration } from "./elevenlabs.js";
-import { uploadAsset } from "./cloudflare.js";
+import { mirrorToR2, uploadAsset } from "./cloudflare.js";
 import { safePrompt, stylePrompt, type NamedCharacter } from "./promptSafety.js";
 import { defaultVoiceIdFor, findVoice } from "../config/voices.js";
 
@@ -29,11 +29,15 @@ function getQueue(): Queue<PipelineJobData> {
   return queue;
 }
 
+export type ProductionMode = "full" | "illustrated";
+
 export interface PipelineJobData {
   projectId: string;
   triggerStage: "BOOK_BRAIN_ANALYSIS" | "VISUAL_STYLE" | "PROMPT_GENERATION" | "VIDEO_GENERATION" | "AUDIO_PRODUCTION";
   /** Regenerate just this page (with its direction note). */
   pageId?: string;
+  /** "full": animate every page. "illustrated": paint every page, animate key scenes. */
+  mode?: ProductionMode;
 }
 
 export interface ManuscriptPayload {
@@ -183,11 +187,41 @@ async function loadBrain(bookId: string): Promise<BookBrain> {
   return row.rawJson as unknown as BookBrain;
 }
 
+/**
+ * Pages that get full motion in "illustrated" mode: chapter openings, the
+ * Book Brain's key beats, and a steady sprinkle in between.
+ */
+function keyPagesFor(brain: BookBrain, pages: { pageNum: number; chapter: string | null }[]): Set<number> {
+  const key = new Set<number>();
+  const arc = brain.narrative_arc ?? { setup_pages: [], climax_pages: [], resolution_pages: [] };
+  for (const n of [...(arc.setup_pages ?? []), ...(arc.climax_pages ?? []), ...(arc.resolution_pages ?? [])]) key.add(n);
+  let lastChapter: string | null = null;
+  for (const p of pages) {
+    if (p.chapter && p.chapter !== lastChapter) {
+      key.add(p.pageNum);
+      lastChapter = p.chapter;
+    }
+  }
+  key.add(pages[0]?.pageNum ?? 1);
+  // At least one moving page in every ten.
+  for (let i = 0; i < pages.length; i += 10) {
+    const window = pages.slice(i, i + 10).map((p) => p.pageNum);
+    if (!window.some((n) => key.has(n))) key.add(window[0]!);
+  }
+  return key;
+}
+
 /** After style selection: prompts → video → narration → ready for review. */
 async function runGeneration(data: PipelineJobData): Promise<void> {
   const project = await prisma.studioProject.findUnique({ where: { id: data.projectId }, select: { bookId: true } });
   if (!project?.bookId) throw new Error("Studio project has no linked book");
   const brain = await loadBrain(project.bookId);
+  const mode: ProductionMode = data.mode ?? ((brain as { production_mode?: ProductionMode }).production_mode ?? "full");
+  // Remember the mode so single-page regenerations match the rest of the book.
+  await prisma.bookBrain.update({
+    where: { bookId: project.bookId },
+    data: { rawJson: { ...(brain as unknown as object), production_mode: mode } as object }
+  });
 
   await prisma.studioProject.update({
     where: { id: data.projectId },
@@ -199,7 +233,7 @@ async function runGeneration(data: PipelineJobData): Promise<void> {
 
   await prisma.studioProject.update({ where: { id: data.projectId }, data: { currentStage: "VIDEO_GENERATION" } });
   await emit(data.projectId, { stage: "VIDEO_GENERATION", status: "running", progress: 50, message: "Animating pages" });
-  const video = await runVideoStage(data.projectId, brain);
+  const video = await runVideoStage(data.projectId, brain, mode);
   await emit(data.projectId, {
     stage: "VIDEO_GENERATION",
     status: "succeeded",
@@ -208,9 +242,22 @@ async function runGeneration(data: PipelineJobData): Promise<void> {
   });
 
   await prisma.studioProject.update({ where: { id: data.projectId }, data: { currentStage: "AUDIO_PRODUCTION" } });
-  await emit(data.projectId, { stage: "AUDIO_PRODUCTION", status: "running", progress: 85, message: "Recording narration" });
-  await runAudioStage(data.projectId);
-  await emit(data.projectId, { stage: "AUDIO_PRODUCTION", status: "succeeded", progress: 95 });
+  // Long books: record the opening pages now; the rest are recorded the first
+  // time a reader plays them (see /api/narration/pages).
+  const narrateLimit = video.total > 60 ? 3 : undefined;
+  await emit(data.projectId, {
+    stage: "AUDIO_PRODUCTION",
+    status: "running",
+    progress: 85,
+    message: narrateLimit ? "Recording the opening pages" : "Recording narration"
+  });
+  await runAudioStage(data.projectId, narrateLimit);
+  await emit(data.projectId, {
+    stage: "AUDIO_PRODUCTION",
+    status: "succeeded",
+    progress: 95,
+    message: narrateLimit ? "Opening pages narrated; the rest record as readers play them" : undefined
+  });
 
   await prisma.studioProject.update({
     where: { id: data.projectId },
@@ -231,7 +278,9 @@ async function runPageRegeneration(data: PipelineJobData): Promise<void> {
   if (!page) throw new Error("Page not found");
   const brain = await loadBrain(page.bookId);
   await emit(data.projectId, { stage: "VIDEO_GENERATION", status: "running", progress: 60, message: `Re-animating page ${page.pageNum}` });
-  const result = await animatePage(data.projectId, brain, page);
+  const mode: ProductionMode = (brain as { production_mode?: ProductionMode }).production_mode ?? "full";
+  const wasStill = mode === "illustrated" && !page.videoUrl;
+  const result = await animatePage(data.projectId, brain, page, !wasStill);
   await emit(data.projectId, {
     stage: "VIDEO_GENERATION",
     status: result === "done" ? "succeeded" : "failed",
@@ -282,10 +331,11 @@ async function buildPrompts(projectId: string, brain: BookBrain): Promise<void> 
   );
 }
 
-async function runVideoStage(projectId: string, brain: BookBrain): Promise<{ done: number; failed: number }> {
+async function runVideoStage(projectId: string, brain: BookBrain, mode: ProductionMode): Promise<{ done: number; failed: number; total: number }> {
   const project = await prisma.studioProject.findUnique({ where: { id: projectId }, select: { bookId: true } });
-  if (!project?.bookId) return { done: 0, failed: 0 };
+  if (!project?.bookId) return { done: 0, failed: 0, total: 0 };
   const pages = await prisma.page.findMany({ where: { bookId: project.bookId }, orderBy: { pageNum: "asc" } });
+  const keyPages = mode === "illustrated" ? keyPagesFor(brain, pages.map((p) => ({ pageNum: p.pageNum, chapter: p.chapter }))) : null;
   let next = 0;
   let done = 0;
   let failed = 0;
@@ -294,25 +344,30 @@ async function runVideoStage(projectId: string, brain: BookBrain): Promise<{ don
     [0, 1].map(async () => {
       while (next < pages.length) {
         const page = pages[next++];
-        const result = await animatePage(projectId, brain, page);
+        const moving = !keyPages || keyPages.has(page.pageNum);
+        const result = await animatePage(projectId, brain, page, moving);
         if (result === "done") done++;
         else failed++;
         await emit(projectId, {
           stage: "VIDEO_GENERATION",
           status: "running",
           progress: 50 + Math.round((30 * (done + failed)) / Math.max(1, pages.length)),
-          message: `Page ${page.pageNum} ${result === "done" ? "animated" : "needs another try"}`
+          message: `Page ${page.pageNum} ${result === "done" ? (moving ? "animated" : "illustrated") : "needs another try"}`
         });
       }
     })
   );
-  return { done, failed };
+  return { done, failed, total: pages.length };
 }
 
 type PageRow = Awaited<ReturnType<typeof prisma.page.findMany>>[number];
 
-/** One page: safe, styled prompts → Runway → R2. Pages wait for the author's approval. */
-async function animatePage(projectId: string, brain: BookBrain, page: PageRow): Promise<"done" | "failed"> {
+/**
+ * One page: safe, styled prompts → Runway → R2. `moving` pages get a video;
+ * the rest get a painted still (about a sixth of the cost) which the reader
+ * slowly pans across. Pages wait for the author's approval.
+ */
+async function animatePage(projectId: string, brain: BookBrain, page: PageRow, moving = true): Promise<"done" | "failed"> {
   const book = await prisma.book.findUnique({ where: { id: page.bookId }, select: { styleId: true } });
   const style = stylePrompt(book?.styleId, brain.style_recommendation);
   const manifest = brain.page_manifest.find((m) => m.page_num === page.pageNum);
@@ -329,6 +384,15 @@ async function animatePage(projectId: string, brain: BookBrain, page: PageRow): 
     characters
   );
   try {
+    if (!moving) {
+      const url = await generateStill(still, "1920:1080");
+      const stored = await mirrorToR2(url, `studio/${projectId}/p${page.pageNum}-${Date.now().toString(36)}.png`, "image/png");
+      await prisma.page.update({
+        where: { id: page.id },
+        data: { videoUrl: null, posterUrl: stored.url, animationPrompt: still, qualityScore: 0.8, status: "PENDING" }
+      });
+      return "done";
+    }
     const result = await generateClip({
       projectId,
       pageNum: page.pageNum,
@@ -350,10 +414,10 @@ async function animatePage(projectId: string, brain: BookBrain, page: PageRow): 
   }
 }
 
-async function runAudioStage(projectId: string): Promise<void> {
+async function runAudioStage(projectId: string, limit?: number): Promise<void> {
   const project = await prisma.studioProject.findUnique({ where: { id: projectId }, select: { bookId: true } });
   if (!project?.bookId) return;
-  const pages = await prisma.page.findMany({ where: { bookId: project.bookId }, orderBy: { pageNum: "asc" } });
+  const pages = (await prisma.page.findMany({ where: { bookId: project.bookId }, orderBy: { pageNum: "asc" } })).slice(0, limit);
   const brain = await prisma.bookBrain.findUnique({
     where: { bookId: project.bookId },
     select: { narratorVoiceId: true, culturalOrigin: true, book: { select: { vertical: true } } }
