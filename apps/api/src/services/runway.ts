@@ -122,7 +122,7 @@ async function waitForTask(id: string, timeoutMs = 15 * 60_000): Promise<string>
     if (task.status === "FAILED" || task.status === "CANCELLED") {
       const code = task.failureCode ?? "";
       throw new RunwayError(
-        `Runway task ${id} ${task.status}: ${task.failure ?? code ?? "unknown"}`,
+        `Runway task ${id} ${task.status}${code ? ` [${code}]` : ""}: ${task.failure ?? "unknown"}`,
         code.startsWith("INTERNAL"),
         code.startsWith("SAFETY")
       );
@@ -131,22 +131,55 @@ async function waitForTask(id: string, timeoutMs = 15 * 60_000): Promise<string>
   throw new RunwayError(`Runway task ${id} timed out`, true);
 }
 
+/**
+ * Runway fetches reference images itself; sending them inline (data URIs)
+ * avoids failures when it can't reach or read our media domain.
+ */
+async function inlineImage(uri: string): Promise<string> {
+  if (!/^https?:\/\//i.test(uri)) return uri;
+  const res = await fetch(uri);
+  if (!res.ok) throw new RunwayError(`Could not load reference image (${res.status}) ${uri.slice(0, 80)}`);
+  const type = res.headers.get("content-type")?.split(";")[0] || "image/png";
+  const buf = Buffer.from(await res.arrayBuffer());
+  return `data:${type};base64,${buf.toString("base64")}`;
+}
+
+/** Runway sometimes fails a task with an internal error; those are worth one or two more tries. */
+async function withTaskRetry(label: string, run: () => Promise<string>, attempts = 3): Promise<string> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await run();
+    } catch (err) {
+      lastErr = err;
+      const retryable = err instanceof RunwayError && err.retryable;
+      if (!retryable || i === attempts - 1) throw err;
+      console.warn(`[runway] ${label} failed (${(err as Error).message}), retry ${i + 1}/${attempts - 1}`);
+      await sleep(10_000);
+    }
+  }
+  throw lastErr;
+}
+
 export async function generateStill(prompt: string, ratio: string = "1280:720", references: ReferenceImage[] = []): Promise<string> {
   const body: Record<string, unknown> = { model: "gen4_image", promptText: prompt.slice(0, 1000), ratio };
-  if (references.length) body.referenceImages = references.slice(0, 3);
-  const id = await createTask("/text_to_image", body);
-  return waitForTask(id);
+  if (references.length) {
+    body.referenceImages = await Promise.all(
+      references.slice(0, 3).map(async (r) => ({ uri: await inlineImage(r.uri), tag: r.tag }))
+    );
+  }
+  return withTaskRetry("image", async () => waitForTask(await createTask("/text_to_image", body)));
 }
 
 export async function animateStill(imageUrl: string, motionPrompt: string, durationSeconds = 5, ratio: RunwayRatio = "1280:720"): Promise<string> {
-  const id = await createTask("/image_to_video", {
+  const body = {
     model: "gen4_turbo",
     promptImage: imageUrl,
     promptText: motionPrompt.slice(0, 1000),
     ratio,
     duration: durationSeconds
-  });
-  return waitForTask(id);
+  };
+  return withTaskRetry("video", async () => waitForTask(await createTask("/image_to_video", body)));
 }
 
 export function estimateClipCredits(durationSeconds = 5): number {

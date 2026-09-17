@@ -233,28 +233,41 @@ function ensureTags(cast: CastSheet): void {
   }
 }
 
+const squash = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
 function mentions(text: string, c: CastMember): boolean {
-  const lower = text.toLowerCase();
-  const first = c.name.split(/\s+/)[0].toLowerCase();
-  if (first.length >= 3 && new RegExp(`\\b${first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(lower)) return true;
-  return lower.includes(c.description.slice(0, 40).toLowerCase());
+  const flat = ` ${squash(text)} `;
+  const first = squash(c.name).split(" ")[0] ?? "";
+  if (first.length >= 3 && flat.includes(` ${first} `)) return true;
+  // Claude may drop commas or reword slightly — compare the first few words, punctuation-free.
+  const head = squash(c.description).split(" ").slice(0, 6).join(" ");
+  return head.length > 12 && flat.includes(` ${head} `);
 }
 
 /**
  * Which approved portraits to send with a prompt, and the prompt rewritten to
  * mention them (@Tag). Returns the prompt unchanged when nobody appears.
  */
-function withReferences(prompt: string, cast: CastSheet | null, style: string): { prompt: string; references: ReferenceImage[] } {
-  if (NO_PORTRAITS || !cast || /\bno people\b/i.test(prompt)) return { prompt, references: [] };
-  const people = cast.characters.filter((c) => c.approved && c.portraitUrl && c.tag && mentions(prompt, c)).slice(0, 3);
-  if (!people.length) return { prompt, references: [] };
+function withReferences(
+  prompt: string,
+  cast: CastSheet | null,
+  style: string,
+  named: string[] = []
+): { prompt: string; references: ReferenceImage[]; people: string[] } {
+  if (NO_PORTRAITS || !cast) return { prompt, references: [], people: [] };
+  const listed = new Set(named.map(squash));
+  const inFrame = (c: CastMember) =>
+    listed.size > 0 ? listed.has(squash(c.name)) || listed.has(squash(c.name).split(" ")[0]) : !/\bno people\b/i.test(prompt) && mentions(prompt, c);
+  const people = cast.characters.filter((c) => c.approved && c.portraitUrl && c.tag && inFrame(c)).slice(0, 3);
+  if (!people.length) return { prompt, references: [], people: [] };
   const line =
     people.map((c) => `@${c.tag} is ${c.name}`).join("; ") +
     ` — draw ${people.length === 1 ? "this person" : "these people"} with exactly the face, hair, body and clothes shown in the reference image${people.length === 1 ? "" : "s"}.`;
   const rest = prompt.toLowerCase().startsWith(style.slice(0, 20).toLowerCase()) ? prompt.slice(style.length).replace(/^[\s.]+/, "") : prompt;
   return {
     prompt: `${style}. ${line} ${rest}`,
-    references: people.map((c) => ({ uri: c.portraitUrl!, tag: c.tag! }))
+    references: people.map((c) => ({ uri: c.portraitUrl!, tag: c.tag! })),
+    people: people.map((c) => c.name)
   };
 }
 
@@ -350,12 +363,15 @@ function castText(cast: CastSheet | null): string {
 interface PromptPair {
   still: string;
   motion: string;
+  /** Cast names Claude says are in the frame. */
+  people?: string[];
 }
 
 const RULES = `You write prompts for an AI image model and an AI image-to-video model.
-Return ONLY JSON: {"still": "...", "motion": "..."} — no markdown.
+Return ONLY JSON: {"still": "...", "motion": "...", "people": ["..."]} — no markdown.
+"people" lists the exact cast names of everyone visible in the frame (empty list if nobody).
 
-"still" (max 90 words) starts with the art style exactly as given, then describes one frame: the setting, the exact number of people or creatures in frame (say "one woman", "two men", or "no people"), who is where, what they wear, the light, the camera framing, and the art style given to you. Whenever a person from the cast appears, paste their cast description word for word; only show the people this page is about. If the page is about a place, write "no people". Never ask for written words, signs, captions, logos or letters in the image.
+"still" (max 90 words) starts with the art style exactly as given, then describes one frame: the setting, the exact number of people or creatures in frame (say "one woman", "two men", or "no people"), who is where, what they wear, the light, the camera framing, and the art style given to you. Whenever a person from the cast appears, write their name, then paste their cast description word for word (e.g. "Adaeze, <description>"); only show the people this page is about. If the page is about a place, write "no people". Never ask for written words, signs, captions, logos or letters in the image.
 
 "motion" (max 60 words) describes what moves during a 5-second shot of that frame. State every movement explicitly — which body part moves, in which direction, how far, how fast — and the camera move (e.g. "slow push-in", "static camera"). Tie any effect (light, dust, water, smoke) to the thing that causes it. Repeat the subject count ("the one woman…") so no extra people appear. Keep motion small and physically plausible. No cuts, no new subjects entering.`;
 
@@ -388,7 +404,7 @@ async function claudePrompt(book: BookRow, page: PageRow, style: string, cast: C
     if (!parsed.still || !parsed.motion) throw new Error("missing fields");
     return parsed.still.toLowerCase().startsWith(style.slice(0, 20).toLowerCase())
       ? parsed
-      : { still: `${style}. ${parsed.still}`, motion: parsed.motion };
+      : { still: `${style}. ${parsed.still}`, motion: parsed.motion, people: parsed.people };
   } catch (err) {
     console.warn(`  ! prompt writer fell back to template (${(err as Error).message})`);
     return null;
@@ -396,22 +412,24 @@ async function claudePrompt(book: BookRow, page: PageRow, style: string, cast: C
 }
 
 const COVER_RULES = `You write one prompt (max 110 words) for a portrait book-cover illustration.
-Return ONLY the prompt text. Start with the art style exactly as given. Show the story's setting and only the characters the synopsis names — state how many people are in frame, and paste each one's cast description word for word. One clear focal image. No text, title, letters or logos.`;
+Return ONLY JSON: {"prompt": "...", "people": ["..."]} — no markdown. "people" lists the exact cast names shown.
+The prompt starts with the art style exactly as given. Show the story's setting and only the characters the synopsis names — state how many people are in frame, and for each write their name, then paste their cast description word for word. One clear focal image. No text, title, letters or logos.`;
 
-async function coverPrompt(book: BookRow, style: string, cast: CastSheet | null): Promise<string> {
+async function coverPrompt(book: BookRow, style: string, cast: CastSheet | null): Promise<{ prompt: string; people?: string[] }> {
   const fallback = `${style}. Book cover artwork for "${book.title}": ${book.synopsis} ${
     cast ? castText(cast) : ""
   } One striking central image, portrait composition, no text, no letters, no title.`;
-  if (!USE_CLAUDE) return fallback;
+  if (!USE_CLAUDE) return { prompt: fallback };
   try {
     const text = await askClaude(
       COVER_RULES,
       [`Title: ${book.title}`, `Synopsis: ${book.synopsis}`, `Art style: ${style}`, castText(cast)].filter(Boolean).join("\n"),
-      500
+      600
     );
-    return text || fallback;
+    const parsed = JSON.parse(text) as { prompt?: string; people?: string[] };
+    return parsed.prompt ? { prompt: parsed.prompt, people: parsed.people } : { prompt: fallback };
   } catch {
-    return fallback;
+    return { prompt: fallback };
   }
 }
 
@@ -500,6 +518,8 @@ interface ReportRow {
   posterUrl?: string;
   prompt?: string;
   motion?: string;
+  /** Cast members whose portraits were sent. */
+  references?: string[];
   error?: string;
 }
 
@@ -618,14 +638,16 @@ async function main() {
         report.push({ book: book.slug, page: "cover", status: "skipped-budget" });
       } else {
         try {
-          const coverRef = withReferences(await coverPrompt(book, style, cast), cast, style);
+          const written = await coverPrompt(book, style, cast);
+          const coverRef = withReferences(written.prompt, cast, style, written.people);
           const prompt = coverRef.prompt;
           const still = await generateStill(prompt, "720:960", coverRef.references);
           const stored = await mirrorToR2(still, `books/${book.slug}/cover-${Date.now().toString(36)}.png`, "image/png");
           await withDbRetry("cover save", () =>
             prisma.book.update({ where: { id: book.id }, data: { coverUrl: stored.url } })
           );
-          report.push({ book: book.slug, page: "cover", status: "done", posterUrl: stored.url, prompt });
+          report.push({ book: book.slug, page: "cover", status: "done", posterUrl: stored.url, prompt, references: coverRef.people });
+          if (coverRef.people.length) console.log(`    faces: ${coverRef.people.join(", ")}`);
           console.log("  ✓ cover");
         } catch (err) {
           report.push({ book: book.slug, page: "cover", status: "failed", error: (err as Error).message });
@@ -640,7 +662,7 @@ async function main() {
         return;
       }
       const written = (USE_CLAUDE && (await claudePrompt(book, page, style, cast))) || templatePrompt(book, page, style);
-      const referenced = withReferences(written.still, cast, style);
+      const referenced = withReferences(written.still, cast, style, written.people);
       const prompts = { still: referenced.prompt, motion: written.motion };
       try {
         const clip = await generateClip({
@@ -687,11 +709,20 @@ async function main() {
           videoUrl: clip.videoUrl,
           posterUrl: clip.posterUrl,
           prompt: prompts.still,
-          motion: prompts.motion
+          motion: prompts.motion,
+          references: referenced.people
         });
-        console.log(`  ✓ p${page.pageNum}`);
+        console.log(`  ✓ p${page.pageNum}${referenced.people.length ? ` (faces: ${referenced.people.join(", ")})` : ""}`);
       } catch (err) {
-        report.push({ book: book.slug, page: page.pageNum, status: "failed", error: (err as Error).message });
+        report.push({
+          book: book.slug,
+          page: page.pageNum,
+          status: "failed",
+          error: (err as Error).message,
+          prompt: prompts.still,
+          motion: prompts.motion,
+          references: referenced.people
+        });
         console.warn(`  ✗ p${page.pageNum}: ${(err as Error).message}`);
       }
     });
