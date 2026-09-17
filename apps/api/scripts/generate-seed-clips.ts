@@ -271,8 +271,22 @@ function withReferences(
   };
 }
 
+/**
+ * Runway rejects images when a prompt mentions text (INTERNAL.BAD_OUTPUT),
+ * even "no text". Remove such phrases before sending.
+ */
+function scrubText(prompt: string): string {
+  return prompt
+    .replace(/\b(?:with\s+)?(?:no|without)\s+(?:any\s+)?(?:visible\s+)?(?:text|words?|writing|letters?|lettering|titles?|captions?|logos?|signs?|signage|watermarks?|typography)(?:\s*(?:,|or|and|\/)\s*(?:no\s+)?(?:visible\s+)?(?:text|words?|writing|letters?|lettering|titles?|captions?|logos?|signs?|signage|watermarks?|typography))*\b[.,;]?/gi, "")
+    .replace(/\b(?:book[- ]cover|cover artwork|cover art|poster)(?:[- ]style)?(?:\s+(?:illustration|artwork|art|image|painting))?\b/gi, "illustration")
+    .replace(/\billustration(\s+illustration)+\b/gi, "illustration")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([.,;])/g, "$1")
+    .trim();
+}
+
 function portraitPrompt(c: CastMember, style: string): string {
-  return `${style}. Character reference portrait of exactly one person: ${c.description} Full body visible from head to feet, standing upright and facing the viewer, arms relaxed at the sides, calm neutral expression, soft even light, plain softly blurred background. Only one person in the image. No text, no letters, no logos.`;
+  return `${style}. Character reference portrait of exactly one person: ${c.description} Full body visible from head to feet, standing upright and facing the viewer, arms relaxed at the sides, calm neutral expression, soft even light, plain softly blurred background. Only one person in the image.`;
 }
 
 /** --portraits / --redo-portraits / --approve-portraits. Returns true if it handled the run. */
@@ -318,7 +332,7 @@ async function portraitMode(books: BookRow[]): Promise<boolean> {
       if (cost > MAX_CREDITS) throw new Error(`Portraits would cost ~${cost} credits, over --max-credits ${MAX_CREDITS}`);
       for (const { key, c, book } of todo) {
         try {
-          const still = await generateStill(portraitPrompt(c, resolveStyle(book)), "720:960");
+          const still = await generateStill(scrubText(portraitPrompt(c, resolveStyle(book))), "720:960");
           const folder = key.replace(/[^a-z0-9-]+/gi, "-");
           const stored = await mirrorToR2(still, `cast/${folder}/${c.tag}-${Date.now().toString(36)}.png`, "image/png");
           c.portraitUrl = stored.url;
@@ -371,7 +385,7 @@ const RULES = `You write prompts for an AI image model and an AI image-to-video 
 Return ONLY JSON: {"still": "...", "motion": "...", "people": ["..."]} — no markdown.
 "people" lists the exact cast names of everyone visible in the frame (empty list if nobody).
 
-"still" (max 90 words) starts with the art style exactly as given, then describes one frame: the setting, the exact number of people or creatures in frame (say "one woman", "two men", or "no people"), who is where, what they wear, the light, the camera framing, and the art style given to you. Whenever a person from the cast appears, write their name, then paste their cast description word for word (e.g. "Adaeze, <description>"); only show the people this page is about. If the page is about a place, write "no people". Never ask for written words, signs, captions, logos or letters in the image.
+"still" (max 90 words) starts with the art style exactly as given, then describes one frame: the setting, the exact number of people or creatures in frame (say "one woman", "two men", or "no people"), who is where, what they wear, the light, the camera framing, and the art style given to you. Whenever a person from the cast appears, write their name, then paste their cast description word for word (e.g. "Adaeze, <description>"); only show the people this page is about. If the page is about a place, write "no people". Describe only what is seen. Never mention writing, words, signs, labels, titles, logos or letters at all — not even to say there are none — because the image model treats any such mention as a request to draw text.
 
 "motion" (max 60 words) describes what moves during a 5-second shot of that frame. State every movement explicitly — which body part moves, in which direction, how far, how fast — and the camera move (e.g. "slow push-in", "static camera"). Tie any effect (light, dust, water, smoke) to the thing that causes it. Repeat the subject count ("the one woman…") so no extra people appear. Keep motion small and physically plausible. No cuts, no new subjects entering.`;
 
@@ -380,7 +394,7 @@ function templatePrompt(book: BookRow, page: PageRow, style: string): PromptPair
   return {
     still: `${style}. ${scene} Scene: ${page.sceneType ?? "establishing"}. Mood: ${page.emotionalRegister ?? "calm"}. Framing: ${
       page.cameraAngle ?? "medium shot"
-    }. No text, no letters, no logos.`,
+    }.`,
     motion: `Static composition with subtle natural motion only: gentle ambient movement in the environment, slow camera push-in. Mood: ${
       page.emotionalRegister ?? "calm"
     }. No new subjects enter the frame.`
@@ -411,19 +425,17 @@ async function claudePrompt(book: BookRow, page: PageRow, style: string, cast: C
   }
 }
 
-const COVER_RULES = `You write one prompt (max 110 words) for a portrait book-cover illustration.
+const COVER_RULES = `You write one prompt (max 110 words) for a portrait-format illustration that captures a story at a glance.
 Return ONLY JSON: {"prompt": "...", "people": ["..."]} — no markdown. "people" lists the exact cast names shown.
-The prompt starts with the art style exactly as given. Show the story's setting and only the characters the synopsis names — state how many people are in frame, and for each write their name, then paste their cast description word for word. One clear focal image. No text, title, letters or logos.`;
+The prompt starts with the art style exactly as given. Show the story's setting and only the characters the synopsis names — state how many people are in frame, and for each write their name, then paste their cast description word for word. One clear focal image in portrait format. Describe only what is seen: never mention a book, cover, poster, title, writing, words, letters or logos — not even to say there are none — because the image model treats any such mention as a request to draw text.`;
 
 async function coverPrompt(book: BookRow, style: string, cast: CastSheet | null): Promise<{ prompt: string; people?: string[] }> {
-  const fallback = `${style}. Book cover artwork for "${book.title}": ${book.synopsis} ${
-    cast ? castText(cast) : ""
-  } One striking central image, portrait composition, no text, no letters, no title.`;
+  const fallback = `${style}. One striking scene in portrait composition: ${book.synopsis} ${cast ? castText(cast) : ""}`;
   if (!USE_CLAUDE) return { prompt: fallback };
   try {
     const text = await askClaude(
       COVER_RULES,
-      [`Title: ${book.title}`, `Synopsis: ${book.synopsis}`, `Art style: ${style}`, castText(cast)].filter(Boolean).join("\n"),
+      [`Story: ${book.title}`, `Synopsis: ${book.synopsis}`, `Art style: ${style}`, castText(cast)].filter(Boolean).join("\n"),
       600
     );
     const parsed = JSON.parse(text) as { prompt?: string; people?: string[] };
@@ -637,10 +649,12 @@ async function main() {
       if (!reserve(COVER_CREDITS)) {
         report.push({ book: book.slug, page: "cover", status: "skipped-budget" });
       } else {
+        let coverPromptUsed = "";
         try {
           const written = await coverPrompt(book, style, cast);
-          const coverRef = withReferences(written.prompt, cast, style, written.people);
+          const coverRef = withReferences(scrubText(written.prompt), cast, style, written.people);
           const prompt = coverRef.prompt;
+          coverPromptUsed = prompt;
           const still = await generateStill(prompt, "720:960", coverRef.references);
           const stored = await mirrorToR2(still, `books/${book.slug}/cover-${Date.now().toString(36)}.png`, "image/png");
           await withDbRetry("cover save", () =>
@@ -650,7 +664,13 @@ async function main() {
           if (coverRef.people.length) console.log(`    faces: ${coverRef.people.join(", ")}`);
           console.log("  ✓ cover");
         } catch (err) {
-          report.push({ book: book.slug, page: "cover", status: "failed", error: `${(err as Error).message}${(err as Error).cause ? ` (${String((err as Error).cause)})` : ""}` });
+          report.push({
+            book: book.slug,
+            page: "cover",
+            status: "failed",
+            error: `${(err as Error).message}${(err as Error).cause ? ` (${String((err as Error).cause)})` : ""}`,
+            prompt: coverPromptUsed || undefined
+          });
           console.warn(`  ✗ cover: ${(err as Error).message}`);
         }
       }
@@ -662,7 +682,7 @@ async function main() {
         return;
       }
       const written = (USE_CLAUDE && (await claudePrompt(book, page, style, cast))) || templatePrompt(book, page, style);
-      const referenced = withReferences(written.still, cast, style, written.people);
+      const referenced = withReferences(scrubText(written.still), cast, style, written.people);
       const prompts = { still: referenced.prompt, motion: written.motion };
       try {
         const clip = await generateClip({
