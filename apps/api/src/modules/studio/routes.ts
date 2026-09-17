@@ -36,6 +36,29 @@ const createSchema = z.object({
   language: z.string().default("en")
 });
 
+router.get("/projects", async (req: AuthedRequest, res: Response) => {
+  const userId = requireUserId(req);
+  const projects = await prisma.studioProject.findMany({
+    where: { ownerId: userId },
+    orderBy: { updatedAt: "desc" },
+    take: 50,
+    include: { book: { select: { id: true, slug: true, title: true, author: true, coverUrl: true, status: true, _count: { select: { pages: true } } } } }
+  });
+  res.json({
+    items: projects.map((p) => ({
+      id: p.id,
+      name: p.name,
+      vertical: p.vertical,
+      status: p.status,
+      currentStage: p.currentStage,
+      updatedAt: p.updatedAt,
+      book: p.book
+        ? { id: p.book.id, slug: p.book.slug, title: p.book.title, author: p.book.author, coverUrl: p.book.coverUrl, status: p.book.status, pageCount: p.book._count.pages }
+        : null
+    }))
+  });
+});
+
 router.post("/projects", async (req: AuthedRequest, res: Response) => {
   const userId = requireUserId(req);
   const parsed = createSchema.safeParse(req.body);
@@ -229,7 +252,7 @@ router.post("/projects/:id/style", async (req: AuthedRequest, res: Response) => 
     return;
   }
   await prisma.book.update({ where: { id: project.bookId }, data: { styleId: parsed.data.styleId } });
-  await prisma.studioProject.update({ where: { id }, data: { status: "GENERATING", currentStage: "VIDEO_GENERATION" } });
+  await prisma.studioProject.update({ where: { id }, data: { status: "STYLE_SELECTION", currentStage: "VISUAL_STYLE" } });
   emitPipelineEvent(id, {
     stage: "VISUAL_STYLE",
     status: "succeeded",
@@ -267,11 +290,21 @@ router.post("/projects/:id/generate", async (req: AuthedRequest, res: Response) 
     res.status(404).json({ error: "Project not found" });
     return;
   }
+  if (project.status === "GENERATING") {
+    res.status(409).json({ error: "Generation is already running for this project" });
+    return;
+  }
+  const brain = project.bookId ? await prisma.bookBrain.findUnique({ where: { bookId: project.bookId }, select: { id: true } }) : null;
+  if (!brain) {
+    res.status(409).json({ error: "Run the Book Brain analysis first" });
+    return;
+  }
+  await prisma.studioProject.update({ where: { id }, data: { status: "GENERATING", currentStage: "PROMPT_GENERATION" } });
   const jobId = await enqueuePipeline({ projectId: id, triggerStage: "VIDEO_GENERATION" });
   emitPipelineEvent(id, {
     stage: "VIDEO_GENERATION",
     status: "queued",
-    progress: 50,
+    progress: 32,
     message: "Generation queued",
     jobId,
     at: new Date().toISOString()
@@ -346,14 +379,20 @@ router.post("/pages/:pageId/regenerate", async (req: AuthedRequest, res: Respons
       regenerationCount: { increment: 1 }
     }
   });
+  const jobId = await enqueuePipeline({
+    projectId: page.book.studioProject.id,
+    triggerStage: "VIDEO_GENERATION",
+    pageId
+  });
   emitPipelineEvent(page.book.studioProject.id, {
     stage: "VIDEO_GENERATION",
-    status: "retrying",
+    status: "queued",
     progress: 60,
     message: `Page ${page.pageNum} queued for regeneration`,
+    jobId,
     at: new Date().toISOString()
   });
-  res.json({ ok: true });
+  res.json({ ok: true, jobId });
 });
 
 router.post("/projects/:id/audio", async (req: AuthedRequest, res: Response) => {

@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { Topbar } from "@/components/Topbar";
 import { apiFetch, apiStreamUrl, type BookBrainJson, type PageRecord, type PipelineEvent, type StudioProjectSummary } from "@/lib/api";
 import { useToastStore } from "@/lib/store";
+import { VERTICALS, verticalById } from "@/lib/verticals";
 
 type Stage = "SETUP" | "UPLOAD" | "BRAIN" | "STYLE" | "REVIEW";
 
@@ -14,118 +16,147 @@ interface ProjectDetail extends StudioProjectSummary {
     synopsis: string;
     vertical: string;
     language: string;
+    status?: string;
+    styleId?: string | null;
+    requiresExpertReview?: boolean;
+    expertReviewStatus?: string;
     pages: PageRecord[];
     brain?: { rawJson: BookBrainJson; styleSelected: string | null } | null;
   };
 }
 
+interface ProjectListItem {
+  id: string;
+  name: string;
+  vertical: string;
+  status: string;
+  updatedAt: string;
+  book: { slug: string; title: string; author: string; coverUrl: string | null; status: string; pageCount: number } | null;
+}
+
 const styleOptions = [
-  { id: "desert-realism", label: "Desert Realism", swatch: "#C49A1C" },
-  { id: "painterly-mysticism", label: "Painterly Mysticism", swatch: "#6B2D8B" },
-  { id: "graphic-novel", label: "Graphic Novel", swatch: "#AA2020" },
-  { id: "anime-inspired", label: "Anime-Inspired", swatch: "#D9872A" },
-  { id: "watercolour", label: "Watercolour", swatch: "#1B6B8A" },
-  { id: "cinematic-dark", label: "Cinematic Dark", swatch: "#0D1B2E" },
-  { id: "scientific-microscopy", label: "Scientific Microscopy", swatch: "#1A6B3C" },
-  { id: "sacred-realism", label: "Sacred Realism", swatch: "#7A6650" }
+  { id: "painterly-mysticism", label: "Painterly Mysticism", blurb: "Soft brushwork, glowing light, dreamlike.", colors: ["#6B2D8B", "#C49A1C"] },
+  { id: "watercolour", label: "Watercolour", blurb: "Loose washes on paper, light and airy.", colors: ["#1B6B8A", "#9ED3E6"] },
+  { id: "desert-realism", label: "Desert Realism", blurb: "Sun-drenched realism, ochre and gold.", colors: ["#C49A1C", "#8A4B1C"] },
+  { id: "graphic-novel", label: "Graphic Novel", blurb: "Bold ink lines, flat vivid colour.", colors: ["#AA2020", "#111111"] },
+  { id: "anime-inspired", label: "Anime-Inspired", blurb: "Clean line art, expressive faces.", colors: ["#D9872A", "#F3C1D2"] },
+  { id: "cinematic-dark", label: "Cinematic Dark", blurb: "Moody shadows, teal and amber.", colors: ["#0D1B2E", "#C47A2C"] },
+  { id: "sacred-realism", label: "Sacred Realism", blurb: "Reverent classical painting.", colors: ["#7A6650", "#E8D7A8"] },
+  { id: "scientific-microscopy", label: "Scientific", blurb: "Precise, luminous, on dark ground.", colors: ["#1A6B3C", "#6FE3B0"] }
 ];
 
-const steps: { id: Stage; label: string; description: string }[] = [
-  { id: "SETUP", label: "01 · Project setup", description: "Upload a manuscript" },
-  { id: "UPLOAD", label: "02 · Ingest", description: "Pages parsed & indexed" },
-  { id: "BRAIN", label: "03 · Book Brain", description: "Claude analyses characters and arc" },
-  { id: "STYLE", label: "04 · Style", description: "Pick a visual style" },
-  { id: "REVIEW", label: "05 · Review", description: "Approve pages" }
+const steps: { id: Stage; label: string; hint: string }[] = [
+  { id: "SETUP", label: "Project", hint: "Title & type" },
+  { id: "UPLOAD", label: "Manuscript", hint: "Add your text" },
+  { id: "BRAIN", label: "Book Brain", hint: "Check the analysis" },
+  { id: "STYLE", label: "Style", hint: "Choose the look" },
+  { id: "REVIEW", label: "Review", hint: "Approve & publish" }
 ];
+const ORDER: Stage[] = steps.map((s) => s.id);
+const CREDITS_PER_PAGE = 30;
+const styleName = (id: string | null | undefined) => styleOptions.find((o) => o.id === id)?.label ?? id ?? "";
+const PAGE_STATUS: Record<string, string> = { PENDING: "To review", APPROVED: "Approved", FLAGGED: "Failed", REGENERATING: "Re-animating" };
+
+/** Furthest step a project can show, from its server status. */
+function stageFor(project: ProjectDetail | null): Stage {
+  if (!project) return "SETUP";
+  switch (project.status) {
+    case "SETUP":
+    case "ANALYZING":
+      return "UPLOAD";
+    case "BRAIN_REVIEW":
+      return "BRAIN";
+    case "STYLE_SELECTION":
+    case "STYLE_TRAINING":
+    case "GENERATING":
+      return "STYLE";
+    case "FAILED":
+      return project.book?.brain ? "BRAIN" : "UPLOAD";
+    default:
+      return "REVIEW";
+  }
+}
+
+const STATUS_TEXT: Record<string, string> = {
+  SETUP: "Waiting for manuscript",
+  ANALYZING: "Analysing…",
+  BRAIN_REVIEW: "Analysis ready",
+  STYLE_SELECTION: "Choose a style",
+  GENERATING: "Animating…",
+  REVIEW: "Ready to review",
+  AUDIO: "Recording narration…",
+  READY_TO_PUBLISH: "Ready to publish",
+  PUBLISHED: "Published",
+  FAILED: "Needs attention"
+};
 
 export default function StudioPage() {
-  const [stage, setStage] = useState<Stage>("SETUP");
-  const [projectName, setProjectName] = useState("Untitled project");
-  const [projectId, setProjectId] = useState<string | null>(null);
-  const [vertical, setVertical] = useState("CONSUMER");
+  const toast = useToastStore((s) => s.push);
+  const [projects, setProjects] = useState<ProjectListItem[] | null>(null);
+  const [project, setProject] = useState<ProjectDetail | null>(null);
+  const [view, setView] = useState<Stage>("SETUP");
+  const [busy, setBusy] = useState(false);
+  const [events, setEvents] = useState<PipelineEvent[]>([]);
+
+  // Setup form
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
   const [synopsis, setSynopsis] = useState("");
+  const [vertical, setVertical] = useState("CONSUMER");
+
+  // Manuscript
   const [manuscriptText, setManuscriptText] = useState("");
-  const [pages, setPages] = useState<{ pageNum: number; chapter: string | null; text: string }[]>([]);
-  const [brain, setBrain] = useState<BookBrainJson | null>(null);
-  const [styleId, setStyleId] = useState<string>(styleOptions[1]!.id);
-  const [events, setEvents] = useState<PipelineEvent[]>([]);
-  const [project, setProject] = useState<ProjectDetail | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [regenerateNote, setRegenerateNote] = useState<Record<string, string>>({});
-  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
-  const toast = useToastStore((s) => s.push);
+  const parsed = useMemo(() => parseManuscript(manuscriptText), [manuscriptText]);
+  const fileInput = useRef<HTMLInputElement | null>(null);
+
+  // Brain / style / review
+  const [styleId, setStyleId] = useState<string>(styleOptions[0]!.id);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [workingPage, setWorkingPage] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  const parsed = useMemo(() => parseManuscript(manuscriptText), [manuscriptText]);
+  const projectId = project?.id ?? null;
+  const reachable = stageFor(project);
+  const brain = (project?.book?.brain?.rawJson as BookBrainJson | undefined) ?? null;
+  const pages = project?.book?.pages ?? [];
+  const running = project?.status === "ANALYZING" || project?.status === "GENERATING" || project?.status === "AUDIO";
 
-  useEffect(() => {
-    if (pages.length > 0) {
-      setStage("UPLOAD");
+  const loadProjects = useCallback(async () => {
+    try {
+      const res = await apiFetch<{ items: ProjectListItem[] }>("/api/studio/projects");
+      setProjects(res.items);
+    } catch {
+      setProjects([]);
     }
-  }, [pages.length]);
+  }, []);
+
+  const refresh = useCallback(async (id: string, jump = false) => {
+    const detail = await apiFetch<ProjectDetail>(`/api/studio/projects/${id}`);
+    setProject(detail);
+    if (detail.book?.styleId) setStyleId(detail.book.styleId);
+    if (jump) setView(stageFor(detail));
+    return detail;
+  }, []);
 
   useEffect(() => {
+    void loadProjects();
     return () => {
       eventSourceRef.current?.close();
       eventSourceRef.current = null;
     };
-  }, []);
+  }, [loadProjects]);
 
-  async function createProject() {
-    setBusy(true);
-    try {
-      const res = await apiFetch<{ project: StudioProjectSummary; book: { id: string; slug: string } }>("/api/studio/projects", {
-        method: "POST",
-        json: {
-          name: projectName,
-          vertical,
-          title,
-          author,
-          synopsis,
-          language: "en"
-        }
+  // Keep the view in step with the server while work is running.
+  useEffect(() => {
+    if (!projectId || !running) return;
+    const t = window.setInterval(() => {
+      void refresh(projectId).then((d) => {
+        const next = stageFor(d);
+        if (ORDER.indexOf(next) > ORDER.indexOf(view)) setView(next);
       });
-      setProjectId(res.project.id);
-      toast("Project created");
-      setStage("UPLOAD");
-    } catch (err) {
-      toast(`Could not create project: ${(err as Error).message}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function uploadManuscript() {
-    if (!projectId) {
-      toast("Create the project first");
-      return;
-    }
-    if (parsed.length === 0) {
-      toast("Add at least one page of text");
-      return;
-    }
-    setBusy(true);
-    try {
-      await apiFetch(`/api/studio/projects/${projectId}/upload`, {
-        method: "POST",
-        json: {
-          sourceFilename: "manuscript.txt",
-          sha256: await sha256(`${title}-${author}-${parsed.length}`),
-          pages: parsed
-        }
-      });
-      await apiFetch(`/api/studio/projects/${projectId}/analyze`, { method: "POST" });
-      void subscribe(projectId);
-      toast("Manuscript ingested, pipeline queued");
-      await refreshProject(projectId);
-    } catch (err) {
-      toast(`Upload failed: ${(err as Error).message}`);
-    } finally {
-      setBusy(false);
-    }
-  }
+    }, 6000);
+    return () => window.clearInterval(t);
+  }, [projectId, running, refresh, view]);
 
   async function subscribe(id: string) {
     eventSourceRef.current?.close();
@@ -133,21 +164,23 @@ export default function StudioPage() {
     es.addEventListener("pipeline", (ev) => {
       try {
         const data = JSON.parse((ev as MessageEvent).data) as PipelineEvent;
-        setEvents((prev) => [data, ...prev].slice(0, 30));
-        if (data.stage === "BOOK_BRAIN_ANALYSIS" && data.status === "succeeded") {
-          void loadBrain(id);
-          setStage("BRAIN");
-        }
-        if (data.stage === "VIDEO_GENERATION" && data.status === "succeeded") {
-          setStage("REVIEW");
+        setEvents((prev) => [data, ...prev].slice(0, 40));
+        const finished =
+          (data.stage === "BOOK_BRAIN_ANALYSIS" && data.status === "succeeded") ||
+          data.stage === "QUALITY_TRIAGE" ||
+          (data.stage === "VIDEO_GENERATION" && data.status !== "queued") ||
+          data.status === "failed";
+        if (finished) {
+          void refresh(id).then((d) => {
+            const next = stageFor(d);
+            setView((v) => (ORDER.indexOf(next) > ORDER.indexOf(v) ? next : v));
+          });
         }
       } catch {
         // ignore malformed event
       }
     });
     es.onerror = () => {
-      // Session tokens are short-lived, so a plain auto-reconnect would 401.
-      // Reopen with a fresh token instead.
       if (eventSourceRef.current !== es) return;
       es.close();
       setTimeout(() => {
@@ -157,31 +190,89 @@ export default function StudioPage() {
     eventSourceRef.current = es;
   }
 
-  async function loadBrain(id: string) {
-    const detail = await apiFetch<ProjectDetail>(`/api/studio/projects/${id}`);
-    setProject(detail);
-    const raw = detail.book?.brain?.rawJson as BookBrainJson | undefined;
-    if (raw) setBrain(raw);
-  }
-
-  async function refreshProject(id: string) {
-    const detail = await apiFetch<ProjectDetail>(`/api/studio/projects/${id}`);
-    setProject(detail);
-    if (detail.book?.brain?.rawJson) {
-      setBrain(detail.book.brain.rawJson as BookBrainJson);
+  async function openProject(id: string) {
+    setEvents([]);
+    try {
+      await refresh(id, true);
+      void subscribe(id);
+    } catch (err) {
+      toast(`Could not open project: ${(err as Error).message}`);
     }
   }
 
-  async function saveBrain() {
+  function newProject() {
+    eventSourceRef.current?.close();
+    eventSourceRef.current = null;
+    setProject(null);
+    setEvents([]);
+    setTitle("");
+    setAuthor("");
+    setSynopsis("");
+    setManuscriptText("");
+    setView("SETUP");
+  }
+
+  async function createProject() {
+    setBusy(true);
+    try {
+      const res = await apiFetch<{ project: StudioProjectSummary }>("/api/studio/projects", {
+        method: "POST",
+        json: {
+          name: title.trim(),
+          vertical,
+          title: title.trim(),
+          author: author.trim(),
+          synopsis: synopsis.trim() || undefined,
+          language: "en"
+        }
+      });
+      await refresh(res.project.id);
+      setView("UPLOAD");
+      void subscribe(res.project.id);
+      void loadProjects();
+      toast("Project created");
+    } catch (err) {
+      toast(`Could not create project: ${(err as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importFile(file: File) {
+    if (!/\.(txt|md|markdown)$/i.test(file.name)) {
+      toast("Please choose a .txt or .md file (paste Word text directly for now)");
+      return;
+    }
+    setManuscriptText(await file.text());
+    toast(`Loaded ${file.name}`);
+  }
+
+  async function uploadManuscript() {
+    if (!projectId || parsed.length === 0) return;
+    setBusy(true);
+    try {
+      await apiFetch(`/api/studio/projects/${projectId}/upload`, {
+        method: "POST",
+        json: { sourceFilename: "manuscript.txt", sha256: await sha256(manuscriptText), pages: parsed }
+      });
+      await apiFetch(`/api/studio/projects/${projectId}/analyze`, { method: "POST" });
+      void subscribe(projectId);
+      await refresh(projectId);
+      toast("Manuscript uploaded — analysing");
+    } catch (err) {
+      toast(`Upload failed: ${(err as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmBrain() {
     if (!projectId || !brain) return;
     setBusy(true);
     try {
-      await apiFetch(`/api/studio/projects/${projectId}/brain`, {
-        method: "PUT",
-        json: { brain }
-      });
-      toast("Book brain saved");
-      setStage("STYLE");
+      await apiFetch(`/api/studio/projects/${projectId}/brain`, { method: "PUT", json: { brain } });
+      await refresh(projectId);
+      setView("STYLE");
     } catch (err) {
       toast(`Save failed: ${(err as Error).message}`);
     } finally {
@@ -189,210 +280,240 @@ export default function StudioPage() {
     }
   }
 
-  async function selectStyle() {
+  async function generate() {
     if (!projectId) return;
+    const estimate = pages.length * CREDITS_PER_PAGE;
+    if (!window.confirm(`Animate ${pages.length} pages in this style? This uses about ${estimate} Runway credits.`)) return;
     setBusy(true);
     try {
-      await apiFetch(`/api/studio/projects/${projectId}/style`, {
-        method: "POST",
-        json: { styleId }
-      });
+      await apiFetch(`/api/studio/projects/${projectId}/style`, { method: "POST", json: { styleId } });
       await apiFetch(`/api/studio/projects/${projectId}/generate`, { method: "POST" });
-      toast("Style locked. Generation queued.");
       void subscribe(projectId);
+      await refresh(projectId);
+      toast("Generation started");
     } catch (err) {
-      toast(`Style failed: ${(err as Error).message}`);
+      toast(`Could not start: ${(err as Error).message}`);
     } finally {
       setBusy(false);
     }
   }
 
-  async function approvePage(pageId: string) {
+  async function approve(pageId: string) {
+    setWorkingPage(pageId);
     try {
       await apiFetch(`/api/studio/pages/${pageId}/approve`, { method: "PUT" });
-      if (projectId) await refreshProject(projectId);
-      toast("Page approved");
+      if (projectId) await refresh(projectId);
     } catch (err) {
       toast(`Approve failed: ${(err as Error).message}`);
+    } finally {
+      setWorkingPage(null);
     }
   }
 
   async function regenerate(pageId: string) {
-    const note = regenerateNote[pageId]?.trim() ?? "";
-    if (note.length === 0) {
-      toast("Add a direction note first");
+    const note = notes[pageId]?.trim() ?? "";
+    if (!note) {
+      toast("Write a short direction note first");
       return;
     }
-    setRegeneratingId(pageId);
+    if (!window.confirm("Re-animate this page? This uses about 30 Runway credits.")) return;
+    setWorkingPage(pageId);
     try {
-      await apiFetch(`/api/studio/pages/${pageId}/regenerate`, {
-        method: "POST",
-        json: { note }
-      });
-      if (projectId) await refreshProject(projectId);
-      toast("Regeneration queued");
+      await apiFetch(`/api/studio/pages/${pageId}/regenerate`, { method: "POST", json: { note } });
+      if (projectId) await refresh(projectId);
+      toast("Page queued");
     } catch (err) {
-      toast(`Regenerate failed: ${(err as Error).message}`);
+      toast(`Could not queue: ${(err as Error).message}`);
     } finally {
-      setRegeneratingId(null);
+      setWorkingPage(null);
     }
   }
 
-  const progress = useMemo(() => {
-    const latest = events[0];
-    return latest?.progress ?? 0;
-  }, [events]);
+  async function publish() {
+    if (!projectId) return;
+    setBusy(true);
+    try {
+      const res = await apiFetch<{ slug: string }>(`/api/studio/projects/${projectId}/publish`, { method: "POST" });
+      await refresh(projectId);
+      void loadProjects();
+      toast("Published to the library");
+      void res;
+    } catch (err) {
+      toast(`Could not publish: ${(err as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const progress = events[0]?.progress ?? (project?.status === "REVIEW" ? 100 : 0);
+  const approvedCount = pages.filter((p) => p.status === "APPROVED").length;
+  const published = project?.status === "PUBLISHED";
 
   return (
     <div className="app-shell">
       <Topbar />
-      <main className="container">
-        <header className="section-header">
-          <div className="left">
-            <span className="dot" style={{ background: "#C49A1C" }} />
-            <h1>AnimBook Studio</h1>
+      <main className="container studio">
+        <header className="studio-head">
+          <div>
+            <span className="label">AnimBook Studio</span>
+            <h1>Turn your manuscript into an AnimBook</h1>
+            <p className="muted">Add your text, check how it was understood, choose a look, then review every animated page before it goes live.</p>
           </div>
-          <span className="label">Phase 1 · Screens 1–4</span>
+          <button type="button" className="btn primary" onClick={newProject}>
+            + New project
+          </button>
         </header>
 
-        <div className="studio-grid">
-          <aside className="studio-side">
-            <div className="card">
-              <h3 style={{ marginBottom: 12 }}>Pipeline</h3>
-              {steps.map((s) => (
-                <div key={s.id} className={`studio-step ${stage === s.id ? "active" : ""}`}>
-                  <span className="num">{s.id === "SETUP" ? "1" : s.id === "UPLOAD" ? "2" : s.id === "BRAIN" ? "3" : s.id === "STYLE" ? "4" : "5"}</span>
-                  <div>
-                    <div>{s.label}</div>
-                    <small style={{ color: "var(--text-muted)", fontFamily: "var(--mono)", letterSpacing: ".12em", textTransform: "uppercase" }}>
-                      {s.description}
-                    </small>
-                  </div>
-                </div>
+        <div className="studio-layout">
+          <aside className="studio-projects">
+            <h2>Your projects</h2>
+            {projects === null && <p className="muted small">Loading…</p>}
+            {projects?.length === 0 && <p className="muted small">No projects yet. Start one on the right.</p>}
+            <ul>
+              {projects?.map((p) => (
+                <li key={p.id}>
+                  <button type="button" className={`project-item${p.id === projectId ? " active" : ""}`} onClick={() => void openProject(p.id)}>
+                    <span className="project-cover" style={{ backgroundImage: p.book?.coverUrl ? `url(${p.book.coverUrl})` : undefined }} />
+                    <span className="project-text">
+                      <strong>{p.book?.title ?? p.name}</strong>
+                      <small>
+                        {verticalById(p.vertical)?.label ?? p.vertical} · {p.book?.pageCount ?? 0} pages
+                      </small>
+                      <span className={`status-chip s-${p.status.toLowerCase()}`}>{STATUS_TEXT[p.status] ?? p.status}</span>
+                    </span>
+                  </button>
+                </li>
               ))}
-            </div>
-            <div className="card">
-              <h3>Live progress</h3>
-              <div className="bar-meter" aria-label={`Pipeline progress ${progress}%`}>
-                <div className="fill" style={{ width: `${progress}%` }} />
-              </div>
-              <ul className="timeline">
-                {events.length === 0 && <li className="row">Pipeline idle. Start an upload to see live events.</li>}
-                {events.map((event, idx) => (
-                  <li key={idx} className="row">
-                    <strong>{event.stage}</strong>
-                    <span>{event.status} · {event.progress}% · {event.message ?? ""}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            </ul>
           </aside>
 
-          <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {stage === "SETUP" && (
-              <article className="card">
-                <h2>01 · Project setup</h2>
-                <p className="muted">Create a new AnimBook project. The vertical chooses colour accents and review requirements.</p>
-                <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
-                  <label>
-                    <span className="label">Project name</span>
-                    <input value={projectName} onChange={(e) => setProjectName(e.target.value)} />
+          <section className="studio-main">
+            <ol className="stepper">
+              {steps.map((s, i) => {
+                const idx = ORDER.indexOf(s.id);
+                const state = s.id === view ? "current" : idx <= ORDER.indexOf(reachable) ? "done" : "todo";
+                const clickable = idx <= ORDER.indexOf(reachable) && (s.id !== "SETUP" || !project);
+                return (
+                  <li key={s.id} className={`step ${state}`}>
+                    <button type="button" disabled={!clickable} onClick={() => setView(s.id)}>
+                      <span className="step-num">{state === "done" && s.id !== view ? "✓" : i + 1}</span>
+                      <span className="step-text">
+                        <strong>{s.label}</strong>
+                        <small>{s.hint}</small>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+
+            {running && (
+              <div className="studio-progress" role="status">
+                <div className="bar"><div style={{ width: `${Math.max(4, progress)}%` }} /></div>
+                <span>{events[0]?.message ?? STATUS_TEXT[project!.status]} · {progress}%</span>
+              </div>
+            )}
+
+            {view === "SETUP" && (
+              <article className="studio-panel">
+                <h2>Start a new AnimBook</h2>
+                <p className="muted">The type decides the look of the book page and whether an expert review is needed before publishing (Edu and Faith).</p>
+                <div className="form-grid">
+                  <label className="field">
+                    <span>Book title *</span>
+                    <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. The Night Train" />
                   </label>
-                  <label>
-                    <span className="label">Book title</span>
-                    <input value={title} onChange={(e) => setTitle(e.target.value)} />
+                  <label className="field">
+                    <span>Author *</span>
+                    <input value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="Your name or pen name" />
                   </label>
-                  <label>
-                    <span className="label">Author</span>
-                    <input value={author} onChange={(e) => setAuthor(e.target.value)} />
+                  <label className="field wide">
+                    <span>Short description</span>
+                    <textarea value={synopsis} onChange={(e) => setSynopsis(e.target.value)} rows={3} placeholder="One or two sentences readers will see in the library" />
                   </label>
-                  <label>
-                    <span className="label">Synopsis</span>
-                    <textarea value={synopsis} onChange={(e) => setSynopsis(e.target.value)} rows={3} />
-                  </label>
-                  <label>
-                    <span className="label">Vertical</span>
-                    <select value={vertical} onChange={(e) => setVertical(e.target.value)}>
-                      {["CONSUMER", "KIDS", "EDU", "FAITH", "DOCS", "VERSE", "COMICS", "BUSINESS", "WELLNESS", "LAW", "TRAVEL", "ORIGINALS"].map((v) => (
-                        <option key={v} value={v}>{v}</option>
+                  <div className="field wide">
+                    <span>Type of book</span>
+                    <div className="choice-grid">
+                      {VERTICALS.map((v) => (
+                        <button
+                          key={v.id}
+                          type="button"
+                          className={`choice${vertical === v.id ? " selected" : ""}`}
+                          style={vertical === v.id ? { borderColor: v.accent } : undefined}
+                          onClick={() => setVertical(v.id)}
+                        >
+                          <strong style={{ color: v.accent }}>{v.label}</strong>
+                          <small>{v.promise}</small>
+                        </button>
                       ))}
-                    </select>
-                  </label>
-                  <button type="button" className="btn primary" disabled={busy || !title || !author} onClick={createProject}>
-                    Create project
+                    </div>
+                  </div>
+                </div>
+                <div className="panel-actions">
+                  <button type="button" className="btn primary" disabled={busy || !title.trim() || !author.trim()} onClick={createProject}>
+                    {busy ? "Creating…" : "Create project"}
                   </button>
                 </div>
               </article>
             )}
 
-            {stage === "UPLOAD" && (
-              <article className="card">
-                <h2>02 · Manuscript upload</h2>
-                <p className="muted">Paste a manuscript below. Pages are detected by blank-line breaks; chapters by lines starting with "Chapter".</p>
-                <textarea
-                  rows={10}
-                  value={manuscriptText}
-                  onChange={(e) => setManuscriptText(e.target.value)}
-                  placeholder="Paste your manuscript text here…"
-                />
-                <p className="label">{parsed.length} pages detected</p>
-                <div style={{ display: "flex", gap: 12 }}>
-                  <button type="button" className="btn" onClick={() => setPages(parsed)} disabled={parsed.length === 0}>
-                    Preview {parsed.length} pages
-                  </button>
-                  <button type="button" className="btn primary" disabled={busy || parsed.length === 0} onClick={uploadManuscript}>
-                    Upload & analyse
-                  </button>
-                </div>
-                {pages.length > 0 && (
-                  <ul style={{ marginTop: 12 }}>
-                    {pages.map((page) => (
-                      <li key={page.pageNum}>
-                        <strong>Page {page.pageNum}{page.chapter ? ` · ${page.chapter}` : ""}</strong>
-                        <p className="muted">{page.text.slice(0, 110)}{page.text.length > 110 ? "…" : ""}</p>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </article>
-            )}
-
-            {stage === "BRAIN" && (
-              <article className="card">
-                <h2>03 · Book Brain Review</h2>
-                {!brain && <p className="muted">Waiting for Claude Book Brain analysis…</p>}
-                {brain && (
+            {view === "UPLOAD" && project && (
+              <article className="studio-panel">
+                <h2>Add your manuscript</h2>
+                {project.status === "ANALYZING" ? (
+                  <div className="waiting">
+                    <span className="spinner" aria-hidden />
+                    <div>
+                      <strong>Reading your manuscript…</strong>
+                      <p className="muted">The Book Brain is working out characters, places and scenes. This usually takes a minute or two.</p>
+                    </div>
+                  </div>
+                ) : (
                   <>
-                    <dl className="kvp">
-                      <dt>Title</dt>
-                      <dd>{brain.title}</dd>
-                      <dt>Genre</dt>
-                      <dd>{brain.genre.join(", ")}</dd>
-                      <dt>Cultural origin</dt>
-                      <dd>{brain.cultural_origin}</dd>
-                      <dt>Audience</dt>
-                      <dd>{brain.target_audience}</dd>
-                      <dt>Style</dt>
-                      <dd>{brain.style_recommendation}</dd>
-                    </dl>
-                    <h3 style={{ marginTop: 16 }}>Characters</h3>
-                    <ul>
-                      {brain.characters.map((c) => (
-                        <li key={c.name}><strong>{c.name}</strong> — {c.description}</li>
-                      ))}
-                    </ul>
-                    <h3 style={{ marginTop: 16 }}>Manifest</h3>
-                    <ul>
-                      {brain.page_manifest.map((p) => (
-                        <li key={p.page_num}>
-                          <strong>Page {p.page_num}</strong> — {p.setting}, {p.emotion}, {p.camera_angle}
-                          <p className="muted">{p.animation_prompt_draft}</p>
-                        </li>
-                      ))}
-                    </ul>
-                    <div style={{ display: "flex", gap: 12 }}>
-                      <button type="button" className="btn" onClick={saveBrain} disabled={busy}>
-                        Save & continue
+                    <p className="muted">Paste the text or import a .txt / .md file. Pages split at blank lines (about 480 characters each); a line starting with “Chapter” starts a new chapter.</p>
+                    <textarea
+                      className="manuscript"
+                      rows={12}
+                      value={manuscriptText}
+                      onChange={(e) => setManuscriptText(e.target.value)}
+                      placeholder="Paste your manuscript here…"
+                    />
+                    <div className="panel-row">
+                      <input
+                        ref={fileInput}
+                        type="file"
+                        accept=".txt,.md,.markdown,text/plain,text/markdown"
+                        hidden
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) void importFile(f);
+                          e.target.value = "";
+                        }}
+                      />
+                      <button type="button" className="btn ghost" onClick={() => fileInput.current?.click()}>
+                        Import file
+                      </button>
+                      <span className="muted small">
+                        {parsed.length} {parsed.length === 1 ? "page" : "pages"} · {manuscriptText.trim().length.toLocaleString()} characters
+                      </span>
+                    </div>
+                    {parsed.length > 0 && (
+                      <div className="page-preview">
+                        {parsed.slice(0, 6).map((page) => (
+                          <div key={page.pageNum} className="preview-card">
+                            <span className="label">
+                              Page {page.pageNum}
+                              {page.chapter ? ` · ${page.chapter}` : ""}
+                            </span>
+                            <p>{page.text.slice(0, 140)}{page.text.length > 140 ? "…" : ""}</p>
+                          </div>
+                        ))}
+                        {parsed.length > 6 && <div className="preview-card more">+ {parsed.length - 6} more pages</div>}
+                      </div>
+                    )}
+                    <div className="panel-actions">
+                      <button type="button" className="btn primary" disabled={busy || parsed.length === 0} onClick={uploadManuscript}>
+                        {busy ? "Uploading…" : "Upload & analyse"}
                       </button>
                     </div>
                   </>
@@ -400,80 +521,169 @@ export default function StudioPage() {
               </article>
             )}
 
-            {stage === "STYLE" && (
-              <article className="card">
-                <h2>04 · Visual style</h2>
-                <p className="muted">Pick the LoRA-trained style that defines the look of every AnimPage.</p>
-                <div className="grid">
-                  {styleOptions.map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      className="book-card"
-                      onClick={() => setStyleId(opt.id)}
-                      style={{ alignItems: "flex-start", borderColor: styleId === opt.id ? opt.swatch : undefined }}
-                    >
-                      <div className="swatches">
-                        <div className="swatch" style={{ background: opt.swatch }} />
-                      </div>
-                      <span className="by">{opt.id}</span>
-                      <h3 style={{ fontSize: "1.05rem" }}>{opt.label}</h3>
+            {view === "BRAIN" && (
+              <article className="studio-panel">
+                <h2>Check the Book Brain</h2>
+                {!brain ? (
+                  <p className="muted">The analysis isn&apos;t ready yet.</p>
+                ) : (
+                  <>
+                    <p className="muted">This is how AnimBook understood your book. It shapes every animated page.</p>
+                    <div className="facts">
+                      <div><span className="label">Genre</span><strong>{brain.genre.join(", ") || "—"}</strong></div>
+                      <div><span className="label">Setting</span><strong>{brain.cultural_origin || "—"}</strong></div>
+                      <div><span className="label">Audience</span><strong>{brain.target_audience || "—"}</strong></div>
+                      <div><span className="label">Suggested style</span><strong>{styleName(brain.style_recommendation) || "—"}</strong></div>
+                    </div>
+                    <h3>Characters</h3>
+                    <div className="char-grid">
+                      {brain.characters.length === 0 && <p className="muted small">No named characters.</p>}
+                      {brain.characters.map((c) => (
+                        <div key={c.name} className="char-card">
+                          <strong>{c.name}</strong>
+                          {c.role && <span className="pill">{c.role}</span>}
+                          <p>{c.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <h3>Scenes</h3>
+                    <div className="scene-table">
+                      {brain.page_manifest.map((m) => (
+                        <div key={m.page_num} className="scene-row">
+                          <span className="scene-num">{m.page_num}</span>
+                          <div>
+                            <div className="scene-tags">
+                              {m.setting && <span className="pill">{m.setting}</span>}
+                              {m.emotion && <span className="pill">{m.emotion}</span>}
+                              {m.camera_angle && <span className="pill">{m.camera_angle}</span>}
+                            </div>
+                            <p>{m.animation_prompt_draft}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="panel-actions">
+                      <button type="button" className="btn primary" onClick={confirmBrain} disabled={busy}>
+                        Looks right — choose a style
+                      </button>
+                    </div>
+                  </>
+                )}
+              </article>
+            )}
+
+            {view === "STYLE" && (
+              <article className="studio-panel">
+                <h2>Choose the look</h2>
+                {project?.status === "GENERATING" ? (
+                  <div className="waiting">
+                    <span className="spinner" aria-hidden />
+                    <div>
+                      <strong>Animating your pages…</strong>
+                      <p className="muted">Each page takes a minute or two. You can leave this page — progress is saved, and your project will say “Ready to review” when it&apos;s done.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="muted">Every page is painted in this style.{brain?.style_recommendation ? ` The Book Brain suggested: ${styleName(brain.style_recommendation)}.` : ""}</p>
+                    <div className="style-grid">
+                      {styleOptions.map((opt) => (
+                        <button key={opt.id} type="button" className={`style-card${styleId === opt.id ? " selected" : ""}`} onClick={() => setStyleId(opt.id)}>
+                          <span className="style-swatch" style={{ background: `linear-gradient(135deg, ${opt.colors[0]}, ${opt.colors[1]})` }} />
+                          <strong>{opt.label}</strong>
+                          <small>{opt.blurb}</small>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="cost-note">
+                      <strong>{pages.length} pages</strong> · about <strong>{pages.length * CREDITS_PER_PAGE} Runway credits</strong> (≈ ${((pages.length * CREDITS_PER_PAGE) / 100).toFixed(2)}), plus narration.
+                    </div>
+                    <div className="panel-actions">
+                      <button type="button" className="btn primary" onClick={generate} disabled={busy || pages.length === 0}>
+                        {busy ? "Starting…" : "Animate my book"}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </article>
+            )}
+
+            {view === "REVIEW" && project && (
+              <article className="studio-panel">
+                <div className="review-head">
+                  <div>
+                    <h2>Review your pages</h2>
+                    <p className="muted">
+                      {approvedCount} of {pages.length} approved. Approve each page, or write a direction note and re-animate it.
+                    </p>
+                  </div>
+                  {published ? (
+                    <Link href={`/book/${project.book?.slug}`} className="btn primary">
+                      View in library
+                    </Link>
+                  ) : (
+                    <button type="button" className="btn primary" onClick={publish} disabled={busy || approvedCount < pages.length || pages.length === 0}>
+                      Publish to library
                     </button>
-                  ))}
+                  )}
                 </div>
-                <div style={{ marginTop: 12 }}>
-                  <button type="button" className="btn primary" onClick={selectStyle} disabled={busy}>
-                    Lock style & start generation
-                  </button>
+                {project.book?.requiresExpertReview && project.book.expertReviewStatus !== "APPROVED" && !published && (
+                  <p className="notice">This book needs an expert review before it can be published ({project.book.expertReviewStatus?.toLowerCase()}).</p>
+                )}
+                <div className="review-grid">
+                  {pages.map((page) => {
+                    const real = page.videoUrl && !/placehold\.co|\.(png|jpe?g)(\?|$)/i.test(page.videoUrl);
+                    return (
+                      <article key={page.id} className={`review-card st-${page.status.toLowerCase()}`}>
+                        <div className="review-media">
+                          {real ? (
+                            <video src={page.videoUrl!} poster={page.posterUrl ?? undefined} muted loop autoPlay playsInline />
+                          ) : (
+                            <div className="media-empty">{page.status === "FLAGGED" ? "Couldn't animate — add a note and retry" : "Not animated yet"}</div>
+                          )}
+                          <span className="page-badge">Page {page.pageNum}</span>
+                          <span className={`status-chip s-${page.status.toLowerCase()}`}>{PAGE_STATUS[page.status] ?? page.status}</span>
+                        </div>
+                        <p className="review-text">{page.textExcerpt}</p>
+                        {page.audioUrl && <audio controls preload="none" src={page.audioUrl} className="review-audio" />}
+                        {!published && (
+                          <>
+                            <textarea
+                              rows={2}
+                              placeholder="Direction note, e.g. “make it dusk, the boy should face the river”"
+                              value={notes[page.id] ?? ""}
+                              onChange={(e) => setNotes((prev) => ({ ...prev, [page.id]: e.target.value }))}
+                            />
+                            <div className="review-actions">
+                              <button type="button" className="btn" disabled={workingPage === page.id || page.status === "APPROVED" || !real} onClick={() => approve(page.id)}>
+                                {page.status === "APPROVED" ? "Approved" : "Approve"}
+                              </button>
+                              <button type="button" className="btn ghost" disabled={workingPage === page.id || page.status === "REGENERATING"} onClick={() => regenerate(page.id)}>
+                                {page.status === "REGENERATING" ? "Re-animating…" : "Re-animate"}
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </article>
+                    );
+                  })}
                 </div>
               </article>
             )}
 
-            {stage === "REVIEW" && (
-              <article className="card">
-                <h2>05 · Review dashboard</h2>
-                <p className="muted">Approve AnimPages or request a regeneration with a direction note.</p>
-                <div className="grid">
-                  {(project?.book?.pages ?? []).map((page) => (
-                    <article key={page.id} className="page-card">
-                      <div className="meta">
-                        <span>Page {page.pageNum}</span>
-                        <span>{page.status}</span>
-                      </div>
-                      {page.videoUrl && (
-                        <video src={page.videoUrl} poster={page.posterUrl ?? undefined} muted loop autoPlay playsInline />
-                      )}
-                      <p className="excerpt">{page.textExcerpt}</p>
-                      <div className="scene-meta">
-                        {page.emotionalRegister && <span className="pill">{page.emotionalRegister}</span>}
-                        {page.cameraAngle && <span className="pill">{page.cameraAngle}</span>}
-                        <span className="pill">Q {(page.qualityScore ?? 0).toFixed(2)}</span>
-                      </div>
-                      <textarea
-                        rows={2}
-                        placeholder="Direction note for regeneration (optional)"
-                        value={regenerateNote[page.id] ?? ""}
-                        onChange={(e) =>
-                          setRegenerateNote((prev) => ({ ...prev, [page.id]: e.target.value }))
-                        }
-                      />
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button type="button" className="btn" onClick={() => approvePage(page.id)}>
-                          Approve
-                        </button>
-                        <button
-                          type="button"
-                          className="btn ghost"
-                          onClick={() => regenerate(page.id)}
-                          disabled={regeneratingId === page.id}
-                        >
-                          {regeneratingId === page.id ? "Regenerating…" : "Regenerate"}
-                        </button>
-                      </div>
-                    </article>
+            {project && events.length > 0 && (
+              <details className="studio-activity">
+                <summary>Activity ({events.length})</summary>
+                <ul>
+                  {events.map((e, i) => (
+                    <li key={i}>
+                      <span className={`dot-status ${e.status}`} />
+                      <span>{e.message ?? e.stage.replace(/_/g, " ").toLowerCase()}</span>
+                      <small>{new Date(e.at).toLocaleTimeString()}</small>
+                    </li>
                   ))}
-                </div>
-              </article>
+                </ul>
+              </details>
             )}
           </section>
         </div>

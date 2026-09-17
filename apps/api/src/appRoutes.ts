@@ -77,6 +77,7 @@ export const APP_ROUTES: Module[] = [
     title: "AnimBook Studio",
     description: "Self-service authoring. Auth required, AI rate-limit honoured.",
     routes: [
+      { method: "GET", path: "/api/studio/projects", auth: "user", summary: "List your Studio projects." },
       { method: "POST", path: "/api/studio/projects", auth: "user", summary: "Create a project." },
       { method: "POST", path: "/api/studio/projects/:id/upload", auth: "user", summary: "Upload a manuscript (multipart).", notes: "Triggers pipeline.ingest." },
       { method: "POST", path: "/api/studio/projects/:id/analyze", auth: "user", summary: "Re-run Book Brain.", notes: "Rate-limited: 30 RPM/user." },
