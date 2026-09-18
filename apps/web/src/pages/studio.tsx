@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Topbar } from "@/components/Topbar";
 import { apiFetch, apiStreamUrl, type BookBrainJson, type PageRecord, type PipelineEvent, type StudioProjectSummary } from "@/lib/api";
+import NarratorVoicePicker from "@/components/NarratorVoicePicker";
 import { useToastStore } from "@/lib/store";
 import { VERTICALS, subcategoriesFor, verticalById } from "@/lib/verticals";
 import { ImportError, readManuscriptFile } from "@/lib/manuscriptImport";
@@ -1200,6 +1201,20 @@ export default function StudioPage() {
                     );
                   })}
                 </div>
+              </article>
+            )}
+
+            {project && view === "REVIEW" && (
+              <article className="studio-panel">
+                <h3>Narrator voice</h3>
+                <p className="muted small">
+                  The voice readers hear when they hit play. Pick your own cloned voice, or one of the curated narrators.
+                  Changing the voice clears existing recordings so the next audio run re-synthesises every page.
+                </p>
+                <NarratorVoicePicker
+                  projectId={project.id}
+                  onSaved={() => toast("Voice updated — narration may re-record shortly")}
+                />
               </article>
             )}
 

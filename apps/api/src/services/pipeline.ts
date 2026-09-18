@@ -426,11 +426,40 @@ async function runAudioStage(projectId: string, limit?: number): Promise<void> {
   const pages = (await prisma.page.findMany({ where: { bookId: project.bookId }, orderBy: { pageNum: "asc" } })).slice(0, limit);
   const brain = await prisma.bookBrain.findUnique({
     where: { bookId: project.bookId },
-    select: { narratorVoiceId: true, culturalOrigin: true, book: { select: { vertical: true } } }
+    select: {
+      narratorVoiceId: true,
+      culturalOrigin: true,
+      book: {
+        select: {
+          vertical: true,
+          creator: { select: { narratorVoiceId: true, voiceStatus: true } }
+        }
+      }
+    }
   });
-  const voiceId =
-    brain?.narratorVoiceId ??
-    findVoice(defaultVoiceIdFor({ vertical: brain?.book.vertical ?? "CONSUMER", setting: brain?.culturalOrigin }))?.elevenVoiceId;
+  // Voice precedence:
+  //   1. BookBrain.narratorVoiceId (book-level pin the author picked in Studio;
+  //      can be either a curated id like "british-storyteller" or
+  //      "author:<elevenVoiceId>" to use the author's clone).
+  //   2. The author's own ElevenLabs clone — listed first under the curated
+  //      list at /api/narration/voices when readers pick voices, and used
+  //      by default here so an author's books naturally read in their own
+  //      voice without any Studio setup.
+  //   3. Vertical + region default.
+  let chosenId = brain?.narratorVoiceId ?? null;
+  if (!chosenId || chosenId === "author:auto") {
+    const creatorClone = brain?.book.creator;
+    if (creatorClone?.narratorVoiceId && creatorClone.voiceStatus === "CLONED") {
+      chosenId = creatorClone.narratorVoiceId;
+    }
+  }
+  if (!chosenId) {
+    chosenId = findVoice(defaultVoiceIdFor({ vertical: brain?.book.vertical ?? "CONSUMER", setting: brain?.culturalOrigin }))?.elevenVoiceId;
+  }
+  // Brain may store the author-key wrapper ("author:voice_abc") which is
+  // our stable AnimBook-side id; strip the prefix so ElevenLabs gets the
+  // raw voice_id.
+  const voiceId = chosenId?.startsWith("author:") ? chosenId.slice("author:".length) : chosenId;
   // Sequential: ElevenLabs limits concurrent requests on smaller plans.
   for (const page of pages) {
     const result = await generateNarration({

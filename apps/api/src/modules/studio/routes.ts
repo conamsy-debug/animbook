@@ -708,4 +708,142 @@ process.on("SIGTERM", () => {
   void shutdownPipeline();
 });
 
+// Voice picking uses shared voices helpers.
+import { narratorVoices } from "../../config/voices.js";
+
+/**
+ * GET /api/studio/projects/:id/narrator-voice — list voices available to this
+ * author (curated + the author's own clone when present) and which one is
+ * currently selected for the book (via BookBrain.narratorVoiceId).
+ */
+router.get("/projects/:id/narrator-voice", async (req: AuthedRequest, res: Response) => {
+  const userId = requireUserId(req);
+  const id = req.params["id"];
+  if (typeof id !== "string") {
+    res.status(400).json({ error: "Missing project id" });
+    return;
+  }
+  const project = await prisma.studioProject.findFirst({
+    where: { id, ownerId: userId },
+    select: { id: true, bookId: true }
+  });
+  if (!project?.bookId) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+  const [brain, book] = await Promise.all([
+    prisma.bookBrain.findUnique({
+      where: { bookId: project.bookId },
+      select: { narratorVoiceId: true }
+    }),
+    prisma.book.findUnique({
+      where: { id: project.bookId },
+      select: { creator: { select: { id: true, name: true, narratorVoiceId: true, voiceStatus: true } } }
+    })
+  ]);
+  const creator = book?.creator;
+  const voices: { id: string; label: string; description: string; isAuthor: boolean; elevenVoiceId: string }[] = [];
+  if (creator?.narratorVoiceId && creator.voiceStatus === "CLONED") {
+    voices.push({
+      id: `author:${creator.narratorVoiceId}`,
+      label: `By ${creator.name} (your cloned voice)`,
+      description: "ElevenLabs voice cloned from your own audio samples. Audiences hear you read every page.",
+      isAuthor: true,
+      elevenVoiceId: creator.narratorVoiceId
+    });
+  }
+  for (const v of narratorVoices()) {
+    voices.push({ id: v.id, label: v.label, description: v.description, isAuthor: false, elevenVoiceId: v.elevenVoiceId });
+  }
+  res.json({
+    voices,
+    selectedVoiceId: brain?.narratorVoiceId ?? null,
+    hasClone: Boolean(creator?.narratorVoiceId && creator.voiceStatus === "CLONED")
+  });
+});
+
+const narratorPickSchema = z.object({
+  voiceId: z.string().min(3).max(80),
+  // When true, the next audio rerun uses the new voice. Existing
+  // recordings stay cached (cheap re-pick) unless reNarrate is also true.
+  reNarrate: z.boolean().optional().default(false)
+});
+
+/**
+ * PUT /api/studio/projects/:id/narrator-voice — book-level narrator choice.
+ * `voiceId` may be one of the curated ids ("british-storyteller" …) or
+ * "author:<elevenVoiceId>" to pin the author's clone to this book. Pass
+ * `reNarrate: true` to clear cached audio for every page so the pipeline
+ * re-records everything in the new voice.
+ */
+router.put(
+  "/projects/:id/narrator-voice",
+  rateLimit({ name: "studio.narratorVoice", max: 60, windowSeconds: 600 }),
+  async (req: AuthedRequest, res: Response) => {
+    const userId = requireUserId(req);
+    const id = req.params["id"];
+    if (typeof id !== "string") {
+      res.status(400).json({ error: "Missing project id" });
+      return;
+    }
+    const parsed = narratorPickSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid voice pick", details: parsed.error.flatten() });
+      return;
+    }
+    const project = await prisma.studioProject.findFirst({
+      where: { id, ownerId: userId },
+      select: { id: true, bookId: true, book: { select: { creator: { select: { narratorVoiceId: true, voiceStatus: true } } } } }
+    });
+    if (!project?.bookId) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
+    // Validate the picked id either as a curated name OR an author-<…> clone.
+    const curated = narratorVoices().find((v) => v.id === parsed.data.voiceId);
+    const isAuthorClone = parsed.data.voiceId.startsWith("author:");
+    if (!curated && !isAuthorClone) {
+      res.status(400).json({ error: "Unknown voice id" });
+      return;
+    }
+    if (isAuthorClone) {
+      const cloneId = parsed.data.voiceId.slice("author:".length);
+      if (!project.book?.creator?.narratorVoiceId || project.book.creator.voiceStatus !== "CLONED") {
+        res.status(400).json({ error: "You don't have a cloned voice yet" });
+        return;
+      }
+      if (cloneId !== project.book.creator.narratorVoiceId) {
+        res.status(400).json({ error: "Voice id doesn't match your current clone" });
+        return;
+      }
+    }
+    await prisma.bookBrain.upsert({
+      where: { bookId: project.bookId },
+      create: {
+        bookId: project.bookId,
+        genre: [],
+        narratorVoiceId: parsed.data.voiceId,
+        rawJson: {} as unknown as object
+      },
+      update: { narratorVoiceId: parsed.data.voiceId }
+    });
+    let jobId: string | null = null;
+    if (parsed.data.reNarrate) {
+      // Clear cached audio for every page so the next run re-synthesises.
+      await prisma.page.updateMany({
+        where: { bookId: project.bookId },
+        data: { audioUrl: null, vttUrl: null }
+      });
+      await prisma.studioProject.update({ where: { id }, data: { status: "AUDIO", currentStage: "AUDIO_PRODUCTION" } });
+      jobId = await enqueuePipeline({ projectId: id, triggerStage: "AUDIO_PRODUCTION" });
+    }
+    res.json({
+      ok: true,
+      selectedVoiceId: parsed.data.voiceId,
+      reNarrateQueued: Boolean(jobId),
+      jobId
+    });
+  }
+);
+
 export default router;
