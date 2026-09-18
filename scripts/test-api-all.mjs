@@ -3,7 +3,7 @@ import fs from "node:fs";
 
 const r = spawnSync(
   "node",
-  ["--test", "tests/dream.test.mjs", "tests/rateLimit.test.mjs", "tests/studioPro.test.mjs", "tests/accountStanding.test.mjs", "tests/releaseSchedule.test.mjs", "tests/manuscriptExtract.test.mjs"],
+  ["--test", "tests/dream.test.mjs", "tests/rateLimit.test.mjs", "tests/studioPro.test.mjs", "tests/accountStanding.test.mjs", "tests/releaseSchedule.test.mjs", "tests/manuscriptExtract.test.mjs", "tests/runwayBodyShape.test.mjs"],
   {
     cwd: "C:/Users/msi 22/.minimax/workspace/animbook/apps/api",
     shell: true,
