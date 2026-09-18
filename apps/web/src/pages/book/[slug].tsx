@@ -6,30 +6,39 @@ import { ErrorBoundary, ErrorState } from "@/components/ErrorBoundary";
 import { LoadingState, EmptyState } from "@/components/States";
 import { apiFetch, type BookSummary, type PageRecord } from "@/lib/api";
 import { useLibraryStore, useToastStore } from "@/lib/store";
+import { getReleaseInfo, submitDailyTask, formatRelative, type ReleaseInfo } from "@/lib/release";
+import { useUser } from "@clerk/nextjs";
 
 export default function BookDetailPage() {
   const router = useRouter();
   const slug = typeof router.query.slug === "string" ? router.query.slug : null;
   const [book, setBook] = useState<BookSummary | null>(null);
   const [pages, setPages] = useState<PageRecord[]>([]);
+  const [release, setRelease] = useState<ReleaseInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloadState, setDownloadState] = useState<"idle" | "downloading" | "ready">("idle");
+  const [taskOpen, setTaskOpen] = useState(false);
+  const [taskText, setTaskText] = useState("");
+  const [taskBusy, setTaskBusy] = useState(false);
   const library = useLibraryStore();
   const toast = useToastStore((s) => s.push);
+  const { isSignedIn } = useUser();
 
   useEffect(() => {
     if (!slug) return;
     let cancelled = false;
     async function load() {
       try {
-        const [bookRes, pagesRes] = await Promise.all([
+        const [bookRes, pagesRes, releaseRes] = await Promise.all([
           apiFetch<BookSummary>(`/api/books/${encodeURIComponent(slug!)}`),
-          apiFetch<{ pages: PageRecord[] }>(`/api/books/${encodeURIComponent(slug!)}/pages`)
+          apiFetch<{ pages: PageRecord[] }>(`/api/books/${encodeURIComponent(slug!)}/pages`),
+          getReleaseInfo(slug!).catch(() => null)
         ]);
         if (cancelled) return;
         setBook(bookRes);
         setPages(pagesRes.pages);
+        setRelease(releaseRes?.release ?? null);
         setLoading(false);
       } catch (err) {
         if (!cancelled) {
@@ -43,6 +52,34 @@ export default function BookDetailPage() {
       cancelled = true;
     };
   }, [slug]);
+
+  async function submitTask() {
+    if (!book || !release) return;
+    const text = taskText.trim();
+    if (text.length < 2) {
+      toast("Write a sentence or two first");
+      return;
+    }
+    setTaskBusy(true);
+    try {
+      const res = await submitDailyTask(book.id, release.myUnlockedChunk, text);
+      setRelease(res.release);
+      setTaskOpen(false);
+      setTaskText("");
+      toast("Next chunk unlocked");
+      // Refresh the page list so the reader sees the new pages.
+      try {
+        const pagesRes = await apiFetch<{ pages: PageRecord[] }>(`/api/books/${encodeURIComponent(book.slug)}/pages`);
+        setPages(pagesRes.pages);
+      } catch {
+        // non-fatal — banner is enough
+      }
+    } catch (err) {
+      toast(`Couldn't submit: ${(err as Error).message}`);
+    } finally {
+      setTaskBusy(false);
+    }
+  }
 
   async function addToLibrary() {
     if (!book) return;
@@ -118,6 +155,33 @@ export default function BookDetailPage() {
         )}
       >
       <main className="container">
+        {release && release.mode !== "IMMEDIATE" && (
+          <section className="release-banner">
+            <div>
+              <span className="label">{release.mode === "TIME" ? "On a schedule" : "Daily tasks"}</span>
+              <p>
+                <strong>{pages.length}</strong> of {book?.totalPages ?? pages.length} pages live ·{" "}
+                {release.mode === "TIME" && release.nextChunkAt && (
+                  <>next drop {formatRelative(release.nextChunkAt)}</>
+                )}
+                {release.mode === "TASK" && (
+                  <>{release.myUnlockedChunk < release.totalChunks ? "finish today’s reflection to unlock the next chunk" : "you’ve unlocked every chunk"}</>
+                )}
+              </p>
+              {release.mode === "TASK" && release.myUnlockedChunk < release.totalChunks && (
+                <p className="muted small">
+                  Unlocked {release.myUnlockedChunk} of {release.totalChunks} chunks so far.
+                </p>
+              )}
+            </div>
+            {release.mode === "TASK" && release.myUnlockedChunk < release.totalChunks && (
+              <button type="button" className="btn primary" onClick={() => { if (!isSignedIn) { toast("Sign in to submit a reflection"); return; } setTaskOpen(true); }}>
+                {isSignedIn ? "Submit today's reflection" : "Sign in to submit"}
+              </button>
+            )}
+          </section>
+        )}
+
         <section className="book-detail">
           <div className="cover-large" style={{ backgroundImage: book.coverUrl ? `url(${book.coverUrl})` : undefined }} />
           <div>
@@ -214,6 +278,31 @@ export default function BookDetailPage() {
           )}
         </section>
       </main>
+
+      {taskOpen && release && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="task-title">
+          <div className="modal-card">
+            <h3 id="task-title">Today's reflection</h3>
+            <p className="muted">{release.dailyTaskPrompt ?? "Write a short reflection to unlock the next chunk."}</p>
+            <textarea
+              rows={5}
+              maxLength={2000}
+              value={taskText}
+              onChange={(e) => setTaskText(e.target.value)}
+              placeholder="A sentence or two is plenty."
+              autoFocus
+            />
+            <div className="panel-actions">
+              <button type="button" className="btn ghost" onClick={() => { setTaskOpen(false); setTaskText(""); }}>
+                Cancel
+              </button>
+              <button type="button" className="btn primary" onClick={submitTask} disabled={taskBusy || taskText.trim().length < 2}>
+                {taskBusy ? "Unlocking…" : "Unlock next chunk"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </ErrorBoundary>
     </div>
   );

@@ -832,6 +832,107 @@ h1 {
 .icon-btn.small.chosen,
 .icon-btn.small.chosen:hover { color: var(--accent); }
 .play-btn.preparing { opacity: 0.85; }
+
+/* Reader-facing release banner on the book detail page */
+.release-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin: 18px 0 8px;
+  flex-wrap: wrap;
+}
+.release-banner .label {
+  display: inline-block;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.release-banner p { margin: 0; }
+.release-banner p strong { color: var(--accent); }
+.release-banner .panel-actions { margin: 0; }
+.modal-card textarea {
+  width: 100%;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+  resize: vertical;
+  margin: 10px 0 0;
+}
+
+/* Studio release schedule picker */
+.release-schedule {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+}
+.release-schedule h3 { margin-bottom: 6px; }
+.release-modes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 18px;
+}
+.release-mode {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  background: var(--surface);
+  transition: border-color 120ms, background 120ms;
+}
+.release-mode:hover { border-color: rgba(196, 154, 28, 0.4); }
+.release-mode.selected { border-color: var(--accent); background: rgba(196, 154, 28, 0.08); }
+.release-mode input[type="radio"] { margin-top: 4px; accent-color: var(--accent); }
+.release-mode strong { display: block; margin-bottom: 2px; }
+.release-mode p { margin: 0; font-size: 0.78rem; color: var(--muted); line-height: 1.4; }
+.release-fields { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
+.release-preview {
+  font-size: 0.82rem;
+  color: var(--muted);
+  background: var(--surface-2);
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin: 4px 0 0;
+}
+@media (max-width: 720px) {
+  .release-modes { grid-template-columns: 1fr; }
+}
+
+/* Generic confirm modal used by the studio publish flow */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 20, 34, 0.65);
+  display: grid;
+  place-items: center;
+  z-index: 200;
+  padding: 20px;
+}
+.modal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px;
+  max-width: 460px;
+  width: 100%;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+}
+.modal-card h3 { margin-bottom: 10px; }
+.modal-card .panel-actions { margin-top: 18px; justify-content: flex-end; }
 .spin { animation: spin 0.9s linear infinite; transform-origin: 50% 50%; }
 @keyframes spin { to { transform: rotate(360deg); } }
 

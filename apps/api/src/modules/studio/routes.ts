@@ -13,6 +13,7 @@ import { rateLimit } from "../../middleware/rateLimit.js";
 import { ExtractError, extractManuscript } from "../../services/manuscriptExtract.js";
 import { uploadAsset } from "../../services/cloudflare.js";
 import { isValidSubcategory } from "../../config/subcategories.js";
+import { applySchedule, lockSchedule, CHUNK_PERCENT_OPTIONS } from "../../services/releaseSchedule.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -506,6 +507,57 @@ router.post("/projects/:id/audio", async (req: AuthedRequest, res: Response) => 
   res.json({ projectId: id, jobId });
 });
 
+const scheduleSchema = z.object({
+  mode: z.enum(["IMMEDIATE", "TIME", "TASK"]),
+  cadence: z.enum(["DAILY", "WEEKLY", "MONTHLY"]).optional(),
+  chunkPercent: z.union([z.literal(10), z.literal(25)]).optional(),
+  startAt: z.string().datetime().optional(),
+  dailyTaskPrompt: z.string().trim().max(280).optional()
+});
+
+router.put(
+  "/projects/:id/schedule",
+  rateLimit({ name: "studio.schedule", max: 30, windowSeconds: 600 }),
+  async (req: AuthedRequest, res: Response) => {
+    const userId = requireUserId(req);
+    const id = req.params["id"];
+    if (typeof id !== "string") {
+      res.status(400).json({ error: "Missing project id" });
+      return;
+    }
+    const parsed = scheduleSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid schedule", details: parsed.error.flatten() });
+      return;
+    }
+    const project = await prisma.studioProject.findFirst({
+      where: { id, ownerId: userId },
+      select: { id: true, bookId: true, book: { select: { id: true, releaseScheduleLockedAt: true } } }
+    });
+    if (!project?.book) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
+    if (project.book.releaseScheduleLockedAt) {
+      res.status(409).json({ error: "The release schedule is locked. Archive and re-publish to change it." });
+      return;
+    }
+    try {
+      await applySchedule(project.bookId, {
+        mode: parsed.data.mode,
+        cadence: parsed.data.cadence,
+        chunkPercent: parsed.data.chunkPercent,
+        startAt: parsed.data.startAt ? new Date(parsed.data.startAt) : null,
+        dailyTaskPrompt: parsed.data.dailyTaskPrompt
+      });
+      res.json({ ok: true });
+    } catch (err) {
+      const status = (err as { status?: number }).status ?? 500;
+      res.status(status).json({ error: (err as Error).message });
+    }
+  }
+);
+
 router.post("/projects/:id/publish", async (req: AuthedRequest, res: Response) => {
   const userId = requireUserId(req);
   const id = req.params["id"];
@@ -533,6 +585,9 @@ router.post("/projects/:id/publish", async (req: AuthedRequest, res: Response) =
     data: { status: "PUBLISHED", approvedForPublishAt: new Date() }
   });
   await prisma.book.update({ where: { id: project.book.id }, data: { status: "PUBLISHED" } });
+  // Lock the release schedule the moment the book goes live — drip cadence
+  // and chunk size are now immutable until the book is archived + re-published.
+  await lockSchedule(project.book.id);
   emitPipelineEvent(id, {
     stage: "PUBLISH",
     status: "succeeded",

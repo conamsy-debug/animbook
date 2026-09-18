@@ -57,6 +57,22 @@ enum PageStatus {
   REGENERATING
 }
 
+/// How a book reaches its readers. IMMEDIATE publishes every page at once
+/// (legacy behaviour). TIME drips on a calendar cadence the author picks.
+/// TASK drips one chunk each time a reader submits the daily task.
+enum ReleaseMode {
+  IMMEDIATE
+  TIME
+  TASK
+}
+
+/// Calendar cadence used by ReleaseMode.TIME.
+enum ReleaseCadence {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
 enum ReadingMode {
   WATCH
   BOTH
@@ -155,6 +171,7 @@ model User {
   pageSignalEvents      PageSignalEvent[]
   classroomsTeaching    Classroom[]          @relation("ClassroomTeacher")
   classroomMemberships  ClassroomMembership[] @relation("ClassroomStudent")
+  taskSubmissions       BookTaskSubmission[]
 
   @@map("users")
 }
@@ -353,6 +370,22 @@ model Book {
   requiresExpertReview Boolean            @default(false) @map("requires_expert_review")
   expertReviewStatus   ExpertReviewStatus @default(NOT_REQUIRED) @map("expert_review_status")
   iconographicNotes    String?            @map("iconographic_notes") @db.Text
+  /// Release schedule. IMMEDIATE = all pages live at PUBLISHED. TIME = a
+  /// calendar drip on cadence + chunk%. TASK = one chunk unlocks per reader
+  /// submission of the daily task. Null = legacy rows, treated as IMMEDIATE.
+  releaseMode          ReleaseMode?       @map("release_mode")
+  releaseCadence       ReleaseCadence?    @map("release_cadence")
+  /// Whole-book percentage per chunk (10 or 25). Rounded up so the last chunk
+  /// can be a bit larger; never below 1 page.
+  releaseChunkPercent  Int?               @map("release_chunk_percent")
+  /// When the first chunk goes live. Null means "right now".
+  releaseStartAt       DateTime?          @map("release_start_at")
+  /// When the schedule was locked by the author. After this, schedule fields
+  /// are immutable until the book is archived + republished.
+  releaseScheduleLockedAt DateTime?        @map("release_schedule_locked_at")
+  chunks               BookChunk[]
+  dailyTasks           BookDailyTask[]
+  taskSubmissions      BookTaskSubmission[]
   createdAt            DateTime           @default(now()) @map("created_at")
   updatedAt            DateTime           @updatedAt @map("updated_at")
   publisher            Publisher?         @relation(fields: [publisherId], references: [id], onDelete: SetNull)
@@ -377,6 +410,64 @@ model Book {
   @@index([status, language])
   @@index([status, vertical, updatedAt])
   @@map("books")
+}
+
+/// One dripped chunk of a book. Materialised at publish time so the read
+/// path is a cheap range scan. For TIME books `releasedAt` is set the moment
+/// `scheduledFor` passes (lazy on first read, no cron needed). For TASK
+/// books `releasedAt` is set per-reader via `BookTaskSubmission`.
+model BookChunk {
+  id           String   @id @default(cuid())
+  bookId       String   @map("book_id")
+  /// Zero-based chunk index in author-publish order.
+  chunkIndex   Int      @map("chunk_index")
+  pageStart    Int      @map("page_start")
+  pageEnd      Int      @map("page_end")
+  /// When this chunk is supposed to go live (TIME mode).
+  scheduledFor DateTime @map("scheduled_for")
+  /// When the system actually released it. Null = still waiting (TIME) or
+  /// per-reader gated (TASK). For TASK books this stays null globally — the
+  /// gate is in BookTaskSubmission.
+  releasedAt   DateTime? @map("released_at")
+  book         Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([bookId, chunkIndex])
+  @@index([bookId, scheduledFor])
+  @@map("book_chunks")
+}
+
+/// The one-line daily task the author writes per chunk in task-dripped mode.
+/// Empty in IMMEDIATE / TIME mode.
+model BookDailyTask {
+  id         String   @id @default(cuid())
+  bookId     String   @map("book_id")
+  chunkIndex Int      @map("chunk_index")
+  prompt     String   @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([bookId, chunkIndex])
+  @@map("book_daily_tasks")
+}
+
+/// A reader's submission of the daily task. Recording one unlocks that
+/// chunk for the reader; in TIME books this table is unused.
+model BookTaskSubmission {
+  id          String   @id @default(cuid())
+  bookId      String   @map("book_id")
+  chunkIndex  Int      @map("chunk_index")
+  userId      String   @map("user_id")
+  text        String   @db.Text
+  submittedAt DateTime @default(now()) @map("submitted_at")
+  book        Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// One submission per reader per chunk is enough — we don't enforce
+  /// uniqueness because a reader can resubmit if they want to update their
+  /// reflection. The newest submission wins for the unlock check.
+  @@index([userId, bookId])
+  @@index([bookId, chunkIndex])
+  @@map("book_task_submissions")
 }
 
 model Page {

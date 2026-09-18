@@ -5,6 +5,9 @@ import { VERTICALS, CONSUMER_WORLDS } from "../../domain/index.js";
 import { appEnv, isFeatureEnabled } from "../../config/env.js";
 import { prisma } from "../../db.js";
 import { withCache } from "../../cache/index.js";
+import { maxReadablePage, getReleaseInfo } from "../../services/releaseSchedule.js";
+import { authMiddleware, requireUserId, type AuthedRequest } from "../../auth/middleware.js";
+import { rateLimit } from "../../middleware/rateLimit.js";
 
 const router = Router();
 
@@ -104,7 +107,7 @@ router.get("/:id", async (req: Request, res: Response) => {
   res.json(book);
 });
 
-router.get("/:id/pages", async (req: Request, res: Response) => {
+router.get("/:id/pages", async (req: AuthedRequest, res: Response) => {
   const id = req.params["id"];
   if (typeof id !== "string") {
     res.status(400).json({ error: "Missing book id" });
@@ -115,8 +118,12 @@ router.get("/:id/pages", async (req: Request, res: Response) => {
     res.status(404).json({ error: "Book not found" });
     return;
   }
+  // Reader-visible page boundary. Dripped books hide pages the caller
+  // can't read yet (TIME: not released, TASK: not unlocked for them).
+  const viewerId = typeof req.userId === "string" ? req.userId : null;
+  const visibleUpTo = await maxReadablePage(book.id, viewerId);
   const pages = await prisma.page.findMany({
-    where: { bookId: book.id },
+    where: { bookId: book.id, pageNum: { lte: visibleUpTo } },
     orderBy: { pageNum: "asc" },
     select: {
       id: true,
@@ -135,7 +142,11 @@ router.get("/:id/pages", async (req: Request, res: Response) => {
       speakerName: true
     }
   });
-  res.json({ bookId: book.id, pages, integration: { runway: isFeatureEnabled("RUNWAY"), elevenlabs: isFeatureEnabled("ELEVENLABS") } });
+  res.json({
+    bookId: book.id,
+    pages,
+    integration: { runway: isFeatureEnabled("RUNWAY"), elevenlabs: isFeatureEnabled("ELEVENLABS") }
+  });
 });
 
 router.get("/:id/pages/:num", async (req: Request, res: Response) => {
@@ -210,3 +221,75 @@ export default router;
 // Silence unused-import warnings while we keep appEnv available for
 // future endpoints (rate limiting headers, etc).
 void appEnv;
+
+router.get("/:id/release-info", async (req: Request, res: Response) => {
+  const id = req.params["id"];
+  if (typeof id !== "string") {
+    res.status(400).json({ error: "Missing book id" });
+    return;
+  }
+  const book = await prisma.book.findFirst({ where: { OR: [{ id }, { slug: id }] }, select: { id: true } });
+  if (!book) {
+    res.status(404).json({ error: "Book not found" });
+    return;
+  }
+  const viewerId = typeof (req as AuthedRequest).userId === "string"
+    ? (req as AuthedRequest).userId
+    : null;
+  const info = await getReleaseInfo(book.id, viewerId);
+  if (!info) {
+    res.status(404).json({ error: "Book not found" });
+    return;
+  }
+  res.json({ release: info });
+});
+
+const taskSubmissionSchema = z.object({
+  chunkIndex: z.number().int().min(1),
+  text: z.string().trim().min(2).max(2000)
+});
+
+router.post(
+  "/:id/submit-task",
+  authMiddleware,
+  rateLimit({ name: "book.submitTask", max: 30, windowSeconds: 3600 }),
+  async (req: AuthedRequest, res: Response) => {
+    const userId = requireUserId(req);
+    const id = req.params["id"];
+    if (typeof id !== "string") {
+      res.status(400).json({ error: "Missing book id" });
+      return;
+    }
+    const parsed = taskSubmissionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid submission", details: parsed.error.flatten() });
+      return;
+    }
+    const book = await prisma.book.findFirst({
+      where: { OR: [{ id }, { slug: id }] },
+      select: { id: true, releaseMode: true, totalPages: true }
+    });
+    if (!book) {
+      res.status(404).json({ error: "Book not found" });
+      return;
+    }
+    if (book.releaseMode !== "TASK") {
+      res.status(400).json({ error: "This book doesn't have a daily task" });
+      return;
+    }
+    // Only accept submissions for the chunk the reader is currently on.
+    // (We don't enforce a single submission per chunk so a reader can revise
+    // their reflection; the unlock check looks for *any* submission at the
+    // chunk index the reader needs next.)
+    await prisma.bookTaskSubmission.create({
+      data: {
+        bookId: book.id,
+        chunkIndex: parsed.data.chunkIndex,
+        userId,
+        text: parsed.data.text
+      }
+    });
+    const info = await getReleaseInfo(book.id, userId);
+    res.json({ ok: true, release: info });
+  }
+);

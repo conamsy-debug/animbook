@@ -453,6 +453,51 @@ export default function StudioPage() {
     }
   }
 
+  // Release schedule state (Studio-side draft, saved on Save / Publish).
+  const [scheduleMode, setScheduleMode] = useState<"IMMEDIATE" | "TIME" | "TASK">("IMMEDIATE");
+  const [scheduleCadence, setScheduleCadence] = useState<"DAILY" | "WEEKLY" | "MONTHLY">("WEEKLY");
+  const [scheduleChunkPercent, setScheduleChunkPercent] = useState<10 | 25>(10);
+  const [scheduleStartAt, setScheduleStartAt] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setSeconds(0, 0);
+    return d.toISOString().slice(0, 16);
+  });
+  const [scheduleDailyTaskPrompt, setScheduleDailyTaskPrompt] = useState("");
+  const [scheduleBusy, setScheduleBusy] = useState(false);
+  const [scheduleSaved, setScheduleSaved] = useState<"IMMEDIATE" | "TIME" | "TASK" | null>(null);
+  const [confirmPublish, setConfirmPublish] = useState(false);
+
+  async function saveSchedule() {
+    if (!projectId) return;
+    setScheduleBusy(true);
+    try {
+      const body: Record<string, unknown> = { mode: scheduleMode };
+      if (scheduleMode !== "IMMEDIATE") {
+        body.cadence = scheduleCadence;
+        body.chunkPercent = scheduleChunkPercent;
+        body.startAt = new Date(scheduleStartAt).toISOString();
+        if (scheduleMode === "TASK") body.dailyTaskPrompt = scheduleDailyTaskPrompt;
+      }
+      await apiFetch(`/api/studio/projects/${projectId}/schedule`, { method: "PUT", json: body });
+      setScheduleSaved(scheduleMode);
+      await refresh(projectId);
+      toast("Release schedule saved");
+    } catch (err) {
+      const detail = (err as { details?: { error?: string } }).details?.error;
+      toast(detail ?? `Couldn't save schedule: ${(err as Error).message}`);
+    } finally {
+      setScheduleBusy(false);
+    }
+  }
+
+  // Live preview of how many drops the schedule will produce.
+  const previewChunks = (() => {
+    if (scheduleMode === "IMMEDIATE" || pages.length === 0) return 1;
+    const raw = Math.max(1, Math.ceil((pages.length * scheduleChunkPercent) / 100));
+    return Math.ceil(pages.length / raw);
+  })();
+
   const progress = events[0]?.progress ?? (project?.status === "REVIEW" ? 100 : 0);
   const approvedCount = pages.filter((p) => p.status === "APPROVED").length;
   const published = project?.status === "PUBLISHED";
@@ -837,6 +882,100 @@ export default function StudioPage() {
 
             {view === "REVIEW" && project && (
               <article className="studio-panel">
+                <div className="release-schedule">
+                  <h3>Release schedule</h3>
+                  <p className="muted small">
+                    How should this book reach readers? You can change this until you publish — the moment you hit Publish, the schedule locks.
+                  </p>
+                  <div className="release-modes">
+                    <label className={`release-mode ${scheduleMode === "IMMEDIATE" ? "selected" : ""}`}>
+                      <input type="radio" name="releaseMode" value="IMMEDIATE" checked={scheduleMode === "IMMEDIATE"} onChange={() => setScheduleMode("IMMEDIATE")} />
+                      <div>
+                        <strong>All at once</strong>
+                        <p>The whole book goes live the moment you publish. Best for shorter reads.</p>
+                      </div>
+                    </label>
+                    <label className={`release-mode ${scheduleMode === "TIME" ? "selected" : ""}`}>
+                      <input type="radio" name="releaseMode" value="TIME" checked={scheduleMode === "TIME"} onChange={() => setScheduleMode("TIME")} />
+                      <div>
+                        <strong>On a schedule</strong>
+                        <p>Chunks drip on a calendar cadence. Latecomers still see every chunk that's gone live.</p>
+                      </div>
+                    </label>
+                    <label className={`release-mode ${scheduleMode === "TASK" ? "selected" : ""}`}>
+                      <input type="radio" name="releaseMode" value="TASK" checked={scheduleMode === "TASK"} onChange={() => setScheduleMode("TASK")} />
+                      <div>
+                        <strong>Daily tasks</strong>
+                        <p>Readers unlock the next chunk each time they finish a short reflection you set.</p>
+                      </div>
+                    </label>
+                  </div>
+
+                  {scheduleMode !== "IMMEDIATE" && (
+                    <div className="release-fields">
+                      <label className="field">
+                        <span>Cadence</span>
+                        <div className="segmented" role="radiogroup" aria-label="Cadence">
+                          {(["DAILY", "WEEKLY", "MONTHLY"] as const).map((c) => (
+                            <button
+                              key={c}
+                              type="button"
+                              role="radio"
+                              aria-checked={scheduleCadence === c}
+                              className={scheduleCadence === c ? "active" : ""}
+                              onClick={() => setScheduleCadence(c)}
+                            >
+                              {c.charAt(0) + c.slice(1).toLowerCase()}
+                            </button>
+                          ))}
+                        </div>
+                      </label>
+                      <label className="field">
+                        <span>Chunk size</span>
+                        <div className="segmented" role="radiogroup" aria-label="Chunk size">
+                          {[10, 25].map((p) => (
+                            <button
+                              key={p}
+                              type="button"
+                              role="radio"
+                              aria-checked={scheduleChunkPercent === p}
+                              className={scheduleChunkPercent === p ? "active" : ""}
+                              onClick={() => setScheduleChunkPercent(p as 10 | 25)}
+                            >
+                              {p}% per drop
+                            </button>
+                          ))}
+                        </div>
+                      </label>
+                      <label className="field">
+                        <span>First drop</span>
+                        <input type="datetime-local" value={scheduleStartAt} onChange={(e) => setScheduleStartAt(e.target.value)} />
+                      </label>
+                      {scheduleMode === "TASK" && (
+                        <label className="field">
+                          <span>Daily task prompt (shown to readers before they unlock the next chunk)</span>
+                          <textarea
+                            rows={3}
+                            maxLength={280}
+                            value={scheduleDailyTaskPrompt}
+                            onChange={(e) => setScheduleDailyTaskPrompt(e.target.value)}
+                            placeholder="e.g. “Write three sentences about what chapter 4 meant to you.”"
+                          />
+                        </label>
+                      )}
+                      <p className="release-preview">
+                        <strong>{previewChunks}</strong> {previewChunks === 1 ? "chunk" : "chunks"} of about <strong>{Math.max(1, Math.ceil((pages.length * scheduleChunkPercent) / 100))}</strong> pages · {scheduleCadence.charAt(0) + scheduleCadence.slice(1).toLowerCase()} cadence · first drop {new Date(scheduleStartAt).toLocaleString()}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="panel-actions">
+                    <button type="button" className="btn" onClick={saveSchedule} disabled={scheduleBusy || pages.length === 0}>
+                      {scheduleBusy ? "Saving…" : scheduleSaved === scheduleMode ? "Schedule saved ✓" : "Save schedule"}
+                    </button>
+                  </div>
+                </div>
+
                 <div className="review-head">
                   <div>
                     <h2>Review your pages</h2>
@@ -849,7 +988,22 @@ export default function StudioPage() {
                       View in library
                     </Link>
                   ) : (
-                    <button type="button" className="btn primary" onClick={publish} disabled={busy || approvedCount < pages.length || pages.length === 0}>
+                    <button
+                      type="button"
+                      className="btn primary"
+                      onClick={() => {
+                        if (scheduleMode !== "IMMEDIATE" && scheduleSaved !== scheduleMode) {
+                          toast("Save your release schedule first");
+                          return;
+                        }
+                        if (scheduleMode !== "IMMEDIATE") {
+                          setConfirmPublish(true);
+                          return;
+                        }
+                        void publish();
+                      }}
+                      disabled={busy || approvedCount < pages.length || pages.length === 0}
+                    >
                       Publish to library
                     </button>
                   )}
@@ -915,6 +1069,29 @@ export default function StudioPage() {
           </section>
         </div>
       </main>
+
+      {confirmPublish && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="confirm-publish-title">
+          <div className="modal-card">
+            <h3 id="confirm-publish-title">Lock this release schedule?</h3>
+            <p className="muted">
+              You're about to publish with a <strong>{scheduleMode === "TIME" ? "time-dripped" : "task-dripped"}</strong> release. Once you publish, the cadence,
+              chunk size, and start date are <strong>locked</strong>. To change anything later you'll need to archive the book and re-publish.
+            </p>
+            <p className="muted small">
+              <strong>{previewChunks}</strong> {previewChunks === 1 ? "chunk" : "chunks"} of about <strong>{Math.max(1, Math.ceil((pages.length * scheduleChunkPercent) / 100))}</strong> pages · {scheduleCadence.charAt(0) + scheduleCadence.slice(1).toLowerCase()} cadence · first drop {new Date(scheduleStartAt).toLocaleString()}
+            </p>
+            <div className="panel-actions">
+              <button type="button" className="btn ghost" onClick={() => setConfirmPublish(false)}>
+                Cancel
+              </button>
+              <button type="button" className="btn primary" onClick={() => { setConfirmPublish(false); void publish(); }}>
+                Yes, lock and publish
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
