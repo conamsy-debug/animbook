@@ -71,6 +71,28 @@ export function findVoice(id: string | undefined | null): NarratorVoice | undefi
   return narratorVoices().find((v) => v.id === id);
 }
 
+/**
+ * Build the voice list as a reader would see it for a specific book, adding
+ * the author's own clone under a unique id (`author:<userId>`) when present.
+ * Used by `GET /api/narration/voices` to merge.
+ */
+export function voicesForReader(input: {
+  authorVoiceId?: string | null;
+  authorName?: string | null;
+}): NarratorVoice[] {
+  const base = narratorVoices();
+  if (!input.authorVoiceId) return base;
+  return [
+    {
+      id: `author:${input.authorVoiceId}`,
+      label: `By ${input.authorName ?? "this author"}`,
+      description: "Cloned from the author's own voice samples (with their consent).",
+      elevenVoiceId: input.authorVoiceId
+    },
+    ...base
+  ];
+}
+
 /** Default narrator id for a book, from its type and setting. */
 export function defaultVoiceIdFor(book: { vertical: string; setting?: string | null }): string {
   // Learning and how-to books get the teacher wherever they are set.

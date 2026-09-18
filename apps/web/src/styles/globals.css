@@ -2556,4 +2556,110 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 .share-list-row .copy:hover {
   background: rgba(0,0,0,0.04);
 }
+
+/* -------------------------------------------------------------- */
+/* Author voice cloning card on /profile.                         */
+/* -------------------------------------------------------------- */
+
+.author-voice-card {
+  display: grid;
+  gap: 0.65rem;
+  padding: 1.1rem 1.25rem 1.25rem;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.08);
+}
+.author-voice-card h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+}
+.author-voice-card .hint {
+  font-size: 0.82rem;
+  color: rgba(0,0,0,0.55);
+  margin: 0;
+}
+.author-voice-card .instructions {
+  margin: 0 0 0.5rem 1.2rem;
+  padding: 0;
+  font-size: 0.9rem;
+  color: rgba(0,0,0,0.7);
+  display: grid;
+  gap: 0.25rem;
+}
+.author-voice-card .field {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: rgba(0,0,0,0.65);
+}
+.author-voice-card .field input[type="text"],
+.author-voice-card .field input[type="file"] {
+  font-size: 0.95rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.15);
+  background: #fff;
+}
+.author-voice-card .consent {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem;
+  align-items: start;
+  font-size: 0.85rem;
+  color: rgba(0,0,0,0.75);
+  line-height: 1.4;
+}
+.author-voice-card .consent input { margin-top: 4px; }
+.author-voice-card .ready {
+  display: grid;
+  gap: 0.55rem;
+}
+.author-voice-card .ready p { margin: 0; }
+.author-voice-card .ready .meta {
+  font-size: 0.78rem;
+  color: rgba(0,0,0,0.55);
+}
+.author-voice-card .ready .meta code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  color: #1B6B8A;
+}
+.author-voice-card .voice-sample {
+  width: 100%;
+}
+.author-voice-card .dot.ready {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1A6B3C;
+  margin-right: 0.4rem;
+}
+.author-voice-card .error {
+  background: #fde7e2;
+  color: #8a2f1b;
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin: 0;
+}
+.author-voice-card .panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.25rem;
+}
+.author-voice-card .spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(0,0,0,0.2);
+  border-top-color: rgba(0,0,0,0.6);
+  animation: voice-spin 0.8s linear infinite;
+  margin-right: 0.4rem;
+  vertical-align: middle;
+}
+@keyframes voice-spin {
+  to { transform: rotate(360deg); }
+}
 .message.mine { align-self: flex-end; border-color: var(--gold); }

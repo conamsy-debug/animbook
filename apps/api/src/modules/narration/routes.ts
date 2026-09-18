@@ -75,10 +75,32 @@ function ready(res: Response): boolean {
   return false;
 }
 
-router.get("/voices", (_req: Request, res: Response) => {
-  res.set("Cache-Control", "public, max-age=300");
+/**
+ * GET /api/narration/voices?bookId=<id> — readers can pick from the curated
+ * list plus the book's author's own clone when they have one. We resolve the
+ * author lazily so this stays cache-friendly across many books; the author
+ * voice entry is keyed `author:<userId>` so we can route sampling/synthesis
+ * back to its elevenVoiceId.
+ */
+router.get("/voices", async (req: Request, res: Response) => {
+  const bookId = typeof req.query["bookId"] === "string" ? req.query["bookId"] : null;
+  let authorVoiceId: string | null = null;
+  let authorName: string | null = null;
+  if (bookId) {
+    const book = await prisma.book.findFirst({
+      where: { OR: [{ id: bookId }, { slug: bookId }] },
+      select: { creator: { select: { narratorVoiceId: true, name: true } } }
+    });
+    if (book?.creator?.narratorVoiceId) {
+      authorVoiceId = book.creator.narratorVoiceId;
+      authorName = book.creator.name;
+    }
+  }
+  const voices = require("../../config/voices.js") as typeof import("../../config/voices.js");
+  const merged = voices.voicesForReader({ authorVoiceId, authorName });
+  res.set("Cache-Control", "private, max-age=60");
   res.json({
-    voices: narratorVoices().map((v) => ({ id: v.id, label: v.label, description: v.description })),
+    voices: merged.map((v) => ({ id: v.id, label: v.label, description: v.description })),
     available: isFeatureEnabled("ELEVENLABS") && isFeatureEnabled("CLOUDFLARE")
   });
 });

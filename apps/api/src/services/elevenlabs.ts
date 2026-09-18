@@ -116,4 +116,74 @@ export async function generateNarration(input: {
   }
 }
 
+/**
+ * Clone an author voice from one or more audio samples.
+ * Posts multipart/form-data to /v1/voices/add (ElevenLabs Instant Voice Cloning).
+ * Returns the new voice_id. Caller is responsible for storing it on users.narrator_voice_id.
+ *
+ * ElevenLabs limits: up to ~25 samples per voice, each up to ~10MB. We
+ * accept any audio/* mime and concat before sending if more than one.
+ */
+export interface VoiceCloneInput {
+  name: string;
+  description?: string;
+  labels?: Record<string, string>;
+  /**
+   * One or more audio files. Caller is responsible for validating that the
+   * speaker has consented to cloning (see users.voice_consent_at).
+   */
+  samples: { buffer: Buffer; filename: string; contentType: string }[];
+}
+
+export async function cloneVoiceFromSamples(input: VoiceCloneInput): Promise<{ voiceId: string }> {
+  if (!isFeatureEnabled("ELEVENLABS")) throw new Error("ElevenLabs not configured");
+  if (!input.samples.length) throw new Error("At least one audio sample is required");
+  for (const s of input.samples) {
+    if (s.buffer.byteLength === 0) throw new Error("An audio sample is empty");
+    if (s.buffer.byteLength > 12 * 1024 * 1024) throw new Error("Each audio sample must be ≤12MB");
+  }
+  const form = new FormData();
+  form.set("name", input.name.slice(0, 100));
+  if (input.description) form.set("description", input.description.slice(0, 500));
+  for (const s of input.samples) {
+    // Buffer extends Uint8Array so cast is safe; the DOM lib's BlobPart type
+    // is stricter than what Node provides at the moment.
+    form.append("files", new Blob([s.buffer as unknown as ArrayBuffer], { type: s.contentType }), s.filename);
+  }
+  if (input.labels) {
+    for (const [k, v] of Object.entries(input.labels)) form.set(`labels[${k}]`, v);
+  }
+  const res = await fetch(`${API}/voices/add`, {
+    method: "POST",
+    headers: { "xi-api-key": key() },
+    body: form
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`ElevenLabs voice clone ${res.status}: ${detail.slice(0, 400)}`);
+  }
+  const json = (await res.json()) as { voice_id?: string };
+  if (!json.voice_id) throw new Error("ElevenLabs did not return a voice_id");
+  return { voiceId: json.voice_id };
+}
+
+/**
+ * Delete a previously cloned voice. Safe to call on a non-existent id —
+ * ElevenLabs returns 404 which we swallow so DELETE is idempotent.
+ */
+export async function deleteClonedVoice(voiceId: string): Promise<void> {
+  if (!isFeatureEnabled("ELEVENLABS")) return;
+  try {
+    const res = await fetch(`${API}/voices/${encodeURIComponent(voiceId)}`, {
+      method: "DELETE",
+      headers: { "xi-api-key": key() }
+    });
+    if (!res.ok && res.status !== 404) {
+      console.warn(`[elevenlabs] voice delete ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`);
+    }
+  } catch (err) {
+    console.warn(`[elevenlabs] voice delete threw: ${(err as Error).message}`);
+  }
+}
+
 export const elevenlabsStatus = { live: isFeatureEnabled("ELEVENLABS") };

@@ -57,6 +57,15 @@ enum PageStatus {
   REGENERATING
 }
 
+/// Lifecycle of an author's cloned narrator voice.
+enum VoiceStatus {
+  NONE
+  UPLOADING
+  CLONED
+  FAILED
+  REMOVED
+}
+
 /// How a book reaches its readers. IMMEDIATE publishes every page at once
 /// (legacy behaviour). TIME drips on a calendar cadence the author picks.
 /// TASK drips one chunk each time a reader submits the daily task.
@@ -149,6 +158,19 @@ model User {
   accountKind            String               @default("ADULT") @map("account_kind")
   /// Readers may message this author about their books.
   messagesOpen           Boolean              @default(true) @map("messages_open")
+  /// ElevenLabs voice_id cloned from author-uploaded samples. Authors who
+  /// have this set become narrators of their own books automatically.
+  narratorVoiceId        String?              @map("narrator_voice_id")
+  voiceStatus            VoiceStatus          @default(NONE) @map("voice_status")
+  /// R2 URL of the audio samples uploaded. Stored so authors can replace
+  /// without losing the consent trail, and ops can audit or re-train.
+  voiceSampleUrl         String?              @map("voice_sample_url")
+  /// When the author confirmed they own the rights to the audio samples.
+  /// Audited by IP and timestamp per voice-clone legal practice.
+  voiceConsentAt         DateTime?            @map("voice_consent_at")
+  voiceConsentIp         String?              @map("voice_consent_ip")
+  /// Last upload error from ElevenLabs (rate limit, safety, format).
+  voiceFailureReason     String?              @map("voice_failure_reason")
   roles                  String[]             @default([])
   subscriptionStatus     SubscriptionStatus?  @map("subscription_status")
   stripeCustomerId       String?              @unique @map("stripe_customer_id")
