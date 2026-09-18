@@ -20,6 +20,8 @@ interface Props {
   videoFrameRef?: Ref<HTMLElement>;
   /** Controls and captions shown over the video while it is full screen. */
   fullscreenOverlay?: ReactNode;
+  /** Playback rate for the page's <video> (1 = normal). Default 1. */
+  playbackRate?: number;
 }
 
 export type ReaderAspect = "16:9" | "4:3" | "3:4" | "1:1" | "9:16";
@@ -55,7 +57,7 @@ function pickAccent(vertical: string): string {
   return map[vertical] ?? "#1B6B8A";
 }
 
-export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false, onWordTap, paletteHint = "default", motionScale = 1, fontSize = 18, paused = false, aspect = "16:9", videoFrameRef, fullscreenOverlay }: Props) {
+export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false, onWordTap, paletteHint = "default", motionScale = 1, fontSize = 18, paused = false, aspect = "16:9", videoFrameRef, fullscreenOverlay, playbackRate = 1 }: Props) {
   const { pageIndex, mode, isFlipping, flippingDirection, setBook, flipNext, flipPrev, finishFlip } = useReaderStore();
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -71,6 +73,15 @@ export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false,
     if (paused) video.pause();
     else void video.play().catch(() => undefined);
   }, [paused, current?.id, mode]);
+
+  // Keep the page's <video> in sync with the reader's chosen playback rate.
+  // Re-applies on every page turn (new current.id) because the element may
+  // have been swapped out by the motion layer.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.playbackRate = playbackRate;
+  }, [playbackRate, current?.id]);
 
   const accent = useMemo(() => pickAccent(book.vertical), [book.vertical]);
 

@@ -3,6 +3,7 @@ import { READER_ASPECTS, type ReaderAspect } from "@/components/ReaderStage";
 import { BOOK_VOICE, voiceErrorMessage, voiceSample, type VoiceOption } from "@/lib/voices";
 import { useReaderStore } from "@/lib/store";
 import type { Narration } from "@/lib/useNarration";
+import { SPEED_LEVELS, SPEED_HINTS, formatSpeed, type Speed } from "@/lib/speed";
 
 interface Props {
   narration: Narration;
@@ -25,6 +26,9 @@ interface Props {
   voice?: string;
   onVoiceChange?: (voice: string) => void;
   onVoiceNotice?: (message: string) => void;
+  /** Reader's chosen playback rate. Controls both video and narration. */
+  speed?: Speed;
+  onSpeedChange?: (speed: Speed) => void;
 }
 
 type Mode = "WATCH" | "BOTH" | "READ";
@@ -118,6 +122,13 @@ const Icon = {
       <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1Z" fill="currentColor" />
       <path d="m16 9.5 5 5m0-5-5 5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
+  ),
+  speed: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M12 4a8 8 0 1 1-7.4 11" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="m12 4-1.6 3.3 3.5.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12 8.5v4l2.5 2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 };
 
@@ -149,12 +160,16 @@ export function ReaderControls({
   voices,
   voice = BOOK_VOICE,
   onVoiceChange,
-  onVoiceNotice
+  onVoiceNotice,
+  speed = 1.0,
+  onSpeedChange
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [voiceMenuOpen, setVoiceMenuOpen] = useState(false);
   const voiceMenuRef = useRef<HTMLDivElement | null>(null);
+  const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
+  const speedMenuRef = useRef<HTMLDivElement | null>(null);
   const [previewing, setPreviewing] = useState<string | null>(null);
   const previewAudio = useRef<HTMLAudioElement | null>(null);
 
@@ -212,6 +227,22 @@ export function ReaderControls({
       document.removeEventListener("keydown", onEsc);
     };
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!speedMenuOpen) return;
+    function onDown(ev: MouseEvent) {
+      if (speedMenuRef.current && !speedMenuRef.current.contains(ev.target as Node)) setSpeedMenuOpen(false);
+    }
+    function onEsc(ev: KeyboardEvent) {
+      if (ev.key === "Escape") setSpeedMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [speedMenuOpen]);
 
   const { pages, pageIndex, mode, setMode, flipNext, flipPrev } = useReaderStore();
   const total = pages.length;
@@ -357,6 +388,47 @@ export function ReaderControls({
                     </div>
                   ))}
                   <p className="voice-note">Other voices are recorded the first time a page is played, so they may take a few seconds.</p>
+                </div>
+              )}
+            </div>
+          )}
+          {onSpeedChange && (
+            <div className="menu-anchor" ref={speedMenuRef}>
+              <button
+                type="button"
+                className={`icon-btn small speed-btn${speedMenuOpen ? " active" : ""}${speed !== 1.0 ? " chosen" : ""}`}
+                onClick={() => setSpeedMenuOpen((o) => !o)}
+                aria-haspopup="menu"
+                aria-expanded={speedMenuOpen}
+                aria-label={`Playback speed (${formatSpeed(speed)})`}
+                title={`Playback speed — ${formatSpeed(speed)}`}
+              >
+                {Icon.speed}
+                <span className="speed-label" aria-hidden>{formatSpeed(speed)}</span>
+              </button>
+              {speedMenuOpen && (
+                <div className="player-menu speed-menu" role="menu" aria-label="Playback speed">
+                  <div className="player-menu-title">Playback speed</div>
+                  {SPEED_LEVELS.map((level) => (
+                    <button
+                      key={level}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={speed === level}
+                      className={speed === level ? "selected" : ""}
+                      onClick={() => {
+                        onSpeedChange(level);
+                        setSpeedMenuOpen(false);
+                      }}
+                    >
+                      <span className="player-menu-text">
+                        <span>{formatSpeed(level)}</span>
+                        <small>{SPEED_HINTS[level]}</small>
+                      </span>
+                      {speed === level && <span className="player-menu-check">{Icon.check}</span>}
+                    </button>
+                  ))}
+                  <p className="voice-note">Sets the video and the narration together.</p>
                 </div>
               )}
             </div>

@@ -19,6 +19,7 @@ import { apiFetch, type BookSummary, type PageRecord } from "@/lib/api";
 import { useLibraryStore, useReaderStore, useToastStore } from "@/lib/store";
 import { stopSpeaking } from "@/lib/speech";
 import { useNarration } from "@/lib/useNarration";
+import { readStoredSpeed, persistSpeed, type Speed } from "@/lib/speed";
 
 interface MemoryProfile {
   palette: string;
@@ -232,9 +233,24 @@ export default function ReaderPage() {
 
   const currentPage = useMemo(() => pages[pageIndex] ?? null, [pages, pageIndex]);
 
+  // Reader-chosen playback speed. Seeded from localStorage if they ever picked
+  // one; otherwise from the vertical default (WELLNESS 0.85×, FAITH 0.9×,
+  // KIDS/VERSE 0.95×, others 1.0×). Updates the <video> playbackRate and the
+  // narration rate together so the spoken word stays in sync with the visuals.
+  const [speed, setSpeedState] = useState<Speed>(1.0);
+  useEffect(() => {
+    if (!book) return;
+    setSpeedState(readStoredSpeed(book.vertical));
+  }, [book?.vertical]);
+  const changeSpeed = (next: Speed) => {
+    setSpeedState(next);
+    persistSpeed(next);
+  };
+
   const narrationRate =
     (dreamActive ? (dreamProfile?.narrationSpeed ?? 0.7) : (memory?.narrationSpeed ?? 1)) *
-    (bedtime && book?.vertical === "KIDS" ? 0.78 : 1);
+    (bedtime && book?.vertical === "KIDS" ? 0.78 : 1) *
+    speed;
   // Screen size (frame shape) — remembered per browser.
   const [aspect, setAspect] = useState<ReaderAspect>("16:9");
   useEffect(() => {
@@ -491,6 +507,7 @@ export default function ReaderPage() {
             paused={userPaused}
             aspect={aspect}
             videoFrameRef={videoFrameRef}
+            playbackRate={speed}
             fullscreenOverlay={
               <FullscreenOverlay
                 active={frameFullscreen}
@@ -528,6 +545,8 @@ export default function ReaderPage() {
             voice={voice}
             onVoiceChange={changeVoice}
             onVoiceNotice={(m) => toast(m)}
+            speed={speed}
+            onSpeedChange={changeSpeed}
           />
         </ErrorBoundary>
         <AchievementToasts queue={achievements} onConsumed={(idx) => setAchievements((prev) => prev.filter((_, i) => i !== idx))} />

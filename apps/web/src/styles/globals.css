@@ -835,6 +835,14 @@ h1 {
 .spin { animation: spin 0.9s linear infinite; transform-origin: 50% 50%; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Playback speed button — icon + tiny rate label so the chosen speed is visible at a glance. */
+.speed-btn { gap: 4px; padding: 0 8px; min-width: 56px; }
+.speed-btn svg { width: 16px; height: 16px; }
+.speed-label { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.01em; opacity: 0.9; }
+.icon-btn.small.speed-btn.chosen .speed-label { color: var(--accent); }
+.speed-menu { min-width: 200px; }
+.speed-menu button .player-menu-text small { color: var(--muted); font-size: 0.72rem; }
+
 /* Player bar on narrower screens */
 @media (max-width: 1360px) {
   .toggle-chip .chip-label { display: none; }
