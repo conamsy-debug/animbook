@@ -124,7 +124,16 @@ export default function BookDetailPage() {
             <span className="label">{book.vertical}</span>
             <h1>{book.title}</h1>
             {book.subtitle && <p className="book-subtitle">{book.subtitle}</p>}
-            <p className="muted">by {book.author}</p>
+            <p className="muted">
+              by{" "}
+              {book.creator?.handle ? (
+                <Link href={`/author/${book.creator.handle}`} className="author-link">
+                  {book.creator.name}
+                </Link>
+              ) : (
+                book.author
+              )}
+            </p>
             <p style={{ marginTop: 16 }}>{book.synopsis}</p>
             <dl className="kvp">
               <dt>Pages</dt>

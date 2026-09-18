@@ -95,6 +95,20 @@ export const APP_ROUTES: Module[] = [
     ]
   },
   {
+    id: "community",
+    title: "Community",
+    description: "Public author profiles, following, reporting and blocking.",
+    routes: [
+      { method: "GET", path: "/api/community/authors/:handle", auth: "public", summary: "An author's public page and books." },
+      { method: "GET", path: "/api/community/me", auth: "user", summary: "My public profile and community settings." },
+      { method: "PUT", path: "/api/community/me", auth: "user", summary: "Set handle, bio and whether readers may message me." },
+      { method: "POST", path: "/api/community/authors/:id/follow", auth: "user", summary: "Follow or unfollow an author." },
+      { method: "GET", path: "/api/community/following", auth: "user", summary: "Authors I follow and their newest books." },
+      { method: "POST", path: "/api/community/reports", auth: "user", summary: "Report a note, post, message or account." },
+      { method: "POST", path: "/api/community/blocks", auth: "user", summary: "Block or unblock an account." }
+    ]
+  },
+  {
     id: "narration",
     title: "Narration voices",
     description: "Reader-selectable narrators, recorded once per page and voice, then shared.",

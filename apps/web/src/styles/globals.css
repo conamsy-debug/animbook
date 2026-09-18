@@ -1969,3 +1969,42 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 .account-panel button:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); }
 .account-foot { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 6px; }
 .account-foot .sign-out { color: #e79a86; }
+
+/* ==== Author page ==== */
+.author-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin: 10px 0 26px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--border);
+}
+.author-head h1 { margin: 6px 0 2px; font-size: clamp(1.9rem, 4vw, 2.6rem); }
+.author-handle { margin: 0 0 10px; color: var(--accent); font-size: 0.95rem; }
+.author-bio { margin: 0 0 10px; max-width: 620px; line-height: 1.6; }
+.section-title { font-size: 1.1rem; margin: 0 0 14px; }
+
+/* ==== Community profile card ==== */
+.community-card .field { margin-bottom: 14px; }
+.community-card input:not([type="checkbox"]),
+.community-card textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #0b111a;
+  color: var(--text);
+  font: inherit;
+}
+.handle-input { display: flex; align-items: center; gap: 6px; }
+.handle-input > span { color: var(--muted); }
+.switch-row { display: flex; align-items: center; gap: 10px; font-size: 0.92rem; }
+.switch-row input { width: 16px; height: 16px; accent-color: var(--accent); }
+.following-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.following-list a { display: flex; align-items: baseline; gap: 8px; padding: 8px 10px; border-radius: 10px; text-decoration: none; color: var(--text); }
+.following-list a:hover { background: rgba(255, 255, 255, 0.05); }
+.following-list small { color: var(--muted); }
+.author-link { color: var(--accent); text-decoration: none; }
+.author-link:hover { text-decoration: underline; }

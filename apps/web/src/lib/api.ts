@@ -87,6 +87,8 @@ export interface BookSummary {
   subtitle?: string | null;
   subcategory?: string | null;
   author: string;
+  /** The AnimBook account that made this book, when it came from Studio. */
+  creator?: { id: string; name: string; handle: string | null } | null;
   synopsis: string;
   vertical: string;
   genreTags: string[];

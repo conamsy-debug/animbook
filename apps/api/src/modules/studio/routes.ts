@@ -162,6 +162,7 @@ router.post("/projects", async (req: AuthedRequest, res: Response) => {
   const book = await prisma.book.create({
     data: {
       slug,
+      creatorId: userId,
       title,
       subtitle: subtitle || null,
       subcategory: subcategory || null,

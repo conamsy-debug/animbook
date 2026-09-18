@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Topbar } from "@/components/Topbar";
+import { CommunityProfile } from "@/components/CommunityProfile";
 import { ErrorBoundary, ErrorState } from "@/components/ErrorBoundary";
 import { LoadingState, EmptyState } from "@/components/States";
 import { apiFetch, type LibraryEntry } from "@/lib/api";
@@ -162,6 +163,7 @@ export default function ProfilePage() {
         </header>
 
         <div className="grid">
+          <CommunityProfile />
           <section className="card">
             <h3>Account</h3>
             <dl className="kvp">

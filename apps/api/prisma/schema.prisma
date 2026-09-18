@@ -110,6 +110,13 @@ model User {
   email                  String               @unique
   name                   String
   tier                   UserTier             @default(BASIC)
+  /// Public @handle, set by the reader; also the URL of their author page.
+  handle                 String?              @unique
+  bio                    String?
+  /// Community writing (notes, circles, messages) off — school and child accounts.
+  communityDisabled      Boolean              @default(false) @map("community_disabled")
+  /// Readers may message this author about their books.
+  messagesOpen           Boolean              @default(true) @map("messages_open")
   roles                  String[]             @default([])
   subscriptionStatus     SubscriptionStatus?  @map("subscription_status")
   stripeCustomerId       String?              @unique @map("stripe_customer_id")
@@ -125,12 +132,62 @@ model User {
   reviewsAuthored        ReviewDecision[]     @relation("ReviewAuthor")
   creatorRoyalties       RoyaltyEntry[]       @relation("CreatorPayee")
   memoryProfile          MemoryProfile?
+  booksCreated           Book[]               @relation("BookCreator")
+  following              Follow[]             @relation("Follower")
+  followers              Follow[]             @relation("Followed")
+  reportsMade            Report[]             @relation("Reporter")
+  blocksMade             Block[]              @relation("Blocker")
+  blocksReceived         Block[]              @relation("Blocked")
   apiKeys               ApiKey[]
   pageSignalEvents      PageSignalEvent[]
   classroomsTeaching    Classroom[]          @relation("ClassroomTeacher")
   classroomMemberships  ClassroomMembership[] @relation("ClassroomStudent")
 
   @@map("users")
+}
+
+/// One reader following an author.
+model Follow {
+  id         String   @id @default(cuid())
+  followerId String   @map("follower_id")
+  authorId   String   @map("author_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  follower   User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  author     User     @relation("Followed", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, authorId])
+  @@index([authorId])
+  @@map("follows")
+}
+
+/// Anything a reader reports: a note, a circle post, a message or an account.
+model Report {
+  id         String   @id @default(cuid())
+  targetType String   @map("target_type")
+  targetId   String   @map("target_id")
+  reporterId String   @map("reporter_id")
+  reason     String
+  detail     String?
+  status     String   @default("OPEN")
+  createdAt  DateTime @default(now()) @map("created_at")
+  reporter   User     @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+  @@map("reports")
+}
+
+/// One reader blocking another: hides their writing and stops messages.
+model Block {
+  id        String   @id @default(cuid())
+  blockerId String   @map("blocker_id")
+  blockedId String   @map("blocked_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@map("blocks")
 }
 
 model Publisher {
@@ -155,6 +212,8 @@ model Book {
   synopsis             String             @db.Text
   isbn                 String?            @unique
   publisherId          String?            @map("publisher_id")
+  /// The AnimBook account that made this book (Studio); null for originals.
+  creatorId            String?            @map("creator_id")
   vertical             BookVertical
   status               BookStatus         @default(DRAFT)
   styleId              String?            @map("style_id")
@@ -171,6 +230,7 @@ model Book {
   createdAt            DateTime           @default(now()) @map("created_at")
   updatedAt            DateTime           @updatedAt @map("updated_at")
   publisher            Publisher?         @relation(fields: [publisherId], references: [id], onDelete: SetNull)
+  creator              User?              @relation("BookCreator", fields: [creatorId], references: [id], onDelete: SetNull)
   pages                Page[]
   libraryEntries       LibraryEntry[]
   brain                BookBrain?

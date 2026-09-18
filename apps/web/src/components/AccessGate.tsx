@@ -9,7 +9,7 @@ import { LoadingState } from "@/components/States";
  * Visitors can look around (home, library, book pages, pricing, legal) but
  * need a free account to read, watch, listen or use the features.
  */
-const OPEN_PREFIXES = ["/library", "/book", "/pricing", "/legal", "/sign-in", "/sign-up", "/worlds", "/docs", "/404"];
+const OPEN_PREFIXES = ["/library", "/book", "/author", "/pricing", "/legal", "/sign-in", "/sign-up", "/worlds", "/docs", "/404"];
 
 export function isOpenRoute(pathname: string): boolean {
   if (pathname === "/" || pathname === "/_error") return true;
