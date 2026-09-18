@@ -623,6 +623,70 @@ router.get("/projects/:id/analytics", async (req: AuthedRequest, res: Response) 
   });
 });
 
+/**
+ * Re-animate every FLAGGED page on the project — same code path as the
+ * per-page "Re-animate" button, just batched. Use after a platform
+ * incident (Runway schema drift, classifier reject storm) when many pages
+ * failed at once. Idempotent: pages that are no longer FLAGGED are skipped.
+ */
+router.post(
+  "/projects/:id/reanimate-failed",
+  rateLimit({ name: "studio.reanimate", max: 10, windowSeconds: 60 }),
+  async (req: AuthedRequest, res: Response) => {
+    const userId = requireUserId(req);
+    const id = req.params["id"];
+    if (typeof id !== "string") {
+      res.status(400).json({ error: "Missing project id" });
+      return;
+    }
+    const project = await prisma.studioProject.findFirst({
+      where: { id, ownerId: userId },
+      select: { id: true, bookId: true }
+    });
+    if (!project?.bookId) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
+    const flagged = await prisma.page.findMany({
+      where: { bookId: project.bookId, status: "FLAGGED" },
+      select: { id: true, pageNum: true },
+      orderBy: { pageNum: "asc" }
+    });
+    if (flagged.length === 0) {
+      res.json({ projectId: id, queued: 0, message: "No failed pages to re-animate" });
+      return;
+    }
+    // Reset status so the page returns to in-flight; each page also tracks
+    // its own regeneration count for triaging repeat offenders.
+    await prisma.page.updateMany({
+      where: { id: { in: flagged.map((p) => p.id) } },
+      data: { status: "REGENERATING", regenerationCount: { increment: 1 } }
+    });
+    const jobIds: string[] = [];
+    for (const p of flagged) {
+      const jobId = await enqueuePipeline({
+        projectId: id,
+        triggerStage: "VIDEO_GENERATION",
+        pageId: p.id
+      });
+      jobIds.push(jobId);
+    }
+    emitPipelineEvent(id, {
+      stage: "VIDEO_GENERATION",
+      status: "queued",
+      progress: 60,
+      message: `${flagged.length} page${flagged.length === 1 ? "" : "s"} queued for re-animation`,
+      at: new Date().toISOString()
+    });
+    res.json({
+      projectId: id,
+      queued: flagged.length,
+      pages: flagged.map((p) => p.pageNum),
+      jobIds
+    });
+  }
+);
+
 router.get("/projects/:id/events", async (req: AuthedRequest, res: Response) => {
   const id = req.params["id"];
   if (typeof id !== "string") {
