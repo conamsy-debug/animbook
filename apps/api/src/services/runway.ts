@@ -210,15 +210,15 @@ export async function generateStill(
 }
 
 export async function animateStill(imageUrl: string, motionPrompt: string, durationSeconds = 5, ratio: RunwayRatio = "1280:720"): Promise<string> {
-  // Runway's current /image_to_video spec accepts promptImage as either a
-  // URL it can fetch or a data URI, but the field must be an array of one.
-  // A bare string returns 400 "expected array, received string".
-  // Inlining as a data URI also dodges the "Failed to fetch image metadata"
-  // error when Runway's fetchers can't reach our CDN.
+  // Runway's /image_to_video spec accepts promptImage as a single string —
+  // either an HTTPS URL Runway can fetch, or a data URI we inline.
+  // Inlining dodges the "Failed to fetch image metadata" error that surfaces
+  // when Runway's fetchers can't reach our R2 CDN, and also bypasses any
+  // short-lived pre-signed URL issues.
   const safeImage = await inlineImage(imageUrl);
   const body = {
     model: "gen4_turbo",
-    promptImage: [safeImage],
+    promptImage: safeImage,
     promptText: motionPrompt.slice(0, 1000),
     ratio,
     duration: durationSeconds
