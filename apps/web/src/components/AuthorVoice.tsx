@@ -149,6 +149,7 @@ export default function AuthorVoice() {
             <li>Save as MP3, WAV, or M4A. Up to 25MB.</li>
             <li>Tick the consent box — we keep the audio + timestamp + IP as an audit trail.</li>
           </ol>
+          <div style={{ flex: 1 }} />
 
           <label className="field">
             <span>Voice name (readers see &quot;By [name]&quot;)</span>

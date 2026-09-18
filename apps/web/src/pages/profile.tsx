@@ -176,6 +176,7 @@ export default function ProfilePage() {
               <dt>Plan</dt>
               <dd>{dataReady.user.tier === "BASIC" ? "Free" : dataReady.user.tier.charAt(0) + dataReady.user.tier.slice(1).toLowerCase()}</dd>
             </dl>
+            <div style={{ flex: 1 }} />
             {dataReady.paymentsLive ? (
               <button type="button" className="btn primary" onClick={startCheckout}>
                 Upgrade to Premium
@@ -215,6 +216,7 @@ export default function ProfilePage() {
           <section className="card">
             <h3>Your data</h3>
             <p className="muted">Export everything we hold about you, or remove your account.</p>
+            <div style={{ flex: 1 }} />
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button type="button" className="btn" disabled={busy !== null} onClick={exportData}>
                 {busy === "export" ? "Preparing…" : "Download my data"}

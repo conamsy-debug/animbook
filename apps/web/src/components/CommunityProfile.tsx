@@ -179,7 +179,8 @@ export function CommunityProfile() {
         </button>
       </div>
 
-      <h3 style={{ marginTop: 28 }}>Following</h3>
+      <div style={{ flex: 1 }} />
+      <h3 style={{ marginTop: 0 }}>Following</h3>
       {following.length === 0 ? (
         <p className="muted small">You aren&apos;t following anyone yet. Open a book and follow its author.</p>
       ) : (
