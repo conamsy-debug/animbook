@@ -120,6 +120,22 @@ export const APP_ROUTES: Module[] = [
     ]
   },
   {
+    id: "circles",
+    title: "Reading circles",
+    description: "Small private groups reading a book together, joined by invite.",
+    routes: [
+      { method: "GET", path: "/api/circles", auth: "user", summary: "Circles I'm in." },
+      { method: "POST", path: "/api/circles", auth: "user", summary: "Start a circle, optionally about a book." },
+      { method: "GET", path: "/api/circles/:id", auth: "user", summary: "A circle, its members and conversation." },
+      { method: "POST", path: "/api/circles/:id/posts", auth: "user", summary: "Post to the circle (screened)." },
+      { method: "DELETE", path: "/api/circles/posts/:id", auth: "user", summary: "Remove your post; owners may remove any." },
+      { method: "POST", path: "/api/circles/join", auth: "user", summary: "Join with an invite code." },
+      { method: "POST", path: "/api/circles/:id/leave", auth: "user", summary: "Leave; owners hand over or close the circle." },
+      { method: "DELETE", path: "/api/circles/:id/members/:userId", auth: "user", summary: "Owner removes a member." },
+      { method: "POST", path: "/api/circles/:id/invite", auth: "user", summary: "Owner issues a fresh invite code." }
+    ]
+  },
+  {
     id: "narration",
     title: "Narration voices",
     description: "Reader-selectable narrators, recorded once per page and voice, then shared.",

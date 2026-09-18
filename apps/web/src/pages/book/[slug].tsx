@@ -135,6 +135,11 @@ export default function BookDetailPage() {
               )}
             </p>
             <p style={{ marginTop: 16 }}>{book.synopsis}</p>
+            <p className="book-circle-line">
+              <Link href={`/circles?bookId=${book.id}&title=${encodeURIComponent(book.title)}`} className="author-link">
+                Start a reading circle for this book →
+              </Link>
+            </p>
             <dl className="kvp">
               <dt>Pages</dt>
               <dd>{book.totalPages}</dd>

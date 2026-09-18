@@ -141,6 +141,12 @@ model User {
   blocksMade             Block[]              @relation("Blocker")
   blocksReceived         Block[]              @relation("Blocked")
   pageNotes              PageNote[]
+  circlesOwned           Circle[]             @relation("CircleOwner")
+  circleMemberships      CircleMember[]
+  circlePosts            CirclePost[]
+  circlesOwned           Circle[]             @relation("CircleOwner")
+  circleMemberships      CircleMember[]
+  circlePosts            CirclePost[]
   apiKeys               ApiKey[]
   pageSignalEvents      PageSignalEvent[]
   classroomsTeaching    Classroom[]          @relation("ClassroomTeacher")
@@ -213,6 +219,101 @@ model PageNote {
   @@map("page_notes")
 }
 
+/// A small private group reading a book together.
+model Circle {
+  id          String         @id @default(cuid())
+  name        String
+  description String?
+  bookId      String?        @map("book_id")
+  ownerId     String         @map("owner_id")
+  /// Secret code in the invite link.
+  inviteCode  String         @unique @map("invite_code")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  book        Book?          @relation(fields: [bookId], references: [id], onDelete: SetNull)
+  owner       User           @relation("CircleOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members     CircleMember[]
+  posts       CirclePost[]
+
+  @@index([ownerId])
+  @@map("circles")
+}
+
+model CircleMember {
+  id       String   @id @default(cuid())
+  circleId String   @map("circle_id")
+  userId   String   @map("user_id")
+  role     String   @default("MEMBER")
+  joinedAt DateTime @default(now()) @map("joined_at")
+  circle   Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([circleId, userId])
+  @@index([userId])
+  @@map("circle_members")
+}
+
+model CirclePost {
+  id        String   @id @default(cuid())
+  circleId  String   @map("circle_id")
+  userId    String   @map("user_id")
+  text      String
+  status    String   @default("VISIBLE")
+  createdAt DateTime @default(now()) @map("created_at")
+  circle    Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([circleId, createdAt])
+  @@map("circle_posts")
+}
+
+/// A small private group reading a book together.
+model Circle {
+  id         String         @id @default(cuid())
+  name       String
+  bookId     String?        @map("book_id")
+  ownerId    String         @map("owner_id")
+  /// Secret code in the invite link.
+  inviteCode String         @unique @map("invite_code")
+  createdAt  DateTime       @default(now()) @map("created_at")
+  owner      User           @relation("CircleOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  book       Book?          @relation(fields: [bookId], references: [id], onDelete: SetNull)
+  members    CircleMember[]
+  posts      CirclePost[]
+
+  @@index([ownerId])
+  @@map("circles")
+}
+
+model CircleMember {
+  id       String   @id @default(cuid())
+  circleId String   @map("circle_id")
+  userId   String   @map("user_id")
+  role     String   @default("MEMBER")
+  joinedAt DateTime @default(now()) @map("joined_at")
+  circle   Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([circleId, userId])
+  @@index([userId])
+  @@map("circle_members")
+}
+
+model CirclePost {
+  id        String   @id @default(cuid())
+  circleId  String   @map("circle_id")
+  userId    String   @map("user_id")
+  text      String
+  /// Optional page this post is about.
+  pageNum   Int?     @map("page_num")
+  status    String   @default("VISIBLE")
+  createdAt DateTime @default(now()) @map("created_at")
+  circle    Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([circleId, createdAt])
+  @@map("circle_posts")
+}
+
 model Publisher {
   id                  String   @id @default(cuid())
   name                String
@@ -255,6 +356,8 @@ model Book {
   publisher            Publisher?         @relation(fields: [publisherId], references: [id], onDelete: SetNull)
   creator              User?              @relation("BookCreator", fields: [creatorId], references: [id], onDelete: SetNull)
   pageNotes            PageNote[]
+  circles              Circle[]
+  circles              Circle[]
   pages                Page[]
   libraryEntries       LibraryEntry[]
   brain                BookBrain?

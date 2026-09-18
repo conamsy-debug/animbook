@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 const ITEMS = [
   { href: "/profile", label: "Profile" },
   { href: "/library", label: "My library" },
+  { href: "/circles", label: "Reading circles" },
   { href: "/studio", label: "Studio" },
   { href: "/creator", label: "Creator" },
   { href: "/publishers", label: "Publishers" },
