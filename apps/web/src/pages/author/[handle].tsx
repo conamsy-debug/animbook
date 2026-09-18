@@ -5,6 +5,7 @@ import { Topbar } from "@/components/Topbar";
 import { BookCard } from "@/components/BookCard";
 import { EmptyState, LoadingState } from "@/components/States";
 import { FollowButton } from "@/components/FollowButton";
+import { MessageAuthorButton } from "@/components/MessageAuthorButton";
 import { getAuthor, getMyProfile, type AuthorProfile } from "@/lib/community";
 
 export default function AuthorPage() {
@@ -14,10 +15,14 @@ export default function AuthorPage() {
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
   const [myId, setMyId] = useState<string | null>(null);
+  const [canMessage, setCanMessage] = useState(false);
 
   useEffect(() => {
     getMyProfile()
-      .then((me) => setMyId(me?.id ?? null))
+      .then((me) => {
+        setMyId(me?.id ?? null);
+        setCanMessage(Boolean(me?.messagingAvailable));
+      })
       .catch(() => undefined);
   }, []);
 
@@ -76,7 +81,15 @@ export default function AuthorPage() {
                   Edit your page
                 </Link>
               ) : (
-                <FollowButton authorId={author.id} authorName={author.name} />
+                <div className="author-actions">
+                  <FollowButton authorId={author.id} authorName={author.name} />
+                  <MessageAuthorButton
+                    authorId={author.id}
+                    authorName={author.name}
+                    acceptsMessages={author.acceptsMessages}
+                    messagingAvailable={canMessage}
+                  />
+                </div>
               )}
             </header>
 

@@ -16,6 +16,7 @@ import { authMiddleware, requireUserId, type AuthedRequest } from "../../auth/mi
 import { prisma } from "../../db.js";
 import { rateLimit } from "../../middleware/rateLimit.js";
 import { screenText } from "../../services/moderation.js";
+import { standingFor } from "../../services/accountStanding.js";
 
 const router = Router();
 
@@ -86,10 +87,12 @@ router.get("/me", async (req: AuthedRequest, res: Response) => {
       avatarUrl: true,
       messagesOpen: true,
       communityDisabled: true,
+      accountKind: true,
       _count: { select: { followers: true, following: true, booksCreated: true } }
     }
   });
-  res.json({ me });
+  const standing = me ? await standingFor(me.id) : null;
+  res.json({ me: me ? { ...me, messagingAvailable: !standing?.protected } : null });
 });
 
 const profileSchema = z.object({
@@ -106,6 +109,16 @@ router.put("/me", rateLimit({ name: "community.profile", max: 20, windowSeconds:
     return;
   }
   const { handle, bio, messagesOpen } = parsed.data;
+  // A protected account cannot open its own inbox — the switch is only ever
+  // an author turning messages OFF, never a school or child account turning
+  // them on.
+  if (messagesOpen === true) {
+    const standing = await standingFor(userId);
+    if (standing.protected) {
+      res.status(403).json({ error: "Messaging isn't available on this account." });
+      return;
+    }
+  }
   if (handle !== undefined) {
     if (!HANDLE.test(handle) || RESERVED.has(handle)) {
       res.status(400).json({ error: "Handles are 3–24 characters: letters, numbers, - and _" });

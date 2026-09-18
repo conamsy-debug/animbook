@@ -45,6 +45,7 @@ import narration from "./modules/narration/routes.js";
 import community from "./modules/community/routes.js";
 import notes from "./modules/notes/routes.js";
 import circles from "./modules/circles/routes.js";
+import messages from "./modules/messages/routes.js";
 import docs from "./modules/docs/routes.js";
 import { startPipelineWorker, startPipelineEvents } from "./services/pipeline.js";
 
@@ -99,6 +100,7 @@ app.use("/api/narration", narration);
 app.use("/api/community", community);
 app.use("/api/notes", notes);
 app.use("/api/circles", circles);
+app.use("/api/messages", messages);
 app.use("/api/worlds", worlds);
 app.use("/api/stage", stage);
 app.use("/api/signal", signal);

@@ -6,6 +6,7 @@ const ITEMS = [
   { href: "/profile", label: "Profile" },
   { href: "/library", label: "My library" },
   { href: "/circles", label: "Reading circles" },
+  { href: "/messages", label: "Messages" },
   { href: "/studio", label: "Studio" },
   { href: "/creator", label: "Creator" },
   { href: "/publishers", label: "Publishers" },

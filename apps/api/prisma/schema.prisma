@@ -117,6 +117,10 @@ model User {
   avatarUrl              String?              @map("avatar_url")
   /// Community writing (notes, circles, messages) off — school and child accounts.
   communityDisabled      Boolean              @default(false) @map("community_disabled")
+  /// ADULT, SCHOOL (in a classroom) or MINOR (declared under-18). Anything
+  /// other than ADULT is a protected account: no private messaging at all,
+  /// in either direction. Set by the server, never by the account holder.
+  accountKind            String               @default("ADULT") @map("account_kind")
   /// Readers may message this author about their books.
   messagesOpen           Boolean              @default(true) @map("messages_open")
   roles                  String[]             @default([])
@@ -144,6 +148,9 @@ model User {
   circlesOwned           Circle[]             @relation("CircleOwner")
   circleMemberships      CircleMember[]
   circlePosts            CirclePost[]
+  threadsAsReader        MessageThread[]      @relation("ThreadReader")
+  threadsAsAuthor        MessageThread[]      @relation("ThreadAuthor")
+  messagesSent           Message[]            @relation("MessageSender")
   apiKeys               ApiKey[]
   pageSignalEvents      PageSignalEvent[]
   classroomsTeaching    Classroom[]          @relation("ClassroomTeacher")
@@ -264,6 +271,51 @@ model CirclePost {
   @@map("circle_posts")
 }
 
+/// One private conversation between a reader and an author.
+///
+/// Only a reader can open a thread, and only with an author who has books and
+/// has left messagesOpen on. There is no reader-to-reader thread: the pair is
+/// always (reader, author). Neither side may be a protected account — see
+/// services/accountStanding.ts, which is checked on every send and every read.
+model MessageThread {
+  id            String    @id @default(cuid())
+  readerId      String    @map("reader_id")
+  authorId      String    @map("author_id")
+  /// The book the reader was reading when they wrote, if any.
+  bookId        String?   @map("book_id")
+  /// OPEN, or CLOSED once the author ends it.
+  status        String    @default("OPEN")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  lastMessageAt DateTime  @default(now()) @map("last_message_at")
+  readerReadAt  DateTime? @map("reader_read_at")
+  authorReadAt  DateTime? @map("author_read_at")
+  reader        User      @relation("ThreadReader", fields: [readerId], references: [id], onDelete: Cascade)
+  author        User      @relation("ThreadAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  book          Book?     @relation(fields: [bookId], references: [id], onDelete: SetNull)
+  messages      Message[]
+
+  @@unique([readerId, authorId])
+  @@index([authorId, lastMessageAt])
+  @@index([readerId, lastMessageAt])
+  @@map("message_threads")
+}
+
+model Message {
+  id        String        @id @default(cuid())
+  threadId  String        @map("thread_id")
+  senderId  String        @map("sender_id")
+  text      String
+  /// VISIBLE (delivered), HELD (screening wants a look), REMOVED (taken down).
+  status    String        @default("VISIBLE")
+  createdAt DateTime      @default(now()) @map("created_at")
+  thread    MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender    User          @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+  @@index([senderId])
+  @@map("messages")
+}
+
 model Publisher {
   id                  String   @id @default(cuid())
   name                String
@@ -307,6 +359,7 @@ model Book {
   creator              User?              @relation("BookCreator", fields: [creatorId], references: [id], onDelete: SetNull)
   pageNotes            PageNote[]
   circles              Circle[]
+  messageThreads       MessageThread[]
   pages                Page[]
   libraryEntries       LibraryEntry[]
   brain                BookBrain?

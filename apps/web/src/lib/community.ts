@@ -20,6 +20,8 @@ export interface MyProfile {
   avatarUrl?: string | null;
   messagesOpen: boolean;
   communityDisabled: boolean;
+  /// False for school and child accounts — no private messaging at all.
+  messagingAvailable: boolean;
   _count: { followers: number; following: number; booksCreated: number };
 }
 

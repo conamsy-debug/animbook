@@ -16,6 +16,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { authMiddleware, requireUserId, type AuthedRequest } from "../../auth/middleware.js";
 import { prisma } from "../../db.js";
+import { markAsSchoolAccount } from "../../services/accountStanding.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -146,6 +147,9 @@ router.post("/classrooms/:slug/members", async (req: AuthedRequest, res: Respons
     create: { classroomId: classroom.id, studentId: student.id, role: "STUDENT" },
     update: { role: "STUDENT" }
   });
+  // Joining a classroom is what makes an account a school account: community
+  // writing and private messaging go off from this moment and stay off.
+  await markAsSchoolAccount(student.id);
   res.status(201).json({ membership });
 });
 
