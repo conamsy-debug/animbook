@@ -1996,6 +1996,51 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 
 /* ==== Community profile card ==== */
 .community-card .field { margin-bottom: 14px; }
+
+/* Avatar picker — round preview, side-by-side controls, overlay while uploading. */
+.avatar-picker {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 14px 0 18px;
+  flex-wrap: wrap;
+}
+.avatar-picker-preview {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  flex-shrink: 0;
+}
+.avatar-picker-preview .author-avatar {
+  width: 88px;
+  height: 88px;
+}
+.avatar-picker-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 20, 34, 0.65);
+  color: #F4E9D8;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.avatar-picker-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.avatar-picker-actions .muted.small {
+  margin: 2px 0 0;
+}
+@media (max-width: 480px) {
+  .avatar-picker { gap: 12px; }
+  .avatar-picker-preview, .avatar-picker-preview .author-avatar { width: 72px; height: 72px; }
+}
 .community-card input:not([type="checkbox"]),
 .community-card textarea {
   width: 100%;

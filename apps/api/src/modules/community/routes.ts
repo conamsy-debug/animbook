@@ -12,16 +12,24 @@
 import type { Request, Response } from "express";
 import { Router } from "express";
 import { z } from "zod";
+import { randomUUID } from "node:crypto";
 import { authMiddleware, requireUserId, type AuthedRequest } from "../../auth/middleware.js";
 import { prisma } from "../../db.js";
 import { rateLimit } from "../../middleware/rateLimit.js";
 import { screenText } from "../../services/moderation.js";
 import { standingFor } from "../../services/accountStanding.js";
+import { uploadAsset } from "../../services/cloudflare.js";
 
 const router = Router();
 
 const HANDLE = /^[a-z0-9][a-z0-9_-]{2,23}$/;
 const RESERVED = new Set(["admin", "animbook", "support", "help", "about", "studio", "library", "api", "www", "staff", "moderator"]);
+
+// Avatar uploads: max 2 MB raw (≈ 2.7 MB base64). Anything bigger wastes
+// bandwidth and CDN storage for a 256×256 square.
+const AVATAR_MAX_RAW_BYTES = 2 * 1024 * 1024;
+const AVATAR_DATA_RE = /^data:(image\/(?:png|jpe?g|webp));base64,([A-Za-z0-9+/=]+)$/;
+const AVATAR_URL_RE = /^https?:\/\/\S+$/i;
 
 const publicBook = {
   id: true,
@@ -98,8 +106,50 @@ router.get("/me", async (req: AuthedRequest, res: Response) => {
 const profileSchema = z.object({
   handle: z.string().trim().toLowerCase().optional(),
   bio: z.string().trim().max(400).optional(),
-  messagesOpen: z.boolean().optional()
+  messagesOpen: z.boolean().optional(),
+  /// `null` clears the avatar; a string is either a data:image/...;base64,…
+  /// upload (we forward to R2) or an absolute https URL we trust the author
+  /// to own. Empty string is treated as no change.
+  avatarUrl: z
+    .string()
+    .max(3_500_000) // ~2.5 MB raw at base64 inflation
+    .nullable()
+    .optional()
 });
+
+/**
+ * Resolve an incoming `avatarUrl` value into the URL we'll persist:
+ *  - `null` / empty → clears the avatar
+ *  - `data:image/...;base64,…` → uploads to R2 and returns the public URL
+ *  - `https://…` absolute URL → returns it unchanged (we trust authors to
+ *    point at images they own; this keeps the door open for OAuth providers
+ *    like Clerk that hand back an avatar_url on sign-up)
+ */
+async function persistAvatar(raw: string | null, userId: string): Promise<string | null> {
+  if (raw === null) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  const dataMatch = AVATAR_DATA_RE.exec(trimmed);
+  if (dataMatch) {
+    const [, mime, b64] = dataMatch;
+    const buf = Buffer.from(b64, "base64");
+    if (buf.byteLength === 0) {
+      throw Object.assign(new Error("Empty image"), { status: 400 });
+    }
+    if (buf.byteLength > AVATAR_MAX_RAW_BYTES) {
+      throw Object.assign(new Error("Image must be under 2 MB"), { status: 413 });
+    }
+    const ext = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
+    const key = `cast/avatars/${userId}-${randomUUID()}.${ext}`;
+    const uploaded = await uploadAsset({ key, body: buf, contentType: mime });
+    return uploaded.url;
+  }
+
+  if (AVATAR_URL_RE.test(trimmed)) return trimmed;
+
+  throw Object.assign(new Error("avatarUrl must be an https URL or a data:image/...;base64 upload"), { status: 400 });
+}
 
 router.put("/me", rateLimit({ name: "community.profile", max: 20, windowSeconds: 300 }), async (req: AuthedRequest, res: Response) => {
   const userId = requireUserId(req);
@@ -108,7 +158,7 @@ router.put("/me", rateLimit({ name: "community.profile", max: 20, windowSeconds:
     res.status(400).json({ error: "Invalid profile", details: parsed.error.flatten() });
     return;
   }
-  const { handle, bio, messagesOpen } = parsed.data;
+  const { handle, bio, messagesOpen, avatarUrl } = parsed.data;
   // A protected account cannot open its own inbox — the switch is only ever
   // an author turning messages OFF, never a school or child account turning
   // them on.
@@ -137,14 +187,29 @@ router.put("/me", rateLimit({ name: "community.profile", max: 20, windowSeconds:
       return;
     }
   }
+
+  // Resolve the avatar (upload data: URIs to R2) before the update so a
+  // failure here doesn't half-write a profile.
+  let resolvedAvatarUrl: string | null | undefined;
+  if (avatarUrl !== undefined) {
+    try {
+      resolvedAvatarUrl = await persistAvatar(avatarUrl, userId);
+    } catch (err) {
+      const status = (err as { status?: number }).status ?? 500;
+      res.status(status).json({ error: (err as Error).message });
+      return;
+    }
+  }
+
   const me = await prisma.user.update({
     where: { id: userId },
     data: {
       ...(handle !== undefined ? { handle } : {}),
       ...(bio !== undefined ? { bio: bio || null } : {}),
-      ...(messagesOpen !== undefined ? { messagesOpen } : {})
+      ...(messagesOpen !== undefined ? { messagesOpen } : {}),
+      ...(resolvedAvatarUrl !== undefined ? { avatarUrl: resolvedAvatarUrl } : {})
     },
-    select: { id: true, name: true, handle: true, bio: true, messagesOpen: true }
+    select: { id: true, name: true, handle: true, bio: true, avatarUrl: true, messagesOpen: true }
   });
   res.json({ me });
 });
