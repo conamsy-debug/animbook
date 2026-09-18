@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Topbar } from "@/components/Topbar";
 import { ReaderStage, READER_ASPECTS, type ReaderAspect } from "@/components/ReaderStage";
 import { FullscreenOverlay } from "@/components/FullscreenOverlay";
+import { NotesPanel } from "@/components/NotesPanel";
+import { getNoteCounts } from "@/lib/notes";
 import { ApiError } from "@/lib/api";
 import { BOOK_VOICE, VOICE_KEY, loadVoices, voiceErrorMessage, type VoiceOption } from "@/lib/voices";
 import { ReaderControls } from "@/components/ReaderControls";
@@ -319,6 +321,22 @@ export default function ReaderPage() {
   const autoFlipTimer = useRef<number | null>(null);
   const flipStateRef = useRef({ autoFlip, pageIndex, total: pages.length });
   flipStateRef.current = { autoFlip, pageIndex, total: pages.length };
+  // Margin notes from other readers.
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [noteCounts, setNoteCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!book?.id) return;
+    let cancelled = false;
+    getNoteCounts(book.id)
+      .then((counts) => {
+        if (!cancelled) setNoteCounts(counts);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [book?.id]);
+
   // Narrator choice — "book" is the book's own recording; others are recorded on demand.
   const [voices, setVoices] = useState<VoiceOption[]>([]);
   const [voice, setVoice] = useState<string>(BOOK_VOICE);
@@ -460,6 +478,7 @@ export default function ReaderPage() {
             <ErrorState error={err} onRetry={reset} title="The page wouldn’t render" compact />
           )}
         >
+          <div className={`reader-with-notes${notesOpen ? " notes-open" : ""}`}>
           <ReaderStage
             book={book}
             pages={pages}
@@ -487,12 +506,24 @@ export default function ReaderPage() {
               />
             }
           />
+          {notesOpen && currentPage && (
+            <NotesPanel
+              pageId={currentPage.id}
+              pageNum={currentPage.pageNum}
+              onClose={() => setNotesOpen(false)}
+              onCountChange={(pageId, count) => setNoteCounts((prev) => ({ ...prev, [pageId]: count }))}
+            />
+          )}
+          </div>
           <ReaderControls narration={narration} onPlay={playNarration} onPause={pauseNarration} onNext={flipNext} onPrev={flipPrev} autoFlip={autoFlip}
             onToggleAutoFlip={toggleAutoFlip}
             aspect={aspect}
             onAspectChange={changeAspect}
             fullscreen={fullscreen}
             onToggleFullscreen={toggleFullscreen}
+            noteCount={currentPage ? noteCounts[currentPage.id] ?? 0 : 0}
+            notesOpen={notesOpen}
+            onToggleNotes={() => setNotesOpen((o) => !o)}
             voices={voices}
             voice={voice}
             onVoiceChange={changeVoice}

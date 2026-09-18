@@ -45,6 +45,7 @@ router.get("/authors/:handle", async (req: Request, res: Response) => {
       name: true,
       handle: true,
       bio: true,
+      avatarUrl: true,
       messagesOpen: true,
       createdAt: true,
       booksCreated: { where: { status: "PUBLISHED" }, orderBy: { createdAt: "desc" }, select: publicBook },
@@ -62,6 +63,7 @@ router.get("/authors/:handle", async (req: Request, res: Response) => {
       name: author.name,
       handle: author.handle,
       bio: author.bio,
+      avatarUrl: author.avatarUrl,
       memberSince: author.createdAt,
       acceptsMessages: author.messagesOpen,
       followers: author._count.followers,
@@ -81,6 +83,7 @@ router.get("/me", async (req: AuthedRequest, res: Response) => {
       name: true,
       handle: true,
       bio: true,
+      avatarUrl: true,
       messagesOpen: true,
       communityDisabled: true,
       _count: { select: { followers: true, following: true, booksCreated: true } }

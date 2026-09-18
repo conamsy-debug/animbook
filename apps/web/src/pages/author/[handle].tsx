@@ -5,7 +5,7 @@ import { Topbar } from "@/components/Topbar";
 import { BookCard } from "@/components/BookCard";
 import { EmptyState, LoadingState } from "@/components/States";
 import { FollowButton } from "@/components/FollowButton";
-import { getAuthor, type AuthorProfile } from "@/lib/community";
+import { getAuthor, getMyProfile, type AuthorProfile } from "@/lib/community";
 
 export default function AuthorPage() {
   const router = useRouter();
@@ -13,6 +13,13 @@ export default function AuthorPage() {
   const [author, setAuthor] = useState<AuthorProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
+  const [myId, setMyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    getMyProfile()
+      .then((me) => setMyId(me?.id ?? null))
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (!handle) return;
@@ -47,7 +54,13 @@ export default function AuthorPage() {
         {author && (
           <>
             <header className="author-head">
-              <div>
+              <div className="author-identity">
+                {author.avatarUrl ? (
+                  <img className="author-avatar" src={author.avatarUrl} alt="" />
+                ) : (
+                  <span className="author-avatar placeholder">{author.name.charAt(0).toUpperCase()}</span>
+                )}
+                <div>
                 <span className="label">Author</span>
                 <h1>{author.name}</h1>
                 <p className="author-handle">@{author.handle}</p>
@@ -56,8 +69,15 @@ export default function AuthorPage() {
                   {author.followers} {author.followers === 1 ? "follower" : "followers"} · {author.books.length}{" "}
                   {author.books.length === 1 ? "AnimBook" : "AnimBooks"}
                 </p>
+                </div>
               </div>
-              <FollowButton authorId={author.id} authorName={author.name} />
+              {myId === author.id ? (
+                <Link href="/profile" className="btn ghost">
+                  Edit your page
+                </Link>
+              ) : (
+                <FollowButton authorId={author.id} authorName={author.name} />
+              )}
             </header>
 
             {author.books.length === 0 ? (

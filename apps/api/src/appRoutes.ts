@@ -109,6 +109,17 @@ export const APP_ROUTES: Module[] = [
     ]
   },
   {
+    id: "notes",
+    title: "Margin notes",
+    description: "Short notes readers leave on a page, screened before they appear.",
+    routes: [
+      { method: "GET", path: "/api/notes/pages/:pageId", auth: "user", summary: "Notes on a page (blocked accounts hidden)." },
+      { method: "POST", path: "/api/notes/pages/:pageId", auth: "user", summary: "Leave a note; screened, and held if uncertain." },
+      { method: "DELETE", path: "/api/notes/:id", auth: "user", summary: "Remove your own note." },
+      { method: "GET", path: "/api/notes/books/:bookId/counts", auth: "user", summary: "Note counts per page." }
+    ]
+  },
+  {
     id: "narration",
     title: "Narration voices",
     description: "Reader-selectable narrators, recorded once per page and voice, then shared.",

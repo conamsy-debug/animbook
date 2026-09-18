@@ -113,6 +113,8 @@ model User {
   /// Public @handle, set by the reader; also the URL of their author page.
   handle                 String?              @unique
   bio                    String?
+  /// Profile photo copied from the sign-in provider.
+  avatarUrl              String?              @map("avatar_url")
   /// Community writing (notes, circles, messages) off — school and child accounts.
   communityDisabled      Boolean              @default(false) @map("community_disabled")
   /// Readers may message this author about their books.
@@ -138,6 +140,7 @@ model User {
   reportsMade            Report[]             @relation("Reporter")
   blocksMade             Block[]              @relation("Blocker")
   blocksReceived         Block[]              @relation("Blocked")
+  pageNotes              PageNote[]
   apiKeys               ApiKey[]
   pageSignalEvents      PageSignalEvent[]
   classroomsTeaching    Classroom[]          @relation("ClassroomTeacher")
@@ -190,6 +193,26 @@ model Block {
   @@map("blocks")
 }
 
+/// A short note a reader leaves in the margin of one page.
+model PageNote {
+  id        String   @id @default(cuid())
+  pageId    String   @map("page_id")
+  bookId    String   @map("book_id")
+  userId    String   @map("user_id")
+  text      String
+  /// VISIBLE (published), HELD (screening wants a look), REMOVED (taken down).
+  status    String   @default("VISIBLE")
+  createdAt DateTime @default(now()) @map("created_at")
+  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([pageId, status, createdAt])
+  @@index([bookId, status])
+  @@index([userId])
+  @@map("page_notes")
+}
+
 model Publisher {
   id                  String   @id @default(cuid())
   name                String
@@ -231,6 +254,7 @@ model Book {
   updatedAt            DateTime           @updatedAt @map("updated_at")
   publisher            Publisher?         @relation(fields: [publisherId], references: [id], onDelete: SetNull)
   creator              User?              @relation("BookCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  pageNotes            PageNote[]
   pages                Page[]
   libraryEntries       LibraryEntry[]
   brain                BookBrain?
@@ -275,6 +299,7 @@ model Page {
   updatedAt             DateTime     @updatedAt @map("updated_at")
   book                  Book         @relation(fields: [bookId], references: [id], onDelete: Cascade)
   checkpoints           Checkpoint[]
+  notes                 PageNote[]
 
   @@unique([bookId, pageNum])
   @@index([bookId, status])

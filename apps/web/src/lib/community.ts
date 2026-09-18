@@ -5,6 +5,7 @@ export interface AuthorProfile {
   name: string;
   handle: string;
   bio: string | null;
+  avatarUrl: string | null;
   memberSince: string;
   acceptsMessages: boolean;
   followers: number;
@@ -16,6 +17,7 @@ export interface MyProfile {
   name: string;
   handle: string | null;
   bio: string | null;
+  avatarUrl?: string | null;
   messagesOpen: boolean;
   communityDisabled: boolean;
   _count: { followers: number; following: number; booksCreated: number };

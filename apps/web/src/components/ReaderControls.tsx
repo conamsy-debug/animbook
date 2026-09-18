@@ -17,6 +17,10 @@ interface Props {
   fullscreen?: boolean;
   onToggleFullscreen?: () => void;
   /** Narrators readers can choose; omit to hide the voice menu. */
+  /** Notes on this page; omit to hide the notes button. */
+  noteCount?: number;
+  notesOpen?: boolean;
+  onToggleNotes?(): void;
   voices?: VoiceOption[];
   voice?: string;
   onVoiceChange?: (voice: string) => void;
@@ -63,6 +67,17 @@ const Icon = {
     <svg viewBox="0 0 24 24" aria-hidden>
       <path d="M4 7h11a4 4 0 0 1 0 8H9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       <path d="m12 12-3 3 3 3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  notes: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path
+        d="M4.5 5.5h15v10h-9l-4.2 3.4a.5.5 0 0 1-.8-.4V15.5h-1Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
     </svg>
   ),
   voice: (
@@ -128,6 +143,9 @@ export function ReaderControls({
   onAspectChange,
   fullscreen = false,
   onToggleFullscreen,
+  noteCount,
+  notesOpen = false,
+  onToggleNotes,
   voices,
   voice = BOOK_VOICE,
   onVoiceChange,
@@ -276,6 +294,19 @@ export function ReaderControls({
             >
               {Icon.auto}
               <span className="chip-label">Auto-turn</span>
+            </button>
+          )}
+          {onToggleNotes && (
+            <button
+              type="button"
+              className={`icon-btn small notes-btn${notesOpen ? " active" : ""}`}
+              onClick={onToggleNotes}
+              aria-pressed={notesOpen}
+              aria-label={noteCount ? `Notes (${noteCount})` : "Notes"}
+              title="Notes from other readers"
+            >
+              {Icon.notes}
+              {noteCount ? <span className="note-count">{noteCount > 9 ? "9+" : noteCount}</span> : null}
             </button>
           )}
           {voices && voices.length > 0 && onVoiceChange && (

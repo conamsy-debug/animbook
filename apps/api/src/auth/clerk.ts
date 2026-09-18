@@ -67,6 +67,7 @@ async function provision(clerkUserId: string): Promise<{ id: string; clerkId: st
   const primary = clerkUser.primaryEmailAddress;
   const email = (primary?.emailAddress ?? `${clerkUserId}@users.animbook.com`).toLowerCase();
   const emailVerified = primary?.verification?.status === "verified";
+  const avatarUrl = clerkUser.imageUrl || null;
   const name =
     clerkUser.fullName?.trim() ||
     clerkUser.username ||
@@ -81,18 +82,18 @@ async function provision(clerkUserId: string): Promise<{ id: string; clerkId: st
       if (emailVerified && !byEmail.clerkId.startsWith("user_")) {
         return prisma.user.update({
           where: { id: byEmail.id },
-          data: { clerkId: clerkUserId },
+          data: { clerkId: clerkUserId, avatarUrl },
           select: { id: true, clerkId: true }
         });
       }
       // Email belongs to a different Clerk account: create with a unique placeholder.
       return prisma.user.create({
-        data: { clerkId: clerkUserId, email: `${clerkUserId}@users.animbook.com`, name },
+        data: { clerkId: clerkUserId, email: `${clerkUserId}@users.animbook.com`, name, avatarUrl },
         select: { id: true, clerkId: true }
       });
     }
     return await prisma.user.create({
-      data: { clerkId: clerkUserId, email, name },
+      data: { clerkId: clerkUserId, email, name, avatarUrl },
       select: { id: true, clerkId: true }
     });
   } catch (err) {
