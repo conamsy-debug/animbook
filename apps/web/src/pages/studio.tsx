@@ -438,6 +438,33 @@ export default function StudioPage() {
     }
   }
 
+  const [workingBulk, setWorkingBulk] = useState<"" | "all-failed">("");
+
+  async function reanimateAllFailed() {
+    if (!projectId) return;
+    const flagged = pages.filter((p) => p.status === "FLAGGED");
+    if (flagged.length === 0) return;
+    const estCredits = flagged.length * 50;
+    if (!window.confirm(
+      `Re-animate ${flagged.length} failed pages? ` +
+      `Estimated ${estCredits.toLocaleString()} Runway credits ` +
+      `(${flagged.length} pages × ~50 credits). The Bull worker will pick them up immediately.`
+    )) return;
+    setWorkingBulk("all-failed");
+    try {
+      const res = await apiFetch<{ queued: number; pages: number[]; jobIds: string[] }>(
+        `/api/studio/projects/${encodeURIComponent(projectId)}/reanimate-failed`,
+        { method: "POST" }
+      );
+      toast(`Queued ${res.queued} page${res.queued === 1 ? "" : "s"} for re-animation`);
+      await refresh(projectId);
+    } catch (err) {
+      toast(`Could not queue re-animation: ${(err as Error).message}`);
+    } finally {
+      setWorkingBulk("");
+    }
+  }
+
   async function publish() {
     if (!projectId) return;
     setBusy(true);
@@ -1135,30 +1162,43 @@ export default function StudioPage() {
                       {approvedCount} of {pages.length} approved. Approve each page, or write a direction note and re-animate it.
                     </p>
                   </div>
-                  {published ? (
-                    <Link href={`/book/${project.book?.slug}`} className="btn primary">
-                      View in library
-                    </Link>
-                  ) : (
-                    <button
-                      type="button"
-                      className="btn primary"
-                      onClick={() => {
-                        if (scheduleMode !== "IMMEDIATE" && scheduleSaved !== scheduleMode) {
-                          toast("Save your release schedule first");
-                          return;
-                        }
-                        if (scheduleMode !== "IMMEDIATE") {
-                          setConfirmPublish(true);
-                          return;
-                        }
-                        void publish();
-                      }}
-                      disabled={busy || approvedCount < pages.length || pages.length === 0}
-                    >
-                      Publish to library
-                    </button>
-                  )}
+                  <div className="review-actions">
+                    {pages.some((p) => p.status === "FLAGGED") ? (
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={workingBulk === "all-failed"}
+                        onClick={() => void reanimateAllFailed()}
+                        title="Re-queue every FLAGGED page so the worker re-runs them with the current prompts."
+                      >
+                        {workingBulk === "all-failed" ? "Re-animating…" : `Re-animate ${pages.filter((p) => p.status === "FLAGGED").length} failed`}
+                      </button>
+                    ) : null}
+                    {published ? (
+                      <Link href={`/book/${project.book?.slug}`} className="btn primary">
+                        View in library
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn primary"
+                        onClick={() => {
+                          if (scheduleMode !== "IMMEDIATE" && scheduleSaved !== scheduleMode) {
+                            toast("Save your release schedule first");
+                            return;
+                          }
+                          if (scheduleMode !== "IMMEDIATE") {
+                            setConfirmPublish(true);
+                            return;
+                          }
+                          void publish();
+                        }}
+                        disabled={busy || approvedCount < pages.length || pages.length === 0}
+                      >
+                        Publish to library
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {project.book?.requiresExpertReview && project.book.expertReviewStatus !== "APPROVED" && !published && (
                   <p className="notice">This book needs an expert review before it can be published ({project.book.expertReviewStatus?.toLowerCase()}).</p>
