@@ -530,7 +530,9 @@ async function runTrailerStage(data: PipelineJobData): Promise<void> {
       progress: 90,
       message: "Stitching the trailer"
     });
-    const { stitchTrailerClips } = await import("./trailer.js");
+    const { stitchTrailerClips, applyTrailerWatermark } = await import("./trailer.js");
+    const { readFile } = await import("node:fs/promises");
+    const { writeFileSync } = await import("node:fs");
     const listFile = `/tmp/trailer-${share.id}.txt`;
     const workDir = `/tmp/trailer-${share.id}`;
     const { mkdirSync } = await import("node:fs");
@@ -540,17 +542,33 @@ async function runTrailerStage(data: PipelineJobData): Promise<void> {
       const localPath = `${workDir}/c${i + 1}.mp4`;
       const r = await fetch(clipUrls[i]!);
       const buf = Buffer.from(await r.arrayBuffer());
-      const { writeFileSync } = await import("node:fs");
       writeFileSync(localPath, buf);
       localPaths.push(localPath);
     }
     const listContents = localPaths.map((p) => `file '${p}'`).join("\n");
-    const { writeFileSync } = await import("node:fs");
     writeFileSync(listFile, listContents);
     const outFile = `${workDir}/trailer.mp4`;
     await stitchTrailerClips(listFile, outFile);
-    const { readFile } = await import("node:fs/promises");
-    const trailerBuf = await readFile(outFile);
+
+    // Burn in the AnimBook wordmark before upload so the trailer is
+    // pre-branded wherever it's posted (no second-pass editing needed).
+    await emit(data.projectId, {
+      stage: "TRAILER_GENERATION",
+      status: "running",
+      progress: 95,
+      message: "Adding the AnimBook wordmark"
+    });
+    const watermarkedFile = `${workDir}/trailer-watermarked.mp4`;
+    try {
+      await applyTrailerWatermark(outFile, watermarkedFile);
+    } catch (watermarkErr) {
+      // Watermarking is non-essential — never fail the whole trailer because
+      // of a missing asset or a transient ffmpeg hiccup. Log and ship the
+      // un-watermarked file.
+      console.warn(`[trailer] watermark failed (${(watermarkErr as Error).message.slice(0, 200)}), shipping without watermark`);
+      writeFileSync(watermarkedFile, await readFile(outFile));
+    }
+    const trailerBuf = await readFile(watermarkedFile);
     const { uploadAsset } = await import("./cloudflare.js");
     const stored = await uploadAsset({
       key: `trailer/${share.book.id}/${share.id}.mp4`,

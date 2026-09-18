@@ -6,6 +6,7 @@
 import { spawn } from "node:child_process";
 import { readFile, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 
 const SCENE_SCAFFOLD = {
   scene1: "Opening cinematic slow dolly reveal.",
@@ -96,4 +97,77 @@ export async function stitchTrailerClips(listFile: string, outFile: string): Pro
   // Clean up the list file — it's a per-run artifact, no value keeping.
   await unlink(listFile).catch(() => {});
   return buf.byteLength;
+}
+
+/**
+ * Burns the AnimBook wordmark into every frame of an MP4 trailer using
+ * ffmpeg's overlay filter. Position defaults to bottom-right with 32px
+ * padding and ~78% opacity so the watermark is legible without competing
+ * with the video content. Re-encodes with H.264 at the original CRF so the
+ * output is small + player-friendly.
+ */
+const TRAILER_WATERMARK_PATHS = [
+  // Compiled dist (railway build emits .js but assets stay alongside source)
+  resolve(process.cwd(), "src", "assets", "trailer-watermark.png"),
+  // Railway runs the API from the repo root; the asset can sit beside the source
+  resolve(process.cwd(), "apps", "api", "src", "assets", "trailer-watermark.png"),
+  // tsx dev: source-relative to this module
+  resolve(dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, "$1")), "assets", "trailer-watermark.png"),
+  // Built dist fallback — when tsc emits src/assets/trailer-watermark.png
+  // to dist/src/assets/… we still resolve via src above, but in case the
+  // running CWD differs we try one more relative location.
+  resolve(process.cwd(), "dist", "src", "assets", "trailer-watermark.png")
+];
+
+export async function findWatermarkPath(): Promise<string> {
+  for (const p of TRAILER_WATERMARK_PATHS) {
+    if (existsSync(p)) return p;
+  }
+  throw new Error("trailer-watermark.png not found in any known location");
+}
+
+export async function applyTrailerWatermark(
+  inputMp4: string,
+  outputMp4: string,
+  options: { paddingPx?: number; opacity?: number } = {}
+): Promise<{ outputBytes: number; watermarkPath: string }> {
+  const { paddingPx = 32, opacity = 0.78 } = options;
+  const watermarkPath = await findWatermarkPath();
+  // Scale the watermark to ~22% of the frame width so it's legible on
+  // mobile (375px) without dominating the shot, and re-render it with the
+  // requested opacity (ffmpeg's overlay filter does not fade logos on
+  // its own without a transparency PNG, so we pre-multiply it).
+  const filter = [
+    // Scale the watermark to 22% width, apply opacity, push to bottom-right
+    `[1:v]format=rgba,scale=iw*0.22:-1,colorchannelmixer=aa=${opacity}[wm]`,
+    `[0:v][wm]overlay=W-w-${paddingPx}:H-h-${paddingPx}:format=auto[v]`,
+    `[v]format=yuv420p[vout]`
+  ].join(";");
+  const args = [
+    "-y",
+    "-i", inputMp4,
+    "-i", watermarkPath,
+    "-filter_complex", filter,
+    "-map", "[vout]",
+    "-map", "0:a?",
+    "-c:v", "libx264",
+    "-preset", "veryfast",
+    "-crf", "20",
+    "-c:a", "copy",
+    "-movflags", "+faststart",
+    "-shortest",
+    outputMp4
+  ];
+  await new Promise<void>((resolveP, rejectP) => {
+    const child = spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
+    let stderr = "";
+    child.stderr.on("data", (c: Buffer | string) => { stderr += c.toString("utf8"); });
+    child.on("error", rejectP);
+    child.on("close", (code) => {
+      if (code === 0) resolveP();
+      else rejectP(new Error(`ffmpeg watermark ${code}: ${stderr.slice(-600)}`));
+    });
+  });
+  const buf = await readFile(outputMp4);
+  return { outputBytes: buf.byteLength, watermarkPath };
 }
