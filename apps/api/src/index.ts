@@ -46,6 +46,7 @@ import community from "./modules/community/routes.js";
 import notes from "./modules/notes/routes.js";
 import circles from "./modules/circles/routes.js";
 import messages from "./modules/messages/routes.js";
+import share, { sharePublicRouter } from "./modules/share/routes.js";
 import docs from "./modules/docs/routes.js";
 import { startPipelineWorker, startPipelineEvents } from "./services/pipeline.js";
 
@@ -101,6 +102,8 @@ app.use("/api/community", community);
 app.use("/api/notes", notes);
 app.use("/api/circles", circles);
 app.use("/api/messages", messages);
+app.use("/api/share", sharePublicRouter);
+app.use("/api", share);
 app.use("/api/worlds", worlds);
 app.use("/api/stage", stage);
 app.use("/api/signal", signal);

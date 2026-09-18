@@ -463,6 +463,92 @@ export default function StudioPage() {
     d.setSeconds(0, 0);
     return d.toISOString().slice(0, 16);
   });
+
+  // Marketing share state — author side of /share/<token> links.
+  type ShareRow = {
+    id: string;
+    token: string;
+    hook: string;
+    trailerUrl: string | null;
+    thumbnailUrl: string | null;
+    status: "PENDING" | "GENERATING" | "READY" | "FAILED" | "REVOKED";
+    failureReason: string | null;
+    clickCount: number;
+    createdAt: string;
+    url: string;
+  };
+  const [shares, setShares] = useState<ShareRow[]>([]);
+  const [shareHook, setShareHook] = useState("");
+  const [shareBusy, setShareBusy] = useState(false);
+  const [sharesBusy, setSharesBusy] = useState(false);
+
+  async function loadShares(bookId: string) {
+    setSharesBusy(true);
+    try {
+      const res = await apiFetch<{ shares: ShareRow[] }>(`/api/books/${encodeURIComponent(bookId)}/shares`);
+      setShares(res.shares);
+    } catch {
+      // empty state is fine; log only on dev to avoid noise
+    } finally {
+      setSharesBusy(false);
+    }
+  }
+
+  async function createShare() {
+    if (!project?.book) return;
+    const trimmed = shareHook.trim();
+    if (trimmed.length < 10) {
+      toast("Hook needs at least 10 characters");
+      return;
+    }
+    setShareBusy(true);
+    try {
+      await apiFetch(`/api/books/${encodeURIComponent(project.book.id)}/share`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ hook: trimmed })
+      });
+      setShareHook("");
+      toast("Trailer queued — it'll show up here in a few minutes");
+      await loadShares(project.book.id);
+    } catch (err) {
+      toast(`Could not create share: ${(err as Error).message}`);
+    } finally {
+      setShareBusy(false);
+    }
+  }
+
+  async function revokeShare(token: string) {
+    if (!project?.book) return;
+    try {
+      await apiFetch(`/api/books/${encodeURIComponent(project.book.id)}/share/${encodeURIComponent(token)}`, {
+        method: "DELETE"
+      });
+      await loadShares(project.book.id);
+      toast("Share revoked");
+    } catch (err) {
+      toast(`Could not revoke: ${(err as Error).message}`);
+    }
+  }
+
+  function copyShareUrl(url: string) {
+    const full = `${window.location.origin}${url}`;
+    void navigator.clipboard?.writeText(full);
+    toast("Link copied");
+  }
+
+  // Refresh shares list while the user is in the Review view.
+  useEffect(() => {
+    if (!project?.book) return;
+    if (view !== "REVIEW") return;
+    void loadShares(project.book.id);
+    const pending = shares.some((s) => s.status === "PENDING" || s.status === "GENERATING");
+    if (!pending) return;
+    const id = setInterval(() => { void loadShares(project.book!.id); }, 8000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, project?.book?.id, shares.some((s) => s.status === "PENDING" || s.status === "GENERATING")]);
+
   const [scheduleDailyTaskPrompt, setScheduleDailyTaskPrompt] = useState("");
   const [scheduleBusy, setScheduleBusy] = useState(false);
   const [scheduleSaved, setScheduleSaved] = useState<"IMMEDIATE" | "TIME" | "TASK" | null>(null);
@@ -974,6 +1060,71 @@ export default function StudioPage() {
                       {scheduleBusy ? "Saving…" : scheduleSaved === scheduleMode ? "Schedule saved ✓" : "Save schedule"}
                     </button>
                   </div>
+                </div>
+
+                <div className="shares-panel">
+                  <h3>Trailer &amp; share link</h3>
+                  <p className="muted small">
+                    Write a one-paragraph hook (max 600 chars) and we&apos;ll generate a 30-second trailer — three cinematic clips stitched together. The share
+                    link below is what you paste in socials; it auto-unfurls as a branded preview with cover art and your hook.
+                  </p>
+                  <div className="field">
+                    <textarea
+                      rows={4}
+                      maxLength={600}
+                      value={shareHook}
+                      onChange={(e) => setShareHook(e.target.value)}
+                      placeholder="e.g. “What if you could see the next ten years of your life before you lived them? A spark of insight, a single listening moment, an invitation to hope — this is the book that hands you the question.”"
+                    />
+                    <p className="hint">{shareHook.trim().length}/600 characters</p>
+                  </div>
+                  <div className="panel-actions">
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => void createShare()}
+                      disabled={shareBusy || shareHook.trim().length < 10}
+                    >
+                      {shareBusy ? "Generating…" : "Generate trailer"}
+                    </button>
+                  </div>
+
+                  {sharesBusy && shares.length === 0 ? (
+                    <p className="hint">Loading shares…</p>
+                  ) : shares.length === 0 ? (
+                    <p className="hint">No shares yet. Generate one to grab a link you can drop into social bios.</p>
+                  ) : (
+                    <div className="shares-list">
+                      {shares.map((s) => {
+                        const fullUrl = typeof window !== "undefined" ? `${window.location.origin}${s.url}` : s.url;
+                        return (
+                          <div key={s.id} className="share-list-row">
+                            <div className="token-cell">
+                              <span className="token">/share/{s.token}</span>
+                              <span className="meta">
+                                {new Date(s.createdAt).toLocaleDateString()} · {s.clickCount} click{s.clickCount === 1 ? "" : "s"}
+                                {s.status === "FAILED" && s.failureReason ? ` — ${s.failureReason.slice(0, 80)}` : ""}
+                              </span>
+                            </div>
+                            <span className={`badge ${s.status.toLowerCase()}`}>{s.status}</span>
+                            <a href={s.trailerUrl ?? fullUrl} target="_blank" rel="noreferrer" download={s.trailerUrl ? "animbook-trailer.mp4" : undefined}>
+                              {s.trailerUrl ? "Download .mp4" : "Open"}
+                            </a>
+                            <div style={{ display: "flex", gap: "0.4rem" }}>
+                              <button type="button" className="copy" onClick={() => copyShareUrl(s.url)}>
+                                Copy link
+                              </button>
+                              {s.status !== "REVOKED" ? (
+                                <button type="button" className="copy" onClick={() => void revokeShare(s.token)}>
+                                  Revoke
+                                </button>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <div className="review-head">

@@ -4,11 +4,12 @@ import { appEnv } from "../config/env.js";
 import { prisma } from "../db.js";
 import { emitPipelineEvent, type PipelineEvent } from "../studio/events.js";
 import { generateBookBrain, type BookBrain } from "./bookBrain.js";
-import { generateClip, generateStill } from "./runway.js";
+import { generateClip, generateStill, animateStill } from "./runway.js";
 import { generateNarration } from "./elevenlabs.js";
 import { mirrorToR2, uploadAsset } from "./cloudflare.js";
 import { safePrompt, stylePrompt, type NamedCharacter } from "./promptSafety.js";
 import { defaultVoiceIdFor, findVoice } from "../config/voices.js";
+import { splitHookIntoScenes } from "./trailer.js";
 
 const QUEUE_NAME = "animbook-pipeline";
 
@@ -33,11 +34,14 @@ export type ProductionMode = "full" | "illustrated";
 
 export interface PipelineJobData {
   projectId: string;
-  triggerStage: "BOOK_BRAIN_ANALYSIS" | "VISUAL_STYLE" | "PROMPT_GENERATION" | "VIDEO_GENERATION" | "AUDIO_PRODUCTION";
+  triggerStage: "BOOK_BRAIN_ANALYSIS" | "VISUAL_STYLE" | "PROMPT_GENERATION" | "VIDEO_GENERATION" | "AUDIO_PRODUCTION" | "TRAILER_GENERATION";
   /** Regenerate just this page (with its direction note). */
   pageId?: string;
   /** "full": animate every page. "illustrated": paint every page, animate key scenes. */
   mode?: ProductionMode;
+  /** Only used by TRAILER_GENERATION — identifies which share to write the
+   *  stitched trailer back into. */
+  shareId?: string;
 }
 
 export interface ManuscriptPayload {
@@ -141,6 +145,8 @@ async function runPipeline(data: PipelineJobData): Promise<void> {
       return runAnalysis(data);
     case "AUDIO_PRODUCTION":
       return runAudioOnly(data);
+    case "TRAILER_GENERATION":
+      return runTrailerStage(data);
     default:
       return data.pageId ? runPageRegeneration(data) : runGeneration(data);
   }
@@ -437,6 +443,119 @@ async function runAudioStage(projectId: string, limit?: number): Promise<void> {
       where: { id: page.id },
       data: { audioUrl: result.audioUrl, vttUrl: result.vttUrl }
     });
+  }
+}
+
+/**
+ * Trailer pipeline: turn a BookShare hook into a 3-clip Runway trailer.
+ * 1) fetch the share row + project + book
+ * 2) split the hook into 3 scene prompts
+ * 3) generateStill + animateStill per scene
+ * 4) ffmpeg concat the 3 clips into a single ~30s MP4
+ * 5) upload the MP4 to R2, write back to BookShare.trailerUrl + status=READY
+ */
+async function runTrailerStage(data: PipelineJobData): Promise<void> {
+  if (!data.shareId) throw new Error("TRAILER_GENERATION needs shareId");
+  const share = await prisma.bookShare.findUnique({
+    where: { id: data.shareId },
+    include: { book: { select: { id: true, vertical: true, title: true, author: true, slug: true } } }
+  });
+  if (!share?.book) throw new Error(`Share ${data.shareId} not found`);
+  await prisma.bookShare.update({
+    where: { id: share.id },
+    data: { status: "GENERATING", failureReason: null }
+  });
+  await emit(data.projectId, {
+    stage: "TRAILER_GENERATION",
+    status: "running",
+    progress: 5,
+    message: "Splitting the hook into scenes"
+  });
+
+  const scenes = splitHookIntoScenes(share.hook);
+  const styleBase = "Cinematic book-trailer still, vertical-friendly 16:9, painterly style consistent with a quality picture book.";
+
+  // Each scene = 1 still + 1 10s clip.
+  const clipUrls: string[] = [];
+  try {
+    for (let i = 0; i < 3; i++) {
+      const promptKey = `scene${i + 1}` as "scene1" | "scene2" | "scene3";
+      const scenePrompt = scenes[promptKey];
+      await emit(data.projectId, {
+        stage: "TRAILER_GENERATION",
+        status: "running",
+        progress: 10 + i * 25,
+        message: `Scene ${i + 1}/3 — generating still`
+      });
+      const stillUrl = await generateStill(`${styleBase} ${scenePrompt}`, "1280:720");
+      // animateStill uploads the clip via mirrorToR2 internally; verify by
+      // checking the returned URL is hosted on our CDN.
+      const clipUrl = await animateStill(stillUrl, `Subtle cinematic motion: ${scenePrompt}`, 10, "1280:720");
+      clipUrls.push(clipUrl);
+    }
+
+    // Stitch the 3 clips. Pull each one into a temp file, concat, upload.
+    await emit(data.projectId, {
+      stage: "TRAILER_GENERATION",
+      status: "running",
+      progress: 90,
+      message: "Stitching the trailer"
+    });
+    const { stitchTrailerClips } = await import("./trailer.js");
+    const listFile = `/tmp/trailer-${share.id}.txt`;
+    const workDir = `/tmp/trailer-${share.id}`;
+    const { mkdirSync } = await import("node:fs");
+    mkdirSync(workDir, { recursive: true });
+    const localPaths: string[] = [];
+    for (let i = 0; i < clipUrls.length; i++) {
+      const localPath = `${workDir}/c${i + 1}.mp4`;
+      const r = await fetch(clipUrls[i]!);
+      const buf = Buffer.from(await r.arrayBuffer());
+      const { writeFileSync } = await import("node:fs");
+      writeFileSync(localPath, buf);
+      localPaths.push(localPath);
+    }
+    const listContents = localPaths.map((p) => `file '${p}'`).join("\n");
+    const { writeFileSync } = await import("node:fs");
+    writeFileSync(listFile, listContents);
+    const outFile = `${workDir}/trailer.mp4`;
+    await stitchTrailerClips(listFile, outFile);
+    const { readFile } = await import("node:fs/promises");
+    const trailerBuf = await readFile(outFile);
+    const { uploadAsset } = await import("./cloudflare.js");
+    const stored = await uploadAsset({
+      key: `trailer/${share.book.id}/${share.id}.mp4`,
+      body: trailerBuf,
+      contentType: "video/mp4"
+    });
+
+    await prisma.bookShare.update({
+      where: { id: share.id },
+      data: { trailerUrl: stored.url, status: "READY", failureReason: null }
+    });
+    await emit(data.projectId, {
+      stage: "TRAILER_GENERATION",
+      status: "succeeded",
+      progress: 100,
+      message: "Trailer ready"
+    });
+    // Best-effort cleanup of temp files.
+    const { rmSync } = await import("node:fs");
+    rmSync(workDir, { recursive: true, force: true });
+  } catch (err) {
+    const reason = (err as Error).message.slice(0, 500);
+    console.warn(`[trailer] share ${share.id} failed: ${reason}`);
+    await prisma.bookShare.update({
+      where: { id: share.id },
+      data: { status: "FAILED", failureReason: reason }
+    });
+    await emit(data.projectId, {
+      stage: "TRAILER_GENERATION",
+      status: "failed",
+      progress: 0,
+      message: `Trailer failed: ${reason}`
+    });
+    throw err;
   }
 }
 

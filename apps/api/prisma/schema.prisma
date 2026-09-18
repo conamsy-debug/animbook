@@ -79,6 +79,15 @@ enum ReadingMode {
   READ
 }
 
+/// Trailer + marketing share link lifecycle.
+enum ShareStatus {
+  PENDING
+  GENERATING
+  READY
+  FAILED
+  REVOKED
+}
+
 enum InstitutionType {
   SCHOOL
   UNIVERSITY
@@ -110,6 +119,7 @@ enum PipelineStage {
   ASSEMBLY
   METADATA_UPLOAD
   PUBLISH
+  TRAILER_GENERATION
 }
 
 enum JobStatus {
@@ -403,6 +413,7 @@ model Book {
   liveSessions         LiveSession[]
   worldMembership      WorldMember?
   archiveProject       ArchiveProject?
+  shares               BookShare[]
 
   @@index([vertical, subcategory, status])
   @@index([vertical, status])
@@ -1067,6 +1078,48 @@ model CompanionSession {
   @@index([linkId, startedAt])
   @@index([userId, startedAt])
   @@map("companion_sessions")
+}
+
+/// Marketing share link for a book. The token resolves at /share/<token>
+/// to a public trailer-and-CTA landing page; authors drop the URL in
+/// social bios and posts. Each share carries its own click counter so
+/// authors can rotate tokens for re-launches without losing history.
+model BookShare {
+  id            String      @id @default(cuid())
+  bookId        String      @map("book_id")
+  /// Short opaque token (8 lowercase alphanumerics). Unique across the app.
+  token         String      @unique
+  /// Author's own ≤600-char hook used as the trailer's text + title-card copy
+  /// + og:description for /book/<slug> + /share/<token> previews.
+  hook          String      @db.Text
+  /// Stitched MP4 trailer (3 × 10s clips). Set when status flips to READY.
+  trailerUrl    String?     @map("trailer_url")
+  /// Cover-with-title overlay. Used as og:image and the share landing poster.
+  thumbnailUrl  String?     @map("thumbnail_url")
+  status        ShareStatus @default(PENDING)
+  /// Last failure message from Runway/ffpmeg so authors can self-diagnose.
+  failureReason String?     @map("failure_reason") @db.Text
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  book          Book        @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  clicks        ShareClick[]
+
+  @@index([bookId])
+  @@index([status])
+  @@map("book_shares")
+}
+
+/// Every GET /share/<token> hits the row once. Keeps a row-level history
+/// so an author can see traffic spikes per token per day.
+model ShareClick {
+  id       String   @id @default(cuid())
+  shareId  String   @map("share_id")
+  referer  String?  @db.Text
+  at       DateTime @default(now()) @map("at")
+  share    BookShare @relation(fields: [shareId], references: [id], onDelete: Cascade)
+
+  @@index([shareId, at])
+  @@map("share_clicks")
 }
 
 
