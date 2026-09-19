@@ -47,8 +47,69 @@ test("generateShareToken: 8 lowercase alphanumerics, deterministic-style randomn
   const b = tModule.generateShareToken();
   assert.equal(a.length, 8);
   assert.match(a, /^[a-z0-9]{8}$/);
+  // Two tokens should differ with overwhelming probability on a 36^8
+  // space; keep this loose to avoid CI flakes.
   assert.notEqual(a, b);
-  // 1000 tokens — none collide (codespace is 36^8 ≈ 2.8 trillion)
+});
+
+/* --------------------------------------------------------------------- *
+ * renderCoverOverlayPng — feeds a real local PNG through ffmpeg and
+ * asserts the output is a valid PNG. Skipped on hosts without ffmpeg.
+ * The cover-with-title banner is rendered by the drawtext filter; this
+ * test pins the contract: same input → non-zero PNG → file magic 89 50
+ * 4E 47.
+ * --------------------------------------------------------------------- */
+
+function makeCoverPng(file, label) {
+  // Synthesise a tiny "valid PNG" via ffmpeg — keeps the test free of
+  // binary fixtures in the repo. 160×240 in either brand-gold (warm) or
+  // brand-green (cool) so the cover is recognisable as a stand-in.
+  const synth = spawnSync("ffmpeg", [
+    "-y",
+    "-f", "lavfi",
+    "-i", `color=c=0x${label === "warm" ? "C49A1C" : "1A6B3C"}:s=160x240`,
+    "-frames:v", "1",
+    file
+  ], { stdio: ["ignore", "ignore", "pipe"] });
+  if (synth.status !== 0) {
+    throw new Error(`ffmpeg synth failed: ${synth.stderr?.toString().slice(-200) ?? ""}`);
+  }
+}
+
+test("renderCoverOverlayPng: emits a valid PNG with the title overlay (skipped without ffmpeg)", async () => {
+  const which = spawnSync("ffmpeg", ["-version"], { stdio: "ignore" });
+  if (which.status !== 0) return; // host without ffmpeg
+  const dir = mkdtempSync(join(tmpdir(), "animbook-thumb-test-"));
+  try {
+    const coverFile = join(dir, "cover.png");
+    makeCoverPng(coverFile, "warm");
+    const { pngBytes } = await tModule.renderCoverOverlayPng(coverFile, "The Hidden Mountain");
+    assert.ok(pngBytes.byteLength > 1024, `expected non-trivial PNG, got ${pngBytes.byteLength} bytes`);
+    // PNG file magic: 89 50 4E 47 0D 0A 1A 0A
+    assert.deepEqual(Array.from(pngBytes.subarray(0, 8)), [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("renderCoverOverlayPng: handles drawtext-special characters in the title without breaking ffmpeg", async () => {
+  const which = spawnSync("ffmpeg", ["-version"], { stdio: "ignore" });
+  if (which.status !== 0) return;
+  const dir = mkdtempSync(join(tmpdir(), "animbook-thumb-test-"));
+  try {
+    const coverFile = join(dir, "cover.png");
+    makeCoverPng(coverFile, "cool");
+    // Colons, backslashes, single quotes, and percent signs are the four
+    // characters drawtext treats specially. Real book titles
+    // occasionally contain colons ("X: Y") so this is a real-world case.
+    const { pngBytes } = await tModule.renderCoverOverlayPng(coverFile, "Time's Arrow: 50% Off \\Now");
+    assert.ok(pngBytes.byteLength > 1024);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("generateShareToken: 1000 tokens do not collide on 36^8 codespace", () => {
   const set = new Set();
   for (let i = 0; i < 1000; i++) set.add(tModule.generateShareToken());
   assert.equal(set.size, 1000);

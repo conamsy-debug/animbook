@@ -607,9 +607,40 @@ async function runTrailerStage(data: PipelineJobData): Promise<void> {
       contentType: "video/mp4"
     });
 
+    // Cover-with-title-overlay thumbnail. Used as `og:image` and the
+    // share landing poster so social previews show the book title even
+    // on platforms that strip video playback. Best-effort: a missing
+    // cover URL or ffmpeg failure will leave thumbnailUrl null and the
+    // public share endpoint falls back to the bare coverUrl.
+    let thumbnailUrl: string | null = null;
+    try {
+      const cover = await prisma.book.findUnique({
+        where: { id: share.book.id },
+        select: { coverUrl: true, title: true }
+      });
+      if (cover?.coverUrl) {
+        const { renderCoverOverlayPng } = await import("./trailer.js");
+        const { pngBytes } = await renderCoverOverlayPng(cover.coverUrl, cover.title);
+        const thumb = await uploadAsset({
+          key: `share/${share.book.id}/${share.id}-thumb.png`,
+          body: pngBytes,
+          contentType: "image/png",
+          cacheControl: "public, max-age=86400"
+        });
+        thumbnailUrl = thumb.url;
+      }
+    } catch (thumbErr) {
+      console.warn(`[trailer] thumbnail failed (${(thumbErr as Error).message.slice(0, 200)}), using bare coverUrl`);
+    }
+
     await prisma.bookShare.update({
       where: { id: share.id },
-      data: { trailerUrl: stored.url, status: "READY", failureReason: null }
+      data: {
+        trailerUrl: stored.url,
+        thumbnailUrl: thumbnailUrl ?? undefined,
+        status: "READY",
+        failureReason: null
+      }
     });
     await emit(data.projectId, {
       stage: "TRAILER_GENERATION",
