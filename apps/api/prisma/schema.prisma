@@ -219,7 +219,25 @@ model User {
   voiceStatus              VoiceStatus           @default(NONE) @map("voice_status")
   /// R2 URL of the audio samples uploaded. Stored so authors can replace
   /// without losing the consent trail, and ops can audit or re-train.
+  /// For single-file uploads (legacy) this is the only URL. For multi-file
+  /// uploads it's the first sample; the full list lives in voiceSampleUrls.
   voiceSampleUrl           String?               @map("voice_sample_url")
+  /// Array of R2 URLs for every individual sample uploaded during the most
+  /// recent clone. Null for users who only ever uploaded a single file
+  /// before this column existed; legacy rows stay readable via the
+  /// single voiceSampleUrl field.
+  voiceSampleUrls          Json?                 @map("voice_sample_urls")
+  /// Heuristic quality score 0-100 for the latest clone. Weighted sum of
+  /// sample count, total duration, audio format / bitrate. Higher = better
+  /// trained clone. Null until computed by services/voiceQuality.
+  voiceQualityScore        Int?                  @map("voice_quality_score")
+  /// Per-component breakdown so the UI can show "samples: 4/5 · duration:
+  /// 2:13 · format: mp3 192kbps" alongside the headline score.
+  voiceQualityDetails      Json?                 @map("voice_quality_details")
+  /// When voiceQualityScore was last computed. The score is stale once the
+  /// underlying samples change (next clone / delete), so the UI can show a
+  /// "recompute" hint if this is older than the latest sample upload.
+  voiceQualityComputedAt   DateTime?             @map("voice_quality_computed_at")
   /// When the author confirmed they own the rights to the audio samples.
   /// Audited by IP and timestamp per voice-clone legal practice.
   voiceConsentAt           DateTime?             @map("voice_consent_at")
