@@ -42,6 +42,104 @@ const PROVIDER_LABEL: Record<string, string> = {
   ELEVENLABS: "ElevenLabs"
 };
 
+/* --------------------------------------------------------------------- *
+ * DailySpendChart — pure-SVG bar chart for the last-N-days spend.
+ *
+ * No external chart library: ~80 lines of inline SVG. Designed for a
+ * 320-px mobile column, scales gracefully on desktop. Each bar's height
+ * is linear in that day's totalUsd scaled to the max in the window. The
+ * rightmost bar (today) is highlighted in brand gold (#C49A1C); past days
+ * are a muted grey. Hover/focus on a bar surfaces the exact day + amount
+ * as a tooltip rendered above the bar.
+ *
+ * Data is an array of { date: "YYYY-MM-DD", totalUsd: number, events }.
+ * Empty / null days aren't represented (the array is already compressed).
+ * --------------------------------------------------------------------- */
+
+const CHART_HEIGHT = 96;
+const CHART_BAR_GAP = 4;
+const CHART_BAR_MIN_WIDTH = 6;
+const CHART_TOP_PAD = 24; // room for the tooltip
+const CHART_LABEL_PAD = 22; // room for day-of-week labels
+
+function formatShortDate(iso: string): string {
+  // "2026-09-19" → "Sep 19" — works in en-US, falls back to en locale default
+  const d = new Date(iso + "T00:00:00Z");
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+function formatShortDay(iso: string): string {
+  // "2026-09-19" → "Sat" — single-letter-ish weekday for the x-axis.
+  const d = new Date(iso + "T00:00:00Z");
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
+}
+
+function DailySpendChart({ data }: { data: Array<{ date: string; totalUsd: number; events: number }> }) {
+  const max = Math.max(...data.map((d) => d.totalUsd), 0.01);
+  // Choose width: cap at 30 days shown (matches the API window). If the
+  // data has more than 14 days, drop the labels (just bars) so the chart
+  // stays readable on a 320px mobile column.
+  const showLabels = data.length <= 14;
+  // Total bars * bar width + (total - 1) gaps + side padding. We let the
+  // SVG sit at 100% width via viewBox and preserveAspectRatio so it scales.
+  const barWidth = Math.max(CHART_BAR_MIN_WIDTH, CHART_BAR_MIN_WIDTH); // fixed-width bars
+  const innerWidth = data.length * barWidth + Math.max(0, data.length - 1) * CHART_BAR_GAP;
+  const width = innerWidth + 8; // 4px padding each side
+  const innerHeight = CHART_HEIGHT - CHART_LABEL_PAD;
+  const todayIso = new Date().toISOString().slice(0, 10);
+  return (
+    <div style={{ width: "100%", overflowX: "auto" }}>
+      <svg
+        viewBox={`0 0 ${width} ${CHART_HEIGHT}`}
+        width={width}
+        height={CHART_HEIGHT}
+        role="img"
+        aria-label="Daily spend over the last 30 days"
+        style={{ display: "block", maxWidth: "100%" }}
+      >
+        {data.map((d, i) => {
+          const barH = Math.max(2, Math.round((d.totalUsd / max) * innerHeight));
+          const x = 4 + i * (barWidth + CHART_BAR_GAP);
+          const y = CHART_TOP_PAD + (innerHeight - barH);
+          const isToday = d.date === todayIso;
+          return (
+            <g key={d.date}>
+              <rect
+                x={x}
+                y={y}
+                width={barWidth}
+                height={barH}
+                rx={2}
+                fill={isToday ? "#C49A1C" : d.totalUsd > 0 ? "#56738A" : "#E5E7EB"}
+                opacity={d.totalUsd > 0 ? 0.92 : 0.35}
+              >
+                <title>{`${formatShortDate(d.date)}: $${d.totalUsd.toFixed(2)} (${d.events} events)`}</title>
+              </rect>
+              {showLabels && (
+                <text
+                  x={x + barWidth / 2}
+                  y={CHART_HEIGHT - 4}
+                  fontSize={9}
+                  fontFamily="DM Mono, monospace"
+                  fill="#6B7280"
+                  textAnchor="middle"
+                >
+                  {formatShortDay(d.date).slice(0, 1)}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+      <p className="muted" style={{ fontSize: 11, marginTop: 4, marginBottom: 0 }}>
+        Today ({formatShortDate(todayIso)}) highlighted in gold. Hover a bar for the exact amount.
+      </p>
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -298,6 +396,12 @@ export default function ProfilePage() {
                         </li>
                       ))}
                     </ul>
+                  </div>
+                )}
+                {usage.byDay.length > 1 && (
+                  <div style={{ marginTop: 16 }}>
+                    <p className="muted" style={{ marginBottom: 6, fontSize: 13 }}>Daily spend</p>
+                    <DailySpendChart data={usage.byDay} />
                   </div>
                 )}
                 {usage.byBook.length > 0 && (
