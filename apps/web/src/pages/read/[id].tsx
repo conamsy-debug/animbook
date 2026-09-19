@@ -21,6 +21,7 @@ import { stopSpeaking } from "@/lib/speech";
 import { useNarration } from "@/lib/useNarration";
 import { readStoredSpeed, persistSpeed, type Speed } from "@/lib/speed";
 import { pickPrefetchLinks } from "@/lib/readerPlaybackPrefetch.mjs";
+import { useReaderGestures } from "@/lib/useReaderGestures";
 
 /** Shape produced by pickPrefetchLinks — duplicated here because the
  *  helper is .mjs (plain ES module) and TS can't infer JSDoc types
@@ -253,6 +254,33 @@ export default function ReaderPage() {
     persistSpeed(next);
   };
 
+  // Loop-seam crossfade on the page video. Default ON (the deferred
+  // shipping note said "ship only if hard loop looks bad" — it did, and
+  // the keyframes landed in 8a93621). Toggle persists per-browser so
+  // a reader who finds the dip distracting can switch back to hard cut
+  // once and forget about it.
+  const [loopFade, setLoopFade] = useState(true);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stored = window.localStorage.getItem("animbook:loopFade");
+      if (stored === "0") setLoopFade(false);
+    } catch {
+      /* storage unavailable */
+    }
+  }, []);
+  const toggleLoopFade = () => {
+    setLoopFade((cur) => {
+      const next = !cur;
+      try {
+        window.localStorage.setItem("animbook:loopFade", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
   const narrationRate =
     (dreamActive ? (dreamProfile?.narrationSpeed ?? 0.7) : (memory?.narrationSpeed ?? 1)) *
     (bedtime && book?.vertical === "KIDS" ? 0.78 : 1) *
@@ -346,6 +374,16 @@ export default function ReaderPage() {
   // Margin notes from other readers.
   const [notesOpen, setNotesOpen] = useState(false);
   const [noteCounts, setNoteCounts] = useState<Record<string, number>>({});
+  // Mobile-first reader gestures: tap left = prev, tap right = next,
+  // horizontal swipe = flip. Disabled while a modal is open so notes /
+  // translation / oracle / checkpoint all stay interactive. The hook
+  // lives in `lib/useReaderGestures.ts` so unit tests can pin the rules
+  // without spinning up jsdom.
+  useReaderGestures(readerRef, {
+    onPrev: flipPrev,
+    onNext: flipNext,
+    disabled: fullscreen || dreamActive || oracleOpen || notesOpen || checkpointOpen || translationWord !== null
+  });
   useEffect(() => {
     if (!book?.id) return;
     let cancelled = false;
@@ -555,6 +593,7 @@ export default function ReaderPage() {
             aspect={aspect}
             videoFrameRef={videoFrameRef}
             playbackRate={speed}
+            loopFade={loopFade}
             fullscreenOverlay={
               <FullscreenOverlay
                 active={frameFullscreen}
@@ -594,6 +633,8 @@ export default function ReaderPage() {
             onVoiceNotice={(m) => toast(m)}
             speed={speed}
             onSpeedChange={changeSpeed}
+            loopFade={loopFade}
+            onToggleLoopFade={toggleLoopFade}
           />
         </ErrorBoundary>
         <AchievementToasts queue={achievements} onConsumed={(idx) => setAchievements((prev) => prev.filter((_, i) => i !== idx))} />

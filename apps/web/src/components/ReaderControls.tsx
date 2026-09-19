@@ -29,6 +29,13 @@ interface Props {
   /** Reader's chosen playback rate. Controls both video and narration. */
   speed?: Speed;
   onSpeedChange?: (speed: Speed) => void;
+  /**
+   * Loop-seam crossfade on the page video (CSS keyframes `loop-fade`
+   * class). Default true. Some readers find the dip too subtle, some
+   * find it distracting on bright covers — toggle here.
+   */
+  loopFade?: boolean;
+  onToggleLoopFade?: () => void;
 }
 
 type Mode = "WATCH" | "BOTH" | "READ";
@@ -71,6 +78,13 @@ const Icon = {
     <svg viewBox="0 0 24 24" aria-hidden>
       <path d="M4 7h11a4 4 0 0 1 0 8H9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       <path d="m12 12-3 3 3 3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  loopFade: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M5 9c0-2.2 1.8-4 4-4h6c2.2 0 4 1.8 4 4v6c0 2.2-1.8 4-4 4H9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="m7 7-3 2 3 2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M19 14v3a3 3 0 0 1-3 3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   ),
   notes: (
@@ -154,6 +168,8 @@ export function ReaderControls({
   onAspectChange,
   fullscreen = false,
   onToggleFullscreen,
+  loopFade = true,
+  onToggleLoopFade,
   noteCount,
   notesOpen = false,
   onToggleNotes,
@@ -325,6 +341,21 @@ export function ReaderControls({
             >
               {Icon.auto}
               <span className="chip-label">Auto-turn</span>
+            </button>
+          )}
+          {onToggleLoopFade && (
+            <button
+              type="button"
+              className={`toggle-chip${loopFade ? " on" : ""}`}
+              onClick={onToggleLoopFade}
+              aria-pressed={Boolean(loopFade)}
+              title={loopFade
+                ? "Loop-seam crossfade on (click to disable — some readers prefer the hard cut)"
+                : "Loop-seam crossfade off (click to enable — softens the 5s loop seam)"}
+              aria-label="Toggle loop-seam crossfade"
+            >
+              {Icon.loopFade}
+              <span className="chip-label">Loop fade</span>
             </button>
           )}
           {onToggleNotes && (

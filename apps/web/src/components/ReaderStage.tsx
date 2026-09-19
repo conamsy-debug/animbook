@@ -22,6 +22,12 @@ interface Props {
   fullscreenOverlay?: ReactNode;
   /** Playback rate for the page's <video> (1 = normal). Default 1. */
   playbackRate?: number;
+  /**
+   * Apply the CSS loop-seam crossfade (`.loop-fade`) to the page video.
+   * Default true. Toggleable from the Reader controls — some readers
+   * prefer the hard cut, others find the dip distracting on bright art.
+   */
+  loopFade?: boolean;
 }
 
 export type ReaderAspect = "16:9" | "4:3" | "3:4" | "1:1" | "9:16";
@@ -57,7 +63,7 @@ function pickAccent(vertical: string): string {
   return map[vertical] ?? "#1B6B8A";
 }
 
-export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false, onWordTap, paletteHint = "default", motionScale = 1, fontSize = 18, paused = false, aspect = "16:9", videoFrameRef, fullscreenOverlay, playbackRate = 1 }: Props) {
+export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false, onWordTap, paletteHint = "default", motionScale = 1, fontSize = 18, paused = false, aspect = "16:9", videoFrameRef, fullscreenOverlay, playbackRate = 1, loopFade = true }: Props) {
   const { pageIndex, mode, isFlipping, flippingDirection, setBook, flipNext, flipPrev, finishFlip } = useReaderStore();
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -180,7 +186,7 @@ export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false,
                   // hard cut on every loop iteration becomes a soft 0.55→
                   // 1 dip right at the boundary — see brief: ship only if
                   // hard loop looks bad; this is opt-in by className.
-                  className="loop-fade"
+                  className={loopFade ? "loop-fade" : undefined}
                   data-tier={current.motionTier === "HERO" ? "HERO" : "STANDARD"}
                   style={lensEnabled ? { transform: "scale(1.6)", transformOrigin: "center" } : undefined}
                 />
