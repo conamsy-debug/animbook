@@ -21,12 +21,21 @@ interface NarratorVoicePayload {
   voices: NarratorVoice[];
   selectedVoiceId: string | null;
   hasClone: boolean;
+  /**
+   * "ACTIVE" — clone exists on ElevenLabs and the user record
+   * "REMOVED" — ElevenLabs 404'd on the last narration attempt; we
+   *              marked users.voiceStatus=REMOVED so a banner shows here
+   * "NONE" — user never cloned
+   */
+  cloneStatus: "ACTIVE" | "REMOVED" | "NONE";
+  cloneVoiceId: string | null;
 }
 
 export default function NarratorVoicePicker({ projectId, onSaved }: NarratorVoicePickerProps) {
   const [voices, setVoices] = useState<NarratorVoice[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [hasClone, setHasClone] = useState(false);
+  const [cloneStatus, setCloneStatus] = useState<"ACTIVE" | "REMOVED" | "NONE">("NONE");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reNarrate, setReNarrate] = useState(true);
@@ -41,6 +50,7 @@ export default function NarratorVoicePicker({ projectId, onSaved }: NarratorVoic
         setVoices(data.voices);
         setSelected(data.selectedVoiceId);
         setHasClone(data.hasClone);
+        setCloneStatus(data.cloneStatus ?? "NONE");
       } catch {
         setVoices([]);
       } finally {
@@ -71,6 +81,22 @@ export default function NarratorVoicePicker({ projectId, onSaved }: NarratorVoic
 
   return (
     <div className="narrator-picker">
+      {cloneStatus === "REMOVED" ? (
+        // Surfaced when ElevenLabs 404'd on the user's last narration
+        // attempt — typically because they deleted the voice in their
+        // ElevenLabs dashboard, their tier changed, or the voice was
+        // moderated. We auto-fell-back to a curated default so audio
+        // production continued, but the author needs to know they lost
+        // their clone.
+        <div className="voice-orphan-banner" role="status" aria-live="polite">
+          <strong>Your cloned voice is no longer available.</strong>{" "}
+          ElevenLabs couldn&apos;t find it on our last attempt — most likely
+          you deleted it from your ElevenLabs dashboard or your tier
+          changed. We&apos;ve fallen back to a curated default voice for
+          recent narrations. To restore your own voice, open your{" "}
+          <a href="/profile">profile</a> and re-upload your audio samples.
+        </div>
+      ) : null}
       {!hasClone ? (
         <p className="hint muted small" style={{ marginTop: 0 }}>
           You don&apos;t have a cloned voice yet. Open your <a href="/profile">profile</a> to upload audio samples
