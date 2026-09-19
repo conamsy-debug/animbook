@@ -50,6 +50,7 @@ import share, { sharePublicRouter } from "./modules/share/routes.js";
 import accountVoice from "./modules/account-voice/routes.js";
 import docs from "./modules/docs/routes.js";
 import { startPipelineWorker, startPipelineEvents } from "./services/pipeline.js";
+import { startSplitWorkers, shutdownSplitPipeline } from "./services/splitPipeline.js";
 
 // Initialise Sentry before anything else so subsequent throws are captured.
 await initSentry(appEnv.SENTRY_DSN, appEnv.NODE_ENV, appEnv.RELEASE);
@@ -138,6 +139,7 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
 
 const worker = startPipelineWorker();
 const events = startPipelineEvents();
+startSplitWorkers();
 
 const server = app.listen(appEnv.PORT, () => {
   console.log(`[animbook-api] listening on http://localhost:${appEnv.PORT}`);
@@ -150,6 +152,7 @@ function shutdown(signal: string) {
   server.close(() => process.exit(0));
   void worker?.close();
   void events?.close();
+  void shutdownSplitPipeline();
   setTimeout(() => process.exit(1), 8000).unref();
 }
 

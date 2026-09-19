@@ -187,7 +187,8 @@ async function runAnalysis(data: PipelineJobData): Promise<void> {
   });
 }
 
-async function loadBrain(bookId: string): Promise<BookBrain> {
+/** Exported so splitPipeline can reuse it for per-page still/animate jobs. */
+export async function loadBrain(bookId: string): Promise<BookBrain> {
   const row = await prisma.bookBrain.findUnique({ where: { bookId }, select: { rawJson: true } });
   if (!row) throw new Error("Book Brain missing — run the analysis first");
   return row.rawJson as unknown as BookBrain;
@@ -462,16 +463,28 @@ async function runAudioStage(projectId: string, limit?: number): Promise<void> {
   const voiceId = chosenId?.startsWith("author:") ? chosenId.slice("author:".length) : chosenId;
   // Sequential: ElevenLabs limits concurrent requests on smaller plans.
   for (const page of pages) {
-    const result = await generateNarration({
-      text: page.textExcerpt,
-      voiceId,
-      storageKey: `narration/${projectId}/p${page.pageNum}-${Date.now().toString(36)}.mp3`
-    });
-    if (!result.audioUrl) continue;
-    await prisma.page.update({
-      where: { id: page.id },
-      data: { audioUrl: result.audioUrl, vttUrl: result.vttUrl }
-    });
+    try {
+      const result = await generateNarration({
+        text: page.textExcerpt,
+        voiceId,
+        storageKey: `narration/${projectId}/p${page.pageNum}-${Date.now().toString(36)}.mp3`
+      });
+      if (!result.audioUrl) {
+        // Narration came back as a stub — nothing useful to store. Leave the
+        // page's audioStatus alone so a re-run can succeed.
+        continue;
+      }
+      await prisma.page.update({
+        where: { id: page.id },
+        data: { audioUrl: result.audioUrl, vttUrl: result.vttUrl, audioStatus: "READY" }
+      });
+    } catch (err) {
+      console.warn(`[pipeline/audio] page ${page.pageNum}: ${(err as Error).message}`);
+      await prisma.page.update({
+        where: { id: page.id },
+        data: { audioStatus: "FAILED" }
+      }).catch(() => {/* page might have been deleted concurrently */});
+    }
   }
 }
 
