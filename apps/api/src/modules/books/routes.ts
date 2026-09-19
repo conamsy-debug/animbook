@@ -139,7 +139,14 @@ router.get("/:id/pages", async (req: AuthedRequest, res: Response) => {
       cameraAngle: true,
       qualityScore: true,
       status: true,
-      speakerName: true
+      speakerName: true,
+      // Split-pipeline fields. Readers ignore unknown fields so adding
+      // them here is safe for legacy books (stillStatus=NONE etc.).
+      stillStatus: true,
+      clipStatus: true,
+      audioStatus: true,
+      stillVersion: true,
+      motionTier: true
     }
   });
   res.json({
@@ -183,7 +190,12 @@ router.get("/:id/pages/:num", async (req: Request, res: Response) => {
       qualityScore: true,
       status: true,
       directionNote: true,
-      speakerName: true
+      speakerName: true,
+      stillStatus: true,
+      clipStatus: true,
+      audioStatus: true,
+      stillVersion: true,
+      motionTier: true
     }
   });
   if (!page) {

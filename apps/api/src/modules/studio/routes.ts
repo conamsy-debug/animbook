@@ -14,6 +14,9 @@ import { ExtractError, extractManuscript } from "../../services/manuscriptExtrac
 import { uploadAsset } from "../../services/cloudflare.js";
 import { isValidSubcategory } from "../../config/subcategories.js";
 import { applySchedule, lockSchedule, CHUNK_PERCENT_OPTIONS } from "../../services/releaseSchedule.js";
+import { enqueueAnimateJob, type SplitJobData } from "../../services/splitPipeline.js";
+import { move as moveState, moveMany as moveManyState } from "../../services/pageState.js";
+import splitRoutes from "./splitRoutes.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -441,6 +444,21 @@ router.put("/pages/:pageId/approve", async (req: AuthedRequest, res: Response) =
     res.status(404).json({ error: "Page not found" });
     return;
   }
+  // For split-pipeline books, also flip clipStatus so legacy readers
+  // (which still read Page.status) keep working. We use move() so a
+  // clip in GENERATING/QUEUED/STALE doesn't silently flip.
+  if (page.book.splitPipeline) {
+    try {
+      await moveState("clipStatus", pageId, "APPROVED");
+    } catch {
+      // Clip wasn't in a state that allowed APPROVED — fall back to
+      // a plain update only if the page is otherwise ready.
+      if (page.clipStatus === "QUEUED" || page.clipStatus === "GENERATING" || page.clipStatus === "STALE") {
+        res.status(409).json({ error: "Clip is still in flight; wait for it to finish first." });
+        return;
+      }
+    }
+  }
   await prisma.page.update({ where: { id: pageId }, data: { status: "APPROVED" } });
   res.json({ ok: true });
 });
@@ -580,6 +598,36 @@ router.post("/projects/:id/publish", async (req: AuthedRequest, res: Response) =
     });
     return;
   }
+  // Split-pipeline gate: every page must have an APPROVED still, an
+  // APPROVED clip, and READY audio. Returning the blocking page list
+  // lets the author fix them in the UI without having to grep.
+  if (project.book.splitPipeline) {
+    const blockers = await prisma.page.findMany({
+      where: {
+        bookId: project.book.id,
+        OR: [
+          { stillStatus: { not: "APPROVED" } },
+          { clipStatus: { not: "APPROVED" } },
+          { audioStatus: { not: "READY" } }
+        ]
+      },
+      select: { id: true, pageNum: true, stillStatus: true, clipStatus: true, audioStatus: true },
+      orderBy: { pageNum: "asc" }
+    });
+    if (blockers.length > 0) {
+      res.status(409).json({
+        error: "Some pages aren't ready to publish yet",
+        blockingPages: blockers.map((b) => ({
+          pageId: b.id,
+          pageNum: b.pageNum,
+          stillStatus: b.stillStatus,
+          clipStatus: b.clipStatus,
+          audioStatus: b.audioStatus
+        }))
+      });
+      return;
+    }
+  }
   await prisma.studioProject.update({
     where: { id },
     data: { status: "PUBLISHED", approvedForPublishAt: new Date() }
@@ -628,6 +676,10 @@ router.get("/projects/:id/analytics", async (req: AuthedRequest, res: Response) 
  * per-page "Re-animate" button, just batched. Use after a platform
  * incident (Runway schema drift, classifier reject storm) when many pages
  * failed at once. Idempotent: pages that are no longer FLAGGED are skipped.
+ *
+ * For split-pipeline books we route through ANIMATE_PAGE so the still
+ * gate is still honoured — we don't burn Runway credits on a still the
+ * author hasn't approved.
  */
 router.post(
   "/projects/:id/reanimate-failed",
@@ -641,12 +693,53 @@ router.post(
     }
     const project = await prisma.studioProject.findFirst({
       where: { id, ownerId: userId },
-      select: { id: true, bookId: true }
+      select: { id: true, bookId: true, book: { select: { splitPipeline: true } } }
     });
     if (!project?.bookId) {
       res.status(404).json({ error: "Project not found" });
       return;
     }
+
+    if (project.book?.splitPipeline) {
+      // FAILED-only filter per the brief: pages still in FLAGGED in
+      // legacy `status` aren't necessarily broken — they just need an
+      // author decision. Only re-queue those marked FAILED on clipStatus.
+      const flagged = await prisma.page.findMany({
+        where: { bookId: project.bookId, clipStatus: "FAILED", stillStatus: "APPROVED" },
+        select: { id: true, pageNum: true, stillVersion: true },
+        orderBy: { pageNum: "asc" }
+      });
+      if (flagged.length === 0) {
+        res.json({ projectId: id, queued: 0, message: "No failed clips to re-animate" });
+        return;
+      }
+      const winnerIds = await moveManyState("clipStatus", flagged.map((f) => f.id), "QUEUED");
+      const winners = flagged.filter((f) => winnerIds.includes(f.id));
+      const jobIds: string[] = [];
+      for (const w of winners) {
+        const jobId = await enqueueAnimateJob({
+          projectId: id,
+          pageId: w.id,
+          stillVersion: w.stillVersion
+        } satisfies SplitJobData);
+        jobIds.push(jobId);
+      }
+      emitPipelineEvent(id, {
+        stage: "ANIMATE_PAGE",
+        status: "queued",
+        progress: 60,
+        message: `${winners.length} page${winners.length === 1 ? "" : "s"} queued for re-animation`,
+        at: new Date().toISOString()
+      });
+      res.json({
+        projectId: id,
+        queued: winners.length,
+        pages: winners.map((w) => w.pageNum),
+        jobIds
+      });
+      return;
+    }
+
     const flagged = await prisma.page.findMany({
       where: { bookId: project.bookId, status: "FLAGGED" },
       select: { id: true, pageNum: true },
@@ -847,3 +940,7 @@ router.put(
 );
 
 export default router;
+
+// Split-pipeline routes (STILL_PAGE → approve → ANIMATE_PAGE) live in
+// their own file. They share the auth + ownership helpers from above.
+router.use(splitRoutes);
