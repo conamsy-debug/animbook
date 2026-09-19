@@ -467,6 +467,10 @@ async function runAudioStage(projectId: string, limit?: number): Promise<void> {
   const voiceId = chosenId?.startsWith("author:") ? chosenId.slice("author:".length) : chosenId;
   // Sequential: ElevenLabs limits concurrent requests on smaller plans.
   for (const page of pages) {
+    // Skip pages that already have narration — re-kicks (e.g. after
+    // OCR-garbage cleanup) shouldn't burn credits re-narrating good
+    // pages. The user can clear `audioUrl` to force a re-narrate.
+    if (page.audioUrl) continue;
     try {
       const result = await generateNarration({
         text: page.textExcerpt,
