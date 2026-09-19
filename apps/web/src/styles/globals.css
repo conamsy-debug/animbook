@@ -1591,6 +1591,24 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 .reader-stage .page.video .video-layer { position: absolute; inset: 0; }
 .reader-stage .page.video .video-layer video,
 .reader-stage .page.video .video-layer .video-poster { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Loop crossfade: at the seam of every clip iteration, fade the video
+   from 0.55 to 1 over the last ~7% of the loop and back up at the start.
+   Works for both 5s STANDARD and 10s HERO clips because the keyframe
+   percentages are duration-independent. The hard cut at the loop
+   boundary becomes a soft one — the brief explicitly said ship only
+   "if hard loop looks bad", so this is opt-in via the `loop-fade` class
+   the ReaderStage adds when motion scale is high enough. */
+@keyframes readerVideoLoopFade {
+  0%, 90% { opacity: 1; }
+  95% { opacity: 0.55; }
+  100% { opacity: 1; }
+}
+.reader-stage .page.video .video-layer video.loop-fade {
+  animation: readerVideoLoopFade 5s ease-in-out infinite;
+}
+.reader-stage .page.video .video-layer video.loop-fade[data-tier="HERO"] {
+  animation-duration: 10s;
+}
 .reader-stage .video-empty {
   position: absolute;
   inset: 0;

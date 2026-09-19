@@ -174,6 +174,14 @@ export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false,
                   muted
                   loop
                   playsInline
+                  // Crossfade at the loop seam: STANDARD = 5s, HERO = 10s.
+                  // The `loop-fade` class + data-tier is consumed by the
+                  // `readerVideoLoopFade` keyframes in globals.css. The
+                  // hard cut on every loop iteration becomes a soft 0.55→
+                  // 1 dip right at the boundary — see brief: ship only if
+                  // hard loop looks bad; this is opt-in by className.
+                  className="loop-fade"
+                  data-tier={current.motionTier === "HERO" ? "HERO" : "STANDARD"}
                   style={lensEnabled ? { transform: "scale(1.6)", transformOrigin: "center" } : undefined}
                 />
               ) : current.posterUrl && !/placehold\.co/i.test(current.posterUrl) ? (
