@@ -205,6 +205,25 @@ export default function SplitReview({ projectId, pages, published, onPublish, on
     }
   }
 
+  async function renarratePage(pageId: string) {
+    // Single-page audio re-narration: useful when the project-level kick
+    // silently skipped a page (OCR garbage, content-classifier reject).
+    // Synchronous endpoint — takes 1-3s for ElevenLabs TTS + R2 upload.
+    setWorkingPage(pageId);
+    try {
+      const res = await apiFetch<{ audioUrl: string; characters: number }>(
+        `/api/pages/${pageId}/audio-regenerate`,
+        { method: "POST" }
+      );
+      toast(`Audio ready · ${res.characters} chars`);
+      await onRefresh();
+    } catch (err) {
+      toast((err as Error).message || "Couldn't re-narrate");
+    } finally {
+      setWorkingPage(null);
+    }
+  }
+
   async function approveAllClips() {
     setWorkingBulk("clips-approve-all");
     try {
@@ -469,6 +488,17 @@ export default function SplitReview({ projectId, pages, published, onPublish, on
                         onClick={() => void reanimateClip(page.id)}
                       >
                         {workingPage === page.id ? "Re-animating…" : "Re-animate"}
+                      </button>
+                    )}
+                    {(aStatus === "NONE" || aStatus === "FAILED") && (
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        disabled={workingPage === page.id}
+                        onClick={() => void renarratePage(page.id)}
+                        title="Generate audio for this page (uses the same voice as the project)"
+                      >
+                        {workingPage === page.id ? "Recording…" : "Re-narrate"}
                       </button>
                     )}
                     {page.audioUrl && <audio controls preload="none" src={page.audioUrl} className="split-audio" />}

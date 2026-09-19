@@ -16,6 +16,8 @@ import { isValidSubcategory } from "../../config/subcategories.js";
 import { applySchedule, lockSchedule, CHUNK_PERCENT_OPTIONS } from "../../services/releaseSchedule.js";
 import { enqueueAnimateJob, type SplitJobData } from "../../services/splitPipeline.js";
 import { move as moveState, moveMany as moveManyState } from "../../services/pageState.js";
+import { generateNarration } from "../../services/elevenlabs.js";
+import { findVoice, defaultVoiceIdFor } from "../../config/voices.js";
 import splitRoutes from "./splitRoutes.js";
 
 const router = Router();
@@ -507,6 +509,104 @@ router.post("/pages/:pageId/regenerate", async (req: AuthedRequest, res: Respons
   });
   res.json({ ok: true, jobId });
 });
+
+/* --------------------------------------------------------------------- *
+ * Per-page audio re-narrate
+ *
+ * Synchronous endpoint for fixing individual pages where the project-level
+ * audio kick silently skipped (e.g. OCR-garbage text that ElevenLabs
+ * rejected, or pages whose textExcerpt was updated post-kick). The author
+ * cleans the text in the Studio / API and hits "Re-narrate" — single page,
+ * no Bull queue, returns the new audioUrl when done.
+ *
+ * Voice precedence mirrors runAudioStage in pipeline.ts:
+ *   1. BookBrain.narratorVoiceId (book-level pin set via Studio picker)
+ *   2. Author's ElevenLabs clone (if CLONED)
+ *   3. Vertical + region default (e.g. british-teacher for FAITH)
+ *
+ * Rate-limited to 30 / minute — ElevenLabs TTS is the expensive part, no
+ * reason to let a misbehaving client hammer it.
+ * --------------------------------------------------------------------- */
+router.post(
+  "/pages/:pageId/audio-regenerate",
+  rateLimit({ name: "studio.audioRegen", max: 30, windowSeconds: 60 }),
+  async (req: AuthedRequest, res: Response) => {
+    const userId = requireUserId(req);
+    const pageId = req.params["pageId"];
+    if (typeof pageId !== "string") {
+      res.status(400).json({ error: "Missing page id" });
+      return;
+    }
+    const page = await prisma.page.findUnique({
+      where: { id: pageId },
+      include: {
+        book: {
+          include: {
+            studioProject: { select: { id: true, ownerId: true } },
+            creator: { select: { narratorVoiceId: true, voiceStatus: true } }
+          }
+        }
+      }
+    });
+    if (!page?.book.studioProject || page.book.studioProject.ownerId !== userId) {
+      res.status(404).json({ error: "Page not found" });
+      return;
+    }
+    const text = (page.textExcerpt ?? "").trim();
+    if (!text) {
+      res.status(400).json({ error: "Page has no text to narrate" });
+      return;
+    }
+    const brain = await prisma.bookBrain.findUnique({
+      where: { bookId: page.bookId },
+      select: { narratorVoiceId: true, culturalOrigin: true }
+    });
+    let chosenId = brain?.narratorVoiceId ?? null;
+    if (!chosenId || chosenId === "author:auto") {
+      if (page.book.creator?.narratorVoiceId && page.book.creator.voiceStatus === "CLONED") {
+        chosenId = page.book.creator.narratorVoiceId;
+      }
+    }
+    if (!chosenId) {
+      chosenId = findVoice(
+        defaultVoiceIdFor({ vertical: page.book.vertical, setting: brain?.culturalOrigin })
+      )?.elevenVoiceId;
+    }
+    const voiceId = chosenId?.startsWith("author:") ? chosenId.slice("author:".length) : chosenId;
+    if (!voiceId) {
+      res.status(503).json({ error: "No narrator voice configured for this book" });
+      return;
+    }
+    const result = await generateNarration({
+      text,
+      voiceId,
+      storageKey: `narration/${page.book.studioProject.id}/p${page.pageNum}-${Date.now().toString(36)}.mp3`
+    });
+    if (!result.audioUrl) {
+      // Stub: ElevenLabs/R2 not configured or text was rejected. Mark
+      // FAILED so the chip flips and the user knows to investigate.
+      await prisma.page.update({
+        where: { id: pageId },
+        data: { audioStatus: "FAILED" }
+      }).catch(() => undefined);
+      res.status(502).json({
+        error: "ElevenLabs returned no narration for this page",
+        hint: "Check the page text — content-classifier rejects and OCR garbage often cause this"
+      });
+      return;
+    }
+    await prisma.page.update({
+      where: { id: pageId },
+      data: { audioUrl: result.audioUrl, vttUrl: result.vttUrl, audioStatus: "READY" }
+    });
+    res.json({
+      pageId,
+      audioUrl: result.audioUrl,
+      vttUrl: result.vttUrl,
+      characters: result.characters
+    });
+  }
+);
 
 router.post("/projects/:id/audio", async (req: AuthedRequest, res: Response) => {
   const userId = requireUserId(req);
