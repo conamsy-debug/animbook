@@ -20,11 +20,34 @@ interface ProfileData {
   paymentsLive: boolean;
 }
 
+interface UsageSummary {
+  windowStart: string;
+  totalUsd: number;
+  totalEvents: number;
+  byKind: Array<{ kind: string; totalUsd: number; events: number }>;
+  byProvider: Array<{ provider: string; totalUsd: number; events: number }>;
+  byBook: Array<{ bookId: string; title: string; totalUsd: number; events: number }>;
+  byDay: Array<{ date: string; totalUsd: number; events: number }>;
+}
+
+const KIND_LABEL: Record<string, string> = {
+  ANIMATE_KICK: "Animate",
+  STILL_KICK: "Stills",
+  NARRATION_KICK: "Narration",
+  AUDIO_REGEN: "Audio (per-page)",
+  TRAILER: "Trailer"
+};
+const PROVIDER_LABEL: Record<string, string> = {
+  RUNWAY: "Runway",
+  ELEVENLABS: "ElevenLabs"
+};
+
 export default function ProfilePage() {
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [needsSignIn, setNeedsSignIn] = useState(false);
+  const [usage, setUsage] = useState<UsageSummary | null>(null);
   const library = useLibraryStore();
   const toast = useToastStore((s) => s.push);
   // window.Clerk is set by <ClerkProvider>; reading it (rather than useClerk)
@@ -70,14 +93,18 @@ export default function ProfilePage() {
     let cancelled = false;
     async function load() {
       try {
-        const [me, lib, pricing] = await Promise.all([
+        const [me, lib, pricing, usageRes] = await Promise.all([
           apiFetch<{ user: ProfileData["user"] }>("/api/account/me"),
           apiFetch<{ items: LibraryEntry[] }>("/api/library").catch(() => ({ items: [] as LibraryEntry[] })),
-          apiFetch<{ live: boolean }>("/api/legal/pricing").catch(() => ({ live: false }))
+          apiFetch<{ live: boolean }>("/api/legal/pricing").catch(() => ({ live: false })),
+          // Cost summary: 30-day window. Failures here shouldn't break
+          // the profile page (it's a leaf feature), so swallow.
+          apiFetch<UsageSummary>("/api/usage/summary").catch(() => null)
         ]);
         if (!cancelled) {
           library.hydrate(lib.items);
           setData({ user: me.user, paymentsLive: pricing.live });
+          setUsage(usageRes);
           setLoading(false);
         }
       } catch (err) {
@@ -234,6 +261,60 @@ export default function ProfilePage() {
             <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>
               <Link href="/legal/privacy">Privacy</Link> · <Link href="/legal/terms">Terms</Link>
             </p>
+          </section>
+          <section className="card">
+            <h3>Spending</h3>
+            {!usage ? (
+              <p className="muted">Cost tracking is loading or unavailable.</p>
+            ) : usage.totalEvents === 0 ? (
+              <p className="muted">No tracked spend in the last 30 days.</p>
+            ) : (
+              <>
+                <p className="kvp-line">
+                  <strong>Last 30 days</strong>
+                  <span style={{ fontSize: 22, fontFamily: "DM Mono, monospace" }}>${usage.totalUsd.toFixed(2)}</span>
+                </p>
+                {usage.byKind.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <p className="muted" style={{ marginBottom: 4, fontSize: 13 }}>By category</p>
+                    <ul style={{ margin: 0, paddingLeft: 16 }}>
+                      {usage.byKind.map((k) => (
+                        <li key={k.kind} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
+                          <span>{KIND_LABEL[k.kind] ?? k.kind} · {k.events}</span>
+                          <span style={{ fontFamily: "DM Mono, monospace" }}>${k.totalUsd.toFixed(2)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {usage.byProvider.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <p className="muted" style={{ marginBottom: 4, fontSize: 13 }}>By provider</p>
+                    <ul style={{ margin: 0, paddingLeft: 16 }}>
+                      {usage.byProvider.map((p) => (
+                        <li key={p.provider} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
+                          <span>{PROVIDER_LABEL[p.provider] ?? p.provider} · {p.events}</span>
+                          <span style={{ fontFamily: "DM Mono, monospace" }}>${p.totalUsd.toFixed(2)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {usage.byBook.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <p className="muted" style={{ marginBottom: 4, fontSize: 13 }}>By book</p>
+                    <ul style={{ margin: 0, paddingLeft: 16 }}>
+                      {usage.byBook.slice(0, 5).map((b) => (
+                        <li key={b.bookId} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
+                          <span>{b.title} · {b.events}</span>
+                          <span style={{ fontFamily: "DM Mono, monospace" }}>${b.totalUsd.toFixed(2)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
+            )}
           </section>
         </div>
       </main>

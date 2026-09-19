@@ -259,6 +259,7 @@ model User {
   classroomsTeaching       Classroom[]           @relation("ClassroomTeacher")
   classroomMemberships     ClassroomMembership[] @relation("ClassroomStudent")
   taskSubmissions          BookTaskSubmission[]
+  usageEvents              UsageEvent[]
 
   @@map("users")
 }
@@ -495,6 +496,7 @@ model Book {
   worldMembership         WorldMember?
   archiveProject          ArchiveProject?
   shares                  BookShare[]
+  usageEvents             UsageEvent[]
 
   @@index([vertical, subcategory, status])
   @@index([vertical, status])
@@ -618,6 +620,41 @@ model Page {
   @@unique([bookId, pageNum])
   @@index([bookId, status])
   @@map("pages")
+}
+
+/// One row per external-cost event: a Runway image/video call, an
+/// ElevenLabs TTS call, a per-page narration regenerate, etc. Used by
+/// the /api/usage/summary endpoint and the Profile "Spending" section.
+///
+/// `kind` is the event family (ANIMATE_KICK | STILL_KICK |
+/// NARRATION_KICK | AUDIO_REGEN | TRAILER). `provider` is the vendor
+/// (RUNWAY | ELEVENLABS). `units` is whatever the provider bills on:
+/// pages for Runway kicks, characters for ElevenLabs TTS, seconds for
+/// trailers. `unitCostUsd` × `units` = `totalUsd` (computed at write
+/// time so historical reports don't drift if pricing changes).
+model UsageEvent {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  bookId        String   @map("book_id")
+  pageId        String?  @map("page_id")
+  kind          String
+  provider      String
+  units         Int
+  unitCostUsd   Float    @map("unit_cost_usd")
+  totalUsd      Float    @map("total_usd")
+  status        String   @default("SUCCESS")
+  /// Free-form JSON for breakdowns that don't fit the typed columns
+  /// (e.g. byTier: {HERO: 12, STANDARD: 38}, durationSeconds, etc.).
+  metadata      Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book          Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([bookId])
+  @@index([userId, kind, createdAt])
+  @@map("usage_events")
 }
 
 model LibraryEntry {

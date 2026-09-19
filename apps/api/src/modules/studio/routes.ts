@@ -18,6 +18,7 @@ import { enqueueAnimateJob, type SplitJobData } from "../../services/splitPipeli
 import { move as moveState, moveMany as moveManyState } from "../../services/pageState.js";
 import { generateNarration } from "../../services/elevenlabs.js";
 import { findVoice, defaultVoiceIdFor } from "../../config/voices.js";
+import { recordUsage } from "../../services/usageTracking.js";
 import splitRoutes from "./splitRoutes.js";
 
 const router = Router();
@@ -585,6 +586,19 @@ router.post(
     if (!result.audioUrl) {
       // Stub: ElevenLabs/R2 not configured or text was rejected. Mark
       // FAILED so the chip flips and the user knows to investigate.
+      // Still record the failed attempt so the dashboard surfaces the
+      // spent-tokens side of the equation.
+      await recordUsage({
+        userId,
+        bookId: page.bookId,
+        pageId,
+        kind: "AUDIO_REGEN",
+        provider: "ELEVENLABS",
+        units: text.length,
+        unitCostUsd: 0.00018,
+        status: "STUB",
+        metadata: { pageNum: page.pageNum }
+      });
       await prisma.page.update({
         where: { id: pageId },
         data: { audioStatus: "FAILED" }
@@ -598,6 +612,16 @@ router.post(
     await prisma.page.update({
       where: { id: pageId },
       data: { audioUrl: result.audioUrl, vttUrl: result.vttUrl, audioStatus: "READY" }
+    });
+    await recordUsage({
+      userId,
+      bookId: page.bookId,
+      pageId,
+      kind: "AUDIO_REGEN",
+      provider: "ELEVENLABS",
+      units: text.length,
+      unitCostUsd: 0.00018,
+      metadata: { pageNum: page.pageNum, voiceId: chosenId ?? "default" }
     });
     res.json({
       pageId,
@@ -615,14 +639,41 @@ router.post("/projects/:id/audio", async (req: AuthedRequest, res: Response) => 
     res.status(400).json({ error: "Missing project id" });
     return;
   }
-  const project = await prisma.studioProject.findFirst({ where: { id, ownerId: userId } });
-  if (!project) {
+  const project = await prisma.studioProject.findFirst({
+    where: { id, ownerId: userId },
+    select: { id: true, bookId: true }
+  });
+  if (!project?.bookId) {
     res.status(404).json({ error: "Project not found" });
     return;
   }
+  // Record the kick intent (cost will be settled per-page as the worker
+  // narrates). Counting pages + chars here gives the dashboard a fast
+  // upper-bound estimate so the user sees "this kick will cost about
+  // $X" alongside the queued jobId.
+  const pagesToNarrate = await prisma.page.findMany({
+    where: { bookId: project.bookId, audioUrl: null },
+    select: { textExcerpt: true }
+  });
+  const totalChars = pagesToNarrate.reduce(
+    (sum, p) => sum + (p.textExcerpt ?? "").length,
+    0
+  );
+  await recordUsage({
+    userId,
+    bookId: project.bookId,
+    kind: "NARRATION_KICK",
+    provider: "ELEVENLABS",
+    units: totalChars,
+    unitCostUsd: 0.00018, // $0.18 per 1k chars
+    metadata: {
+      pages: pagesToNarrate.length,
+      estimatedUsd: Math.round((totalChars / 1000) * 0.18 * 100) / 100
+    }
+  });
   await prisma.studioProject.update({ where: { id }, data: { status: "AUDIO", currentStage: "AUDIO_PRODUCTION" } });
   const jobId = await enqueuePipeline({ projectId: id, triggerStage: "AUDIO_PRODUCTION" });
-  res.json({ projectId: id, jobId });
+  res.json({ projectId: id, jobId, pagesQueued: pagesToNarrate.length, estimatedUsd: Math.round((totalChars / 1000) * 0.18 * 100) / 100 });
 });
 
 const scheduleSchema = z.object({

@@ -16,6 +16,7 @@ import { authMiddleware, requireUserId, type AuthedRequest } from "../../auth/mi
 import { prisma } from "../../db.js";
 import { move, moveMany } from "../../services/pageState.js";
 import { enqueueAnimateJob, enqueueStillJob, estimateClipCostUsd, pickClipSeconds, type SplitJobData } from "../../services/splitPipeline.js";
+import { recordUsage } from "../../services/usageTracking.js";
 import { rateLimit } from "../../middleware/rateLimit.js";
 
 const router = Router();
@@ -32,7 +33,7 @@ async function loadOwnedSplitProject(
   req: AuthedRequest,
   res: Response,
   projectIdRaw: string
-): Promise<{ projectId: string; bookId: string } | null> {
+): Promise<{ projectId: string; bookId: string; userId: string } | null> {
   const userId = requireUserId(req);
   const projectId = String(projectIdRaw);
   const project = await prisma.studioProject.findFirst({
@@ -47,7 +48,7 @@ async function loadOwnedSplitProject(
     res.status(409).json({ error: "This project isn't using the split pipeline. Toggle splitPipeline=true on the book first." });
     return null;
   }
-  return { projectId: project.id, bookId: project.book.id };
+  return { projectId: project.id, bookId: project.book.id, userId };
 }
 
 /** Look up a single page + verify the caller's project owns it + the
@@ -313,7 +314,7 @@ router.post(
   async (req: AuthedRequest, res: Response) => {
     const loaded = await loadOwnedSplitProject(req, res, String(req.params["id"]));
     if (!loaded) return;
-    const { projectId, bookId } = loaded;
+    const { projectId, bookId, userId } = loaded;
 
     const parsed = animateBody.safeParse(req.body ?? {});
     if (!parsed.success) {
@@ -357,6 +358,30 @@ router.post(
       } satisfies SplitJobData);
       jobIds.push(jobId);
     }
+    // Cost tracking: one row per Animate kick summarising pages × seconds.
+    // Recording the kick itself (not the per-page retries) keeps the
+    // dashboard aligned with the user's mental model: "I clicked
+    // Animate once and it cost me $X".
+    const winnerSeconds = winners.reduce((sum, t) => sum + pickClipSeconds(t.motionTier), 0);
+    const byTier = winners.reduce<Record<string, number>>((acc, t) => {
+      acc[t.motionTier] = (acc[t.motionTier] ?? 0) + 1;
+      return acc;
+    }, {});
+    await recordUsage({
+      userId: loaded.userId,
+      bookId,
+      kind: "ANIMATE_KICK",
+      provider: "RUNWAY",
+      units: winnerSeconds,
+      unitCostUsd: 0.05, // 5 credits/sec * $0.01/credit
+      status: "SUCCESS",
+      metadata: {
+        pages: winners.length,
+        requestedPages: targets.length,
+        skippedPages: targets.length - winners.length,
+        byTier
+      }
+    });
     res.json({
       projectId,
       queued: winners.length,
