@@ -365,6 +365,7 @@ export async function runAnimatePageJob(
         page_num: number;
         primary_action?: string;
         emotion?: string;
+        characters_present?: string[];
       }[];
     };
     const characters = (brain.characters ?? []).map((c) => ({ name: c.name, description: c.description }));
