@@ -12,15 +12,19 @@
  * NodeNext's `.mjs` resolution.
  *
  * Decisions:
- *   - next page (i + 1): `rel="preload"` — warming the decoder is worth
- *     the bandwidth because the reader is almost certainly going to
- *     flip here.
- *   - page after next (i + 2): `rel="prefetch"` — speculative; only
- *     loaded if the browser has spare bandwidth.
+ *   - next page (i + 1): `rel="preload"` for video + audio — warming the
+ *     decoder is worth the bandwidth because the reader is almost
+ *     certainly going to flip here.
+ *   - page after next (i + 2): `rel="prefetch"` for video + audio —
+ *     speculative; only loaded if the browser has spare bandwidth.
+ *   - 3 pages ahead (i + 3): `rel="prefetch"` for audio only. A 5-10 MB
+ *     MP4 is too costly to speculatively warm three pages deep; the
+ *     ~100-300 KB audio fetch is cheap and covers talky books where the
+ *     reader is moving fast through the page stream.
  *   - In READ mode the video element isn't rendered, so we skip the
- *     video tag — preloading a clip nobody watches is wasted bytes.
- *   - Audio is preloaded regardless of mode; even in READ mode the
- *     reader may press Play at any moment.
+ *     video tag at every depth — preloading a clip nobody watches is
+ *     wasted bytes. Audio is preloaded regardless of mode; even in READ
+ *     mode the reader may press Play at any moment.
  */
 
 /**
@@ -36,6 +40,7 @@
 export function pickPrefetchLinks(pages, pageIndex, readerMode) {
   const next = pages[pageIndex + 1];
   const after = pages[pageIndex + 2];
+  const way = pages[pageIndex + 3];
   const links = [];
   const skipVideo = readerMode === "READ";
   if (next?.videoUrl && !skipVideo) {
@@ -49,6 +54,11 @@ export function pickPrefetchLinks(pages, pageIndex, readerMode) {
   }
   if (after?.audioUrl) {
     links.push({ rel: "prefetch", as: "audio", href: after.audioUrl });
+  }
+  // 3-deep: audio-only. Video is too costly to speculatively warm three
+  // pages ahead; audio fetch is cheap and covers talky books.
+  if (way?.audioUrl) {
+    links.push({ rel: "prefetch", as: "audio", href: way.audioUrl });
   }
   return links;
 }

@@ -111,6 +111,36 @@ test("pickPrefetchLinks: next-page is preload (immediate), page-after-next is pr
   assert.equal(after?.rel, "prefetch");
 });
 
+test("pickPrefetchLinks: 3 pages ahead gets audio-only prefetch (no video speculatively warmed)", () => {
+  const pages = [
+    { id: "p1", pageNum: 1, videoUrl: "v1.mp4", audioUrl: "a1.mp3" },
+    { id: "p2", pageNum: 2, videoUrl: "v2.mp4", audioUrl: "a2.mp3" },
+    { id: "p3", pageNum: 3, videoUrl: "v3.mp4", audioUrl: "a3.mp3" },
+    { id: "p4", pageNum: 4, videoUrl: "v4.mp4", audioUrl: "a4.mp3" }
+  ];
+  const links = pickPrefetchLinks(pages, 0, "WATCH");
+  // p2: preload video + audio
+  // p3: prefetch video + audio
+  // p4: prefetch audio ONLY (no video — too costly 3-deep)
+  const p4 = links.filter((l) => l.href === "v4.mp4" || l.href === "a4.mp3");
+  assert.deepEqual(p4, [{ rel: "prefetch", as: "audio", href: "a4.mp3" }]);
+});
+
+test("pickPrefetchLinks: 3 pages ahead audio prefetch happens in READ mode too", () => {
+  const pages = [
+    { id: "p1", pageNum: 1, videoUrl: "v1.mp4", audioUrl: "a1.mp3" },
+    { id: "p2", pageNum: 2, videoUrl: "v2.mp4", audioUrl: "a2.mp3" },
+    { id: "p3", pageNum: 3, videoUrl: "v3.mp4", audioUrl: "a3.mp3" },
+    { id: "p4", pageNum: 4, videoUrl: "v4.mp4", audioUrl: "a4.mp3" }
+  ];
+  const links = pickPrefetchLinks(pages, 0, "READ");
+  // READ skips video everywhere; audio still prefetched at every depth.
+  const audios = links.filter((l) => l.as === "audio").map((l) => l.href);
+  assert.deepEqual(audios, ["a2.mp3", "a3.mp3", "a4.mp3"]);
+  const videos = links.filter((l) => l.as === "video");
+  assert.equal(videos.length, 0);
+});
+
 test("LinkSpec type is exported (used by the reader)", () => {
   // The helper exports only the function; the type is documented as
   // JSDoc in readerPlaybackPrefetch.mjs. This test pins the shape.
