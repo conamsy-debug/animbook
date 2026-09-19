@@ -419,11 +419,42 @@ router.put(
       res.status(400).json({ error: "Invalid motionTier", details: parsed.error.flatten() });
       return;
     }
+    // Setting the tier also flips motionTierOverridden=true so a
+    // future Brain re-analysis (buildPrompts in pipeline.ts) won't
+    // overwrite the author's choice.
     await prisma.page.update({
       where: { id: loaded.page.id },
-      data: { motionTier: parsed.data.motionTier }
+      data: {
+        motionTier: parsed.data.motionTier,
+        motionTierOverridden: true
+      }
     });
-    res.json({ pageId: loaded.page.id, motionTier: parsed.data.motionTier });
+    res.json({
+      pageId: loaded.page.id,
+      motionTier: parsed.data.motionTier,
+      motionTierOverridden: true
+    });
+  }
+);
+
+/**
+ * Clear the motion-tier override flag for a page. Sets
+ * motionTierOverridden=false; the next Brain re-analysis will repopulate
+ * the tier from the manifest. The Page's current motionTier value is
+ * left in place until then (the user sees the existing tier; only the
+ * future "Brain win" behavior changes).
+ */
+router.delete(
+  "/pages/:pageId/motion-tier/override",
+  rateLimit({ name: "studio.motionTierClear", max: 60, windowSeconds: 60 }),
+  async (req: AuthedRequest, res: Response) => {
+    const loaded = await loadOwnedSplitPage(req, res, String(req.params["pageId"]));
+    if (!loaded) return;
+    await prisma.page.update({
+      where: { id: loaded.page.id },
+      data: { motionTierOverridden: false }
+    });
+    res.json({ pageId: loaded.page.id, motionTierOverridden: false });
   }
 );
 

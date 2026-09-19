@@ -128,6 +128,16 @@ test("splitRoutes mounts PUT /pages/:pageId/motion-tier", async () => {
   assert.equal(matches[0], "PUT /pages/:pageId/motion-tier");
 });
 
+test("splitRoutes mounts DELETE /pages/:pageId/motion-tier/override (clear override flag)", async () => {
+  const mod = await import("../dist/modules/studio/splitRoutes.js");
+  const paths = (mod.default.stack ?? [])
+    .filter((s) => s.route)
+    .flatMap((s) => Object.keys(s.route.methods).map((m) => `${m.toUpperCase()} ${s.route.path}`));
+  const matches = paths.filter((p) => p.endsWith("/pages/:pageId/motion-tier/override"));
+  assert.equal(matches.length, 1, `expected exactly one override-clear route, got ${matches.length}`);
+  assert.equal(matches[0], "DELETE /pages/:pageId/motion-tier/override");
+});
+
 /* --------------------------------------------------------------------- *
  * Estimate math: 20 pages with mixed tiers + retry-free cost preview
  * --------------------------------------------------------------------- */

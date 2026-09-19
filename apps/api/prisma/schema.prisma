@@ -603,6 +603,12 @@ model Page {
   /// Split-pipeline: HERO pages keep 10s clips; STANDARD is the default.
   /// Part A leaves both at 10s and lets Part B wire the override.
   motionTier        MotionTier   @default(STANDARD) @map("motion_tier")
+  /// True when the author has manually overridden motionTier via
+  /// PUT /api/pages/:pageId/motion-tier. Book Brain re-analysis
+  /// (buildPrompts in pipeline.ts) skips writing motionTier on rows
+  /// where this is true, so manual overrides survive a re-run.
+  /// Default false so legacy rows behave exactly as before.
+  motionTierOverridden Boolean   @default(false) @map("motion_tier_overridden")
   createdAt         DateTime     @default(now()) @map("created_at")
   updatedAt         DateTime     @updatedAt @map("updated_at")
   book              Book         @relation(fields: [bookId], references: [id], onDelete: Cascade)

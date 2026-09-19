@@ -322,8 +322,18 @@ async function persistBrain(projectId: string, brain: BookBrain): Promise<void> 
 async function buildPrompts(projectId: string, brain: BookBrain): Promise<void> {
   const project = await prisma.studioProject.findUnique({ where: { id: projectId }, select: { bookId: true } });
   if (!project?.bookId) return;
+  // Pages where the author has manually overridden motionTier — we skip
+  // writing that column for them so a Brain re-analysis preserves the
+  // override. Other fields (animationPrompt, sceneType, etc.) still get
+  // refreshed; only motionTier is sticky.
+  const overridden = await prisma.page.findMany({
+    where: { bookId: project.bookId, motionTierOverridden: true },
+    select: { pageNum: true }
+  });
+  const overriddenNums = new Set(overridden.map((p) => p.pageNum));
   await Promise.all(
     brain.page_manifest.map((page) => {
+      const skipTier = overriddenNums.has(page.page_num);
       // Backwards-compat: older stored brains don't carry motionTier; we
       // default to STANDARD so legacy rows get the cheaper 5s clip.
       const tier = page.motionTier ?? "STANDARD";
@@ -335,7 +345,7 @@ async function buildPrompts(projectId: string, brain: BookBrain): Promise<void> 
           sceneType: page.primary_action,
           emotionalRegister: page.emotion,
           cameraAngle: page.camera_angle,
-          motionTier: tier
+          ...(skipTier ? {} : { motionTier: tier })
         }
       });
     })

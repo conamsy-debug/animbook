@@ -1,0 +1,16 @@
+-- Motion-tier override persistence
+--
+-- The PUT /api/pages/:pageId/motion-tier endpoint lets the author flip a
+-- page between HERO (10s clip) and STANDARD (5s clip). Today, re-running
+-- the Book Brain analysis overwrites every page's motionTier with the
+-- Brain's value (buildPrompts in services/pipeline.ts:322-343), wiping the
+-- author's per-page choices.
+--
+-- This column records that the tier was set manually. buildPrompts now
+-- skips writing motionTier on rows where the flag is true, so a Brain
+-- re-analysis only refreshes animationPrompt / sceneType / emotionalRegister
+-- / cameraAngle — never the author's HERO/STANDARD choice.
+--
+-- Backfill: every existing row defaults to FALSE, so legacy pages behave
+-- exactly as they did before this migration.
+ALTER TABLE "pages" ADD COLUMN "motion_tier_overridden" BOOLEAN NOT NULL DEFAULT FALSE;
