@@ -583,6 +583,16 @@ router.post(
       voiceId,
       storageKey: `narration/${page.book.studioProject.id}/p${page.pageNum}-${Date.now().toString(36)}.mp3`
     });
+    // If ElevenLabs 404'd on the voice we asked for, generateNarration
+    // already retried with the curated fallback. Surface the orphaned
+    // id to the user record so the Studio renders a "re-clone" banner.
+    if (result.orphanedVoiceId) {
+      const { markVoiceOrphaned } = await import("../../services/elevenlabs.js");
+      const flipped = await markVoiceOrphaned(userId, result.orphanedVoiceId);
+      if (flipped) {
+        console.warn(`[studio/audio-regen] user ${userId} voice ${result.orphanedVoiceId} marked REMOVED`);
+      }
+    }
     if (!result.audioUrl) {
       // Stub: ElevenLabs/R2 not configured or text was rejected. Mark
       // FAILED so the chip flips and the user knows to investigate.
@@ -1057,7 +1067,23 @@ router.get("/projects/:id/narrator-voice", async (req: AuthedRequest, res: Respo
   res.json({
     voices,
     selectedVoiceId: brain?.narratorVoiceId ?? null,
-    hasClone: Boolean(creator?.narratorVoiceId && creator.voiceStatus === "CLONED")
+    hasClone: Boolean(creator?.narratorVoiceId && creator.voiceStatus === "CLONED"),
+    /**
+     * Voice status from the user's perspective:
+     *   - "ACTIVE"   — clone exists on ElevenLabs and the user record
+     *   - "REMOVED"  — ElevenLabs 404'd on our last attempt; we marked
+     *                  users.voiceStatus=REMOVED + cleared narratorVoiceId
+     *                  so subsequent narrations fall back to a curated default
+     *   - "NONE"     — user never cloned
+     * Studio renders a banner on REMOVED telling the author to re-clone.
+     */
+    cloneStatus:
+      creator?.voiceStatus === "REMOVED"
+        ? "REMOVED"
+        : creator?.narratorVoiceId && creator.voiceStatus === "CLONED"
+          ? "ACTIVE"
+          : "NONE",
+    cloneVoiceId: creator?.narratorVoiceId ?? null
   });
 });
 

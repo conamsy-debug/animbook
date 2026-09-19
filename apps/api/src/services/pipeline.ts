@@ -447,7 +447,7 @@ async function runAudioStage(projectId: string, limit?: number): Promise<void> {
       book: {
         select: {
           vertical: true,
-          creator: { select: { narratorVoiceId: true, voiceStatus: true } }
+          creator: { select: { id: true, narratorVoiceId: true, voiceStatus: true } }
         }
       }
     }
@@ -476,6 +476,7 @@ async function runAudioStage(projectId: string, limit?: number): Promise<void> {
   // raw voice_id.
   const voiceId = chosenId?.startsWith("author:") ? chosenId.slice("author:".length) : chosenId;
   // Sequential: ElevenLabs limits concurrent requests on smaller plans.
+  let didMarkOrphan = false; // dedupe the REMOVED write per run
   for (const page of pages) {
     // Skip pages that already have narration — re-kicks (e.g. after
     // OCR-garbage cleanup) shouldn't burn credits re-narrating good
@@ -487,6 +488,19 @@ async function runAudioStage(projectId: string, limit?: number): Promise<void> {
         voiceId,
         storageKey: `narration/${projectId}/p${page.pageNum}-${Date.now().toString(36)}.mp3`
       });
+      // If ElevenLabs returned 404 for the voice we asked for, generateNarration
+      // already retried with the fallback voice. Surface the orphaned id to
+      // the user record so the UI shows the "re-clone" banner. Only the
+      // first orphaned page writes — subsequent pages in the same run skip
+      // the redundant UPDATE since voiceStatus is already REMOVED.
+      if (result.orphanedVoiceId && !didMarkOrphan && brain?.book.creator?.id) {
+        const { markVoiceOrphaned } = await import("./elevenlabs.js");
+        const flipped = await markVoiceOrphaned(brain.book.creator.id, result.orphanedVoiceId);
+        if (flipped) {
+          console.warn(`[pipeline/audio] user ${brain.book.creator.id} voice ${result.orphanedVoiceId} marked REMOVED`);
+          didMarkOrphan = true;
+        }
+      }
       if (!result.audioUrl) {
         // Narration came back as a stub — nothing useful to store. Leave the
         // page's audioStatus alone so a re-run can succeed.
