@@ -74,6 +74,17 @@ const PAGE_STATUS: Record<string, string> = { PENDING: "To review", APPROVED: "A
 /** Furthest step a project can show, from its server status. */
 function stageFor(project: ProjectDetail | null): Stage {
   if (!project) return "SETUP";
+  // Split-pipeline books bypass the legacy GENERATING/AUDIO gates — the
+  // STILL_PAGE + ANIMATE_PAGE workers handle generation. Skip ahead so a
+  // paused legacy queue (e.g. Runway credits at 0) doesn't trap the user
+  // at Step 4. Brain-related states (BRAIN_REVIEW, FAILED-before-brain)
+  // still hold: the Brain is upstream of SplitReview.
+  if (
+    project.book?.splitPipeline &&
+    (project.status === "GENERATING" || project.status === "AUDIO")
+  ) {
+    return "REVIEW";
+  }
   switch (project.status) {
     case "SETUP":
     case "ANALYZING":
