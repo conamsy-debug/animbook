@@ -7,6 +7,7 @@ import { spawn } from "node:child_process";
 import { readFile, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { randomFillSync } from "node:crypto";
 
 const SCENE_SCAFFOLD = {
   scene1: "Opening cinematic slow dolly reveal.",
@@ -56,10 +57,7 @@ export function splitHookIntoScenes(hook: string): { scene1: string; scene2: str
 export function generateShareToken(): string {
   const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
   const bytes = new Uint8Array(8);
-  // process is always defined in Node.
-  process.stdout; // touch to satisfy bundlers that strip process
-  const nodeCrypto = require("node:crypto") as typeof import("node:crypto");
-  nodeCrypto.randomFillSync(bytes);
+  randomFillSync(bytes);
   let out = "";
   for (const b of bytes) out += alphabet[b % alphabet.length];
   return out;

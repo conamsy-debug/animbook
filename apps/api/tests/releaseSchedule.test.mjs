@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 const MS = 24 * 60 * 60 * 1000;
 
 test("computeChunks: 100 pages, 10% per drop, daily cadence → 10 chunks of 10", async () => {
-  const { computeChunks } = await import("../dist/src/services/releaseSchedule.js");
+  const { computeChunks } = await import("../dist/services/releaseSchedule.js");
   const start = new Date("2026-09-18T08:00:00Z");
   const chunks = computeChunks({ totalPages: 100, chunkPercent: 10, cadence: "DAILY", startAt: start });
   assert.equal(chunks.length, 10);
@@ -39,7 +39,7 @@ test("computeChunks: 100 pages, 10% per drop, daily cadence → 10 chunks of 10"
 });
 
 test("computeChunks: 25% per drop on 10 pages → 4 chunks of 3 (last is 1)", async () => {
-  const { computeChunks } = await import("../dist/src/services/releaseSchedule.js");
+  const { computeChunks } = await import("../dist/services/releaseSchedule.js");
   const start = new Date("2026-09-18T08:00:00Z");
   const chunks = computeChunks({ totalPages: 10, chunkPercent: 25, cadence: "WEEKLY", startAt: start });
   // 25% of 10 = 2.5 → ceil 3. 10/3 = ceil(10/3) = 4 chunks. The last one is
@@ -58,7 +58,7 @@ test("computeChunks: 25% per drop on 10 pages → 4 chunks of 3 (last is 1)", as
 });
 
 test("computeChunks: 1 page total → exactly 1 chunk", async () => {
-  const { computeChunks } = await import("../dist/src/services/releaseSchedule.js");
+  const { computeChunks } = await import("../dist/services/releaseSchedule.js");
   const chunks = computeChunks({ totalPages: 1, chunkPercent: 10, cadence: "DAILY", startAt: new Date("2026-09-18T08:00:00Z") });
   assert.equal(chunks.length, 1);
   assert.equal(chunks[0].pageStart, 1);
@@ -66,7 +66,7 @@ test("computeChunks: 1 page total → exactly 1 chunk", async () => {
 });
 
 test("computeChunks: 0 pages → single empty chunk so the book still has rows", async () => {
-  const { computeChunks } = await import("../dist/src/services/releaseSchedule.js");
+  const { computeChunks } = await import("../dist/services/releaseSchedule.js");
   const chunks = computeChunks({ totalPages: 0, chunkPercent: 10, cadence: "DAILY", startAt: new Date() });
   assert.equal(chunks.length, 1);
   assert.equal(chunks[0].pageStart, 1);
@@ -74,7 +74,7 @@ test("computeChunks: 0 pages → single empty chunk so the book still has rows",
 });
 
 test("computeChunks: monthly cadence → ~30-day spacing", async () => {
-  const { computeChunks } = await import("../dist/src/services/releaseSchedule.js");
+  const { computeChunks } = await import("../dist/services/releaseSchedule.js");
   const start = new Date("2026-09-18T08:00:00Z");
   // 30 pages × 25% = 8 pages per chunk → 4 chunks. We just care that the gap
   // between consecutive drops is one month (~30 days).
@@ -85,26 +85,26 @@ test("computeChunks: monthly cadence → ~30-day spacing", async () => {
 });
 
 test("validateSchedule: IMMEDIATE passes without cadence", async () => {
-  const { validateSchedule } = await import("../dist/src/services/releaseSchedule.js");
+  const { validateSchedule } = await import("../dist/services/releaseSchedule.js");
   assert.doesNotThrow(() => validateSchedule({ mode: "IMMEDIATE" }, 50));
 });
 
 test("validateSchedule: TIME without cadence fails 400", async () => {
-  const { validateSchedule } = await import("../dist/src/services/releaseSchedule.js");
+  const { validateSchedule } = await import("../dist/services/releaseSchedule.js");
   assert.throws(() => validateSchedule({ mode: "TIME", chunkPercent: 10 }, 50), (err) => {
     return (err && err.status) === 400;
   });
 });
 
 test("validateSchedule: TIME with bad chunk% fails 400", async () => {
-  const { validateSchedule } = await import("../dist/src/services/releaseSchedule.js");
+  const { validateSchedule } = await import("../dist/services/releaseSchedule.js");
   assert.throws(() => validateSchedule({ mode: "TIME", cadence: "DAILY", chunkPercent: 33 }, 50), (err) => {
     return (err && err.status) === 400;
   });
 });
 
 test("validateSchedule: TIME with start in the past fails 400", async () => {
-  const { validateSchedule } = await import("../dist/src/services/releaseSchedule.js");
+  const { validateSchedule } = await import("../dist/services/releaseSchedule.js");
   const past = new Date(Date.now() - 2 * 60 * 60 * 1000);
   assert.throws(
     () => validateSchedule({ mode: "TIME", cadence: "DAILY", chunkPercent: 10, startAt: past }, 50),
@@ -113,7 +113,7 @@ test("validateSchedule: TIME with start in the past fails 400", async () => {
 });
 
 test("validateSchedule: TASK without prompt fails 400", async () => {
-  const { validateSchedule } = await import("../dist/src/services/releaseSchedule.js");
+  const { validateSchedule } = await import("../dist/services/releaseSchedule.js");
   assert.throws(
     () => validateSchedule({ mode: "TASK", cadence: "DAILY", chunkPercent: 10 }, 50),
     (err) => (err && err.status) === 400
@@ -121,7 +121,7 @@ test("validateSchedule: TASK without prompt fails 400", async () => {
 });
 
 test("validateSchedule: TASK with prompt and pages passes", async () => {
-  const { validateSchedule } = await import("../dist/src/services/releaseSchedule.js");
+  const { validateSchedule } = await import("../dist/services/releaseSchedule.js");
   assert.doesNotThrow(() =>
     validateSchedule(
       { mode: "TASK", cadence: "DAILY", chunkPercent: 25, dailyTaskPrompt: "Write three sentences about today." },
@@ -131,7 +131,7 @@ test("validateSchedule: TASK with prompt and pages passes", async () => {
 });
 
 test("validateSchedule: dripped schedule with 0 pages fails 400", async () => {
-  const { validateSchedule } = await import("../dist/src/services/releaseSchedule.js");
+  const { validateSchedule } = await import("../dist/services/releaseSchedule.js");
   assert.throws(
     () => validateSchedule({ mode: "TIME", cadence: "DAILY", chunkPercent: 10 }, 0),
     (err) => (err && err.status) === 400
@@ -139,7 +139,7 @@ test("validateSchedule: dripped schedule with 0 pages fails 400", async () => {
 });
 
 test("computeChunks: pages cover the full range with no gaps", async () => {
-  const { computeChunks } = await import("../dist/src/services/releaseSchedule.js");
+  const { computeChunks } = await import("../dist/services/releaseSchedule.js");
   const start = new Date("2026-09-18T08:00:00Z");
   // 73 pages with 10% (8 per chunk) should land on exactly 10 chunks,
   // covering 1..73 without overlap.

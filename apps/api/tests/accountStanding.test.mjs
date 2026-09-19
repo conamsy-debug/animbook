@@ -8,7 +8,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { verdictFor } from "../dist/src/services/accountStanding.js";
+import { verdictFor } from "../dist/services/accountStanding.js";
 
 const adult = { accountKind: "ADULT", communityDisabled: false, classroomMemberships: 0 };
 

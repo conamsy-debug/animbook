@@ -10,7 +10,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { dreamProfileForBook } from "../dist/src/services/dream.js";
+import { dreamProfileForBook } from "../dist/services/dream.js";
 
 test("dreamProfileForBook: returns a default shape", () => {
   const profile = dreamProfileForBook({

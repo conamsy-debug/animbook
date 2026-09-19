@@ -16,7 +16,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const runwayModule = await import("../dist/src/services/runway.js");
+const runwayModule = await import("../dist/services/runway.js");
 const { animateStill } = runwayModule;
 
 const originalFetch = globalThis.fetch;

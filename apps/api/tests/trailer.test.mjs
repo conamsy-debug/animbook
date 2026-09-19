@@ -56,7 +56,7 @@ test("generateShareToken: 8 lowercase alphanumerics, deterministic-style randomn
 
 // Stitcher tests — exercise the actual ffmpeg invocation we use at runtime.
 // Skipped if ffmpeg isn't on PATH (e.g. CI boxes without it).
-function ensureFfmpeg(): boolean {
+function ensureFfmpeg() {
   const r = spawnSync("ffmpeg", ["-version"], { encoding: "utf8" });
   return r.status === 0;
 }

@@ -71,6 +71,7 @@ test("cloneVoiceFromSamples: empty buffer → throws", async () => {
 });
 
 test("deleteClonedVoice: idempotent (404 on second call doesn't throw)", async () => {
+  const originalFetch = globalThis.fetch;
   let calls = 0;
   globalThis.fetch = async (url, init) => {
     calls += 1;
@@ -83,6 +84,6 @@ test("deleteClonedVoice: idempotent (404 on second call doesn't throw)", async (
     await api.deleteClonedVoice("voice_abc");
     assert.equal(calls, 2);
   } finally {
-    restore();
+    globalThis.fetch = originalFetch;
   }
 });

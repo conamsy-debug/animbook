@@ -9,7 +9,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { rateLimit, resetRateLimit } from "../dist/src/middleware/rateLimit.js";
+import { rateLimit, resetRateLimit } from "../dist/middleware/rateLimit.js";
 
 function mockReqRes() {
   const req = { ip: "1.2.3.4", user: undefined, socket: { remoteAddress: "1.2.3.4" } };

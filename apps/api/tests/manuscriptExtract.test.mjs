@@ -15,7 +15,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const { cleanOcrGarbage, looksLikeOcrGarbage } = await import(
-  "../dist/src/services/manuscriptExtract.js"
+  "../dist/services/manuscriptExtract.js"
 );
 
 test("looksLikeOcrGarbage flags the page-49 fragments", () => {

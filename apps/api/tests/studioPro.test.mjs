@@ -15,7 +15,7 @@ import {
   ensureCompanionLink,
   findCompanionLinkByMarker,
   findCompanionLinkByNfc
-} from "../dist/src/services/studioPro.js";
+} from "../dist/services/studioPro.js";
 
 test("generateMarkerHash: deterministic + sha256 of stable seed string", () => {
   const bookId = "cmsvoddhp00097k4opyzqnnwl";
