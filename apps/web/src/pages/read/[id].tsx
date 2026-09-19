@@ -20,6 +20,12 @@ import { useLibraryStore, useReaderStore, useToastStore } from "@/lib/store";
 import { stopSpeaking } from "@/lib/speech";
 import { useNarration } from "@/lib/useNarration";
 import { readStoredSpeed, persistSpeed, type Speed } from "@/lib/speed";
+import { pickPrefetchLinks } from "@/lib/readerPlaybackPrefetch.mjs";
+
+/** Shape produced by pickPrefetchLinks — duplicated here because the
+ *  helper is .mjs (plain ES module) and TS can't infer JSDoc types
+ *  without an extra `.d.ts` ambient file. */
+type LinkSpec = { rel: "preload" | "prefetch"; as: "video" | "audio" | "fetch"; href: string };
 
 interface MemoryProfile {
   palette: string;
@@ -408,6 +414,47 @@ export default function ReaderPage() {
     if (autoFlipTimer.current) window.clearTimeout(autoFlipTimer.current);
   }, []);
   const [userPaused, setUserPaused] = useState(false);
+
+  /**
+   * Prefetch the next page's clip + audio so the auto-turn doesn't stall.
+   *
+   * - The browser fetches the MP4 + decodes the first frame while the
+   *   reader is still on this page; flipping to the next page is then
+   *   instant (no spinner, no jank).
+   * - We tag the next page with `rel="preload"` (immediate) and the
+   *   page after next with `rel="prefetch"` (speculative), so we
+   *   don't compete with the current decoder for bandwidth.
+   * - The <link> tags are removed when the reader moves on so they
+   *   don't pile up across a long book.
+   * - READ mode skips the video tag — the video element isn't rendered
+   *   in that mode, so a preloaded clip would be wasted bytes.
+   *
+   * Decision logic lives in `lib/readerPlaybackPrefetch.ts` so unit
+   * tests can pin the rules without spinning up jsdom.
+   */
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const specs: LinkSpec[] = pickPrefetchLinks(pages, pageIndex, readerMode);
+    const links: HTMLLinkElement[] = [];
+    for (const spec of specs) {
+      const el = document.createElement("link");
+      el.rel = spec.rel;
+      el.as = spec.as;
+      el.href = spec.href;
+      // Hint: media gets warmed but doesn't compete with the current
+      // page's own decoder for bandwidth.
+      if (spec.as === "video" || spec.as === "audio") {
+        (el as HTMLLinkElement & { crossOrigin?: string }).crossOrigin = "anonymous";
+      }
+      document.head.appendChild(el);
+      links.push(el);
+    }
+    return () => {
+      for (const el of links) {
+        if (el.parentNode) el.parentNode.removeChild(el);
+      }
+    };
+  }, [pageIndex, pages, readerMode]);
 
   function playNarration() {
     setUserPaused(false);
