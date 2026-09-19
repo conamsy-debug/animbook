@@ -98,6 +98,9 @@ export interface BookSummary {
   coverUrl: string | null;
   totalPages: number;
   styleId: string | null;
+  /** Split-pipeline flag. Books with splitPipeline=false use the legacy
+   *  single-stage VIDEO_GENERATION path. */
+  splitPipeline?: boolean;
 }
 
 export interface PageRecord {
@@ -116,6 +119,27 @@ export interface PageRecord {
   status: string;
   directionNote?: string | null;
   speakerName: string | null;
+  /** Split-pipeline: still lifecycle. NONE for legacy books. */
+  stillStatus?: "NONE" | "GENERATING" | "READY" | "APPROVED" | "FAILED" | null;
+  /** Split-pipeline: clip lifecycle. */
+  clipStatus?:
+    | "NONE"
+    | "QUEUED"
+    | "GENERATING"
+    | "READY"
+    | "APPROVED"
+    | "FLAGGED"
+    | "FAILED"
+    | "STALE"
+    | null;
+  /** Split-pipeline: audio lifecycle. */
+  audioStatus?: "NONE" | "GENERATING" | "READY" | "FAILED" | null;
+  /** Split-pipeline: prompt the author overrode for the still. */
+  stillPrompt?: string | null;
+  /** Split-pipeline: bumped on every still regeneration. */
+  stillVersion?: number;
+  /** Split-pipeline: HERO (10s clip) or STANDARD (10s in Part A, 5s in Part B). */
+  motionTier?: "HERO" | "STANDARD" | null;
 }
 
 export interface LibraryEntry {

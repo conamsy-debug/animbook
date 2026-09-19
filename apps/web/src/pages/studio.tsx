@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Topbar } from "@/components/Topbar";
 import { apiFetch, apiStreamUrl, type BookBrainJson, type PageRecord, type PipelineEvent, type StudioProjectSummary } from "@/lib/api";
 import NarratorVoicePicker from "@/components/NarratorVoicePicker";
+import SplitReview from "@/components/SplitReview";
 import { useToastStore } from "@/lib/store";
 import { VERTICALS, subcategoriesFor, verticalById } from "@/lib/verticals";
 import { ImportError, readManuscriptFile } from "@/lib/manuscriptImport";
@@ -25,6 +26,7 @@ interface ProjectDetail extends StudioProjectSummary {
     styleId?: string | null;
     requiresExpertReview?: boolean;
     expertReviewStatus?: string;
+    splitPipeline?: boolean;
     pages: PageRecord[];
     brain?: { rawJson: BookBrainJson; styleSelected: string | null } | null;
   };
@@ -994,7 +996,21 @@ export default function StudioPage() {
               </article>
             )}
 
-            {view === "REVIEW" && project && (
+            {view === "REVIEW" && project && project.book?.splitPipeline && (
+              <article className="studio-panel">
+                <SplitReview
+                  projectId={project.id}
+                  pages={pages}
+                  published={published}
+                  onPublish={publish}
+                  onRefresh={async () => {
+                    await refresh(project.id);
+                  }}
+                />
+              </article>
+            )}
+
+            {view === "REVIEW" && project && !project.book?.splitPipeline && (
               <article className="studio-panel">
                 <div className="release-schedule">
                   <h3>Release schedule</h3>

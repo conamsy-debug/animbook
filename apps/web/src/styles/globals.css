@@ -1928,6 +1928,46 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 .review-actions { display: flex; gap: 8px; }
 .review-actions .btn { flex: 1; }
 
+/* -------------------------------------------------------------------- *
+ * Split-pipeline review (STILL_PAGE -> approve -> ANIMATE_PAGE).
+ * Mobile-first (375px). The component is rendered only when the book
+ * has Book.splitPipeline = true.
+ * -------------------------------------------------------------------- */
+.split-review { display: flex; flex-direction: column; gap: 24px; }
+.split-section { display: flex; flex-direction: column; gap: 14px; padding: 18px 18px 22px; border-radius: 18px; border: 1px solid var(--border); background: #0a0f17; }
+.split-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.split-head h2 { margin: 0 0 4px; }
+.split-head p { margin: 0; }
+.split-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.split-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+@media (max-width: 480px) { .split-grid { grid-template-columns: 1fr; } }
+.split-card { display: flex; flex-direction: column; gap: 8px; padding: 10px 10px 12px; border-radius: 16px; border: 1px solid var(--border); background: #0b111a; }
+.split-card.s-still-approved { border-color: rgba(63, 129, 114, 0.6); }
+.split-card.s-still-failed, .split-card.s-clip-failed { border-color: rgba(201, 75, 50, 0.5); }
+.split-card.s-clip-stale { border-color: rgba(196, 154, 28, 0.45); }
+.split-card.s-still-generating, .split-card.s-clip-generating, .split-card.s-clip-queued { border-color: rgba(27, 107, 138, 0.5); }
+.split-media { position: relative; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; background: #05080d; }
+.split-media img, .split-media video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.split-media .status-chip { position: absolute; right: 8px; top: 8px; }
+.split-media .status-chip.s-audio-ready { right: 8px; top: 36px; background: rgba(63, 129, 114, 0.25); color: #8fe0c8; }
+.split-media .status-chip.s-audio-failed { right: 8px; top: 36px; background: rgba(201, 75, 50, 0.22); color: #f2a08e; }
+.split-text { margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 0.95rem; line-height: 1.45; max-height: 6em; overflow: auto; }
+.split-card textarea { width: 100%; min-height: 50px; resize: vertical; background: rgba(255,255,255,0.04); color: inherit; border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font: inherit; }
+.split-note { width: 100%; background: rgba(255,255,255,0.04); color: inherit; border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; font: inherit; font-size: 0.85rem; }
+.split-card-actions { display: flex; gap: 8px; }
+.split-card-actions .btn { flex: 1; }
+.split-audio { width: 100%; height: 32px; margin-top: 6px; }
+.stale-note { position: absolute; left: 8px; right: 8px; bottom: 8px; padding: 6px 8px; border-radius: 8px; background: rgba(196, 154, 28, 0.18); color: #f4d28a; font-size: 0.75rem; line-height: 1.3; border: 1px solid rgba(196, 154, 28, 0.4); }
+
+.confirm-modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); display: grid; place-items: center; z-index: 50; padding: 20px; }
+.confirm-card { max-width: 480px; background: #0b111a; border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px; display: flex; flex-direction: column; gap: 12px; }
+.confirm-card h3 { margin: 0; }
+.confirm-card p { margin: 0; line-height: 1.5; }
+.confirm-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+
+.publish-blockers { list-style: none; margin: 0; padding: 12px 16px; border-radius: 12px; background: rgba(201, 75, 50, 0.1); border: 1px solid rgba(201, 75, 50, 0.35); display: flex; flex-direction: column; gap: 6px; font-size: 0.88rem; }
+.publish-blockers li { color: #f2a08e; }
+
 .studio-activity { border-radius: 14px; border: 1px solid var(--border); background: var(--surface); padding: 10px 16px; }
 .studio-activity summary { cursor: pointer; color: var(--muted); font-size: 0.88rem; }
 .studio-activity ul { list-style: none; margin: 10px 0 4px; padding: 0; display: grid; gap: 6px; max-height: 220px; overflow-y: auto; }
