@@ -209,3 +209,32 @@ export function estimateAudioCostUsd(chars: number): number {
 export function estimateStillCostUsd(pages: number): number {
   return Math.round(pages * RUNWAY_CREDITS_PER_IMAGE * RUNWAY_USD_PER_CREDIT * 100) / 100;
 }
+
+/* --------------------------------------------------------------------- *
+ * Duration helpers — used by the cost preview so the dashboard and the
+ * /api/usage/summary endpoint can show "X minutes of narration"
+ * alongside the dollar figure. Heuristic only; ElevenLabs doesn't
+ * expose a length-from-chars API and probing the resulting mp3 with
+ * ffprobe for every page would slow the preflight.
+ * --------------------------------------------------------------------- */
+
+/** Average narration rate in chars/sec (English). ElevenLabs
+ *  multilingual_v2 averages ~150 wpm; 150 wpm × 5 chars/word ≈ 12.5
+ *  chars/sec. We use 13. */
+export const NARRATION_CHARS_PER_SEC = 13;
+
+/** Chars → narration seconds (heuristic). */
+export function estimateNarrationDurationSec(chars: number): number {
+  return Math.round(chars / NARRATION_CHARS_PER_SEC);
+}
+
+/** Whole-minute presentation for the UI. */
+export function narrationDurationLabel(chars: number): { seconds: number; minutes: number; label: string } {
+  const seconds = estimateNarrationDurationSec(chars);
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  return {
+    seconds,
+    minutes,
+    label: minutes < 60 ? `~${minutes} min narration` : `~${Math.round(minutes / 60)} hr narration`
+  };
+}

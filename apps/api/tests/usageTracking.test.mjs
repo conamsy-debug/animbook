@@ -16,6 +16,9 @@ const {
   estimateAudioCostUsd,
   estimateStillCostUsd,
   estimateAnimateCostUsd,
+  estimateNarrationDurationSec,
+  narrationDurationLabel,
+  NARRATION_CHARS_PER_SEC,
   recordUsage,
   getUsageSummary,
 } = await import("../dist/services/usageTracking.js");
@@ -53,6 +56,38 @@ test("estimateAnimateCostUsd: mixed 12 HERO + 8 STANDARD = $8", () => {
   ];
   // 12 HERO × 10s × $0.05/s = $6; 8 STANDARD × 5s × $0.05/s = $2; total $8
   assert.equal(estimateAnimateCostUsd(pages), 8);
+});
+
+/* --------------------------------------------------------------------- *
+ * Duration helpers — narration length preview
+ * --------------------------------------------------------------------- */
+
+test("NARRATION_CHARS_PER_SEC = 13 (English ~150 wpm heuristic)", () => {
+  assert.equal(NARRATION_CHARS_PER_SEC, 13);
+});
+
+test("estimateNarrationDurationSec: 1000 chars → 77 sec (~13 chars/sec)", () => {
+  assert.equal(estimateNarrationDurationSec(1000), 77);
+});
+
+test("estimateNarrationDurationSec: 470000 chars → ~36154 sec (~10 hr)", () => {
+  // PPI is ~470k chars total — that's a 10-hour audiobook, which is
+  // close to the actual sound length of a 238-page Faith book.
+  assert.equal(estimateNarrationDurationSec(470_000), 36154);
+});
+
+test("narrationDurationLabel: < 60 min → '~N min narration'", () => {
+  // 1000 chars → 77 sec → 1 min
+  const label = narrationDurationLabel(1000);
+  assert.equal(label.minutes, 1);
+  assert.equal(label.label, "~1 min narration");
+});
+
+test("narrationDurationLabel: >= 60 min → '~N hr narration'", () => {
+  // 60 min × 60 sec × 13 chars/sec = 46800 chars
+  const label = narrationDurationLabel(46_800);
+  assert.equal(label.minutes, 60);
+  assert.equal(label.label, "~1 hr narration");
 });
 
 /* --------------------------------------------------------------------- *

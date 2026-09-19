@@ -18,7 +18,7 @@ import { enqueueAnimateJob, type SplitJobData } from "../../services/splitPipeli
 import { move as moveState, moveMany as moveManyState } from "../../services/pageState.js";
 import { generateNarration } from "../../services/elevenlabs.js";
 import { findVoice, defaultVoiceIdFor } from "../../config/voices.js";
-import { recordUsage } from "../../services/usageTracking.js";
+import { recordUsage, estimateNarrationDurationSec } from "../../services/usageTracking.js";
 import splitRoutes from "./splitRoutes.js";
 
 const router = Router();
@@ -632,6 +632,51 @@ router.post(
   }
 );
 
+/**
+ * GET /api/studio/projects/:id/audio/estimate — preflight cost + duration
+ * preview for the audio kick. Counts chars of pages that still need
+ * narration (audioUrl IS NULL) and returns ElevenLabs cost + estimated
+ * narration duration at ~13 chars/sec (150 wpm heuristic).
+ *
+ * Mirrors /projects/:id/animate/estimate so the UI can show both
+ * numbers side-by-side in the SplitReview "cost preview" panel.
+ */
+router.get("/projects/:id/audio/estimate", async (req: AuthedRequest, res: Response) => {
+  const userId = requireUserId(req);
+  const id = req.params["id"];
+  if (typeof id !== "string") {
+    res.status(400).json({ error: "Missing project id" });
+    return;
+  }
+  const project = await prisma.studioProject.findFirst({
+    where: { id, ownerId: userId },
+    select: { bookId: true }
+  });
+  if (!project?.bookId) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+  const pagesNeedingAudio = await prisma.page.findMany({
+    where: { bookId: project.bookId, audioUrl: null },
+    select: { textExcerpt: true }
+  });
+  const chars = pagesNeedingAudio.reduce(
+    (sum, p) => sum + (p.textExcerpt ?? "").length,
+    0
+  );
+  const usd = Math.round((chars / 1000) * 0.18 * 100) / 100;
+  const seconds = estimateNarrationDurationSec(chars);
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  res.json({
+    pages: pagesNeedingAudio.length,
+    chars,
+    usd,
+    estimatedDurationSec: seconds,
+    estimatedMinutes: minutes,
+    estimatedDurationLabel: minutes < 60 ? `~${minutes} min narration` : `~${Math.round(minutes / 60)} hr narration`
+  });
+});
+
 router.post("/projects/:id/audio", async (req: AuthedRequest, res: Response) => {
   const userId = requireUserId(req);
   const id = req.params["id"];
@@ -673,7 +718,17 @@ router.post("/projects/:id/audio", async (req: AuthedRequest, res: Response) => 
   });
   await prisma.studioProject.update({ where: { id }, data: { status: "AUDIO", currentStage: "AUDIO_PRODUCTION" } });
   const jobId = await enqueuePipeline({ projectId: id, triggerStage: "AUDIO_PRODUCTION" });
-  res.json({ projectId: id, jobId, pagesQueued: pagesToNarrate.length, estimatedUsd: Math.round((totalChars / 1000) * 0.18 * 100) / 100 });
+  const estimatedSeconds = estimateNarrationDurationSec(totalChars);
+  const estimatedMinutes = Math.max(1, Math.round(estimatedSeconds / 60));
+  res.json({
+    projectId: id,
+    jobId,
+    pagesQueued: pagesToNarrate.length,
+    estimatedUsd: Math.round((totalChars / 1000) * 0.18 * 100) / 100,
+    estimatedDurationSec: estimatedSeconds,
+    estimatedMinutes,
+    estimatedDurationLabel: estimatedMinutes < 60 ? `~${estimatedMinutes} min narration` : `~${Math.round(estimatedMinutes / 60)} hr narration`
+  });
 });
 
 const scheduleSchema = z.object({

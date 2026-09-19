@@ -68,6 +68,15 @@ interface AnimateEstimate {
   byTier: { HERO: number; STANDARD: number };
 }
 
+interface AudioEstimate {
+  pages: number;
+  chars: number;
+  usd: number;
+  estimatedDurationSec: number;
+  estimatedMinutes: number;
+  estimatedDurationLabel: string;
+}
+
 export default function SplitReview({ projectId, pages, published, onPublish, onRefresh }: SplitReviewProps) {
   const toast = useToastStore((s) => s.push);
 
@@ -75,6 +84,7 @@ export default function SplitReview({ projectId, pages, published, onPublish, on
   const [workingBulk, setWorkingBulk] = useState<string | null>(null);
   const [stillPromptOverrides, setStillPromptOverrides] = useState<Record<string, string>>({});
   const [estimate, setEstimate] = useState<AnimateEstimate | null>(null);
+  const [audioEstimate, setAudioEstimate] = useState<AudioEstimate | null>(null);
   const [confirmingAnimate, setConfirmingAnimate] = useState(false);
 
   /* ------------------------------------------------------------------- *
@@ -253,8 +263,17 @@ export default function SplitReview({ projectId, pages, published, onPublish, on
 
   const fetchEstimate = useCallback(async () => {
     try {
-      const res = await apiFetch<AnimateEstimate>(`/api/studio/projects/${projectId}/animate/estimate`);
-      setEstimate(res);
+      // Load animate + audio estimates in parallel so the confirm-animate
+      // modal can show "this kicks off 32 pages of Runway (~$24) AND
+      // would also need ~14 min of ElevenLabs narration (~$5) if you
+      // haven't generated audio yet". Authors tend to forget the audio
+      // cost; surfacing it here keeps the conversation grounded.
+      const [animateRes, audioRes] = await Promise.all([
+        apiFetch<AnimateEstimate>(`/api/studio/projects/${projectId}/animate/estimate`),
+        apiFetch<AudioEstimate>(`/api/studio/projects/${projectId}/audio/estimate`).catch(() => null)
+      ]);
+      setEstimate(animateRes);
+      setAudioEstimate(audioRes);
       setConfirmingAnimate(true);
     } catch (err) {
       toast((err as Error).message || "Failed to estimate");
@@ -557,6 +576,14 @@ export default function SplitReview({ projectId, pages, published, onPublish, on
           {audioInFlight.length === 0 && pages.length > 0 && (
             <p className="muted">All {pages.length} pages narrated.</p>
           )}
+          {audioEstimate && audioEstimate.pages > 0 && audioReady.length < pages.length && (
+            <p className="muted" style={{ marginTop: 8 }}>
+              <strong>{audioEstimate.estimatedDurationLabel}</strong> still to record
+              ({audioEstimate.pages} page{audioEstimate.pages === 1 ? "" : "s"},
+              ~${fmt(audioEstimate.usd)} ElevenLabs) — open the kick-audio action
+              separately to start it.
+            </p>
+          )}
         </section>
       )}
 
@@ -579,8 +606,16 @@ export default function SplitReview({ projectId, pages, published, onPublish, on
                 (10s in Part A; Part B will halve STANDARD).
               </p>
             )}
+            {audioEstimate && audioEstimate.pages > 0 && audioReady.length < pages.length && (
+              <p className="muted">
+                Plus <strong>{audioEstimate.estimatedDurationLabel}</strong> audio
+                ({audioEstimate.pages} page{audioEstimate.pages === 1 ? "" : "s"},
+                ~${fmt(audioEstimate.usd)} ElevenLabs) still to record — not part of this
+                kick but worth budgeting for.
+              </p>
+            )}
             <div className="confirm-actions">
-              <button type="button" className="btn" onClick={() => { setConfirmingAnimate(false); setEstimate(null); }}>
+              <button type="button" className="btn" onClick={() => { setConfirmingAnimate(false); setEstimate(null); setAudioEstimate(null); }}>
                 Cancel
               </button>
               <button
