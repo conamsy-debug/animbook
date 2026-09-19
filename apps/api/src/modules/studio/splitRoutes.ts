@@ -395,4 +395,36 @@ router.post(
   }
 );
 
+/* --------------------------------------------------------------------- *
+ * Per-page motion-tier override
+ *
+ * Lets the author flip a page between HERO (10s clip) and STANDARD (5s)
+ * on the REVIEW screen. We don't re-queue anything automatically — the
+ * override takes effect on the next animation pass for that page (either
+ * via "Animate approved pages" or a per-page "Re-animate").
+ * --------------------------------------------------------------------- */
+
+const motionTierSchema = z.object({
+  motionTier: z.enum(["HERO", "STANDARD"])
+});
+
+router.put(
+  "/pages/:pageId/motion-tier",
+  rateLimit({ name: "studio.motionTier", max: 60, windowSeconds: 60 }),
+  async (req: AuthedRequest, res: Response) => {
+    const loaded = await loadOwnedSplitPage(req, res, String(req.params["pageId"]));
+    if (!loaded) return;
+    const parsed = motionTierSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid motionTier", details: parsed.error.flatten() });
+      return;
+    }
+    await prisma.page.update({
+      where: { id: loaded.page.id },
+      data: { motionTier: parsed.data.motionTier }
+    });
+    res.json({ pageId: loaded.page.id, motionTier: parsed.data.motionTier });
+  }
+);
+
 export default router;

@@ -17,6 +17,14 @@ export interface BookBrainPageManifest {
   emotion: string;
   camera_angle: string;
   animation_prompt_draft: string;
+  /**
+   * HERO pages get a 10s clip; STANDARD pages get a 5s clip (Part B).
+   * Optional in the schema so brains written before Part B still parse;
+   * the producer defaults a missing value to STANDARD.
+   */
+  motionTier?: "HERO" | "STANDARD";
+  /** One-sentence reason Claude gave for the tier — surfaced in the UI. */
+  motionReason?: string;
 }
 
 export interface BookBrainCharacter {
@@ -78,7 +86,8 @@ function buildUserPrompt(input: { title?: string; author?: string; vertical?: st
     constraints: [
       "text_excerpt must be verbatim from the manuscript.",
       "characters_present must reference characters defined in this same response.",
-      "style_recommendation must be one of: Desert Realism, Painterly Mysticism, Graphic Novel, Anime-Inspired, Watercolour, Cinematic Dark, Scientific Microscopy, Sacred Realism."
+      "style_recommendation must be one of: Desert Realism, Painterly Mysticism, Graphic Novel, Anime-Inspired, Watercolour, Cinematic Dark, Scientific Microscopy, Sacred Realism.",
+      "Each page_manifest entry must include motionTier ('HERO' or 'STANDARD') and a one-sentence motionReason. HERO = real action or a key story moment that benefits from a 10s clip. STANDARD = the default 5s clip. Aim for 20-30% HERO across the book (more is fine for action-heavy genres)."
     ],
     book: {
       title: input.title,
@@ -167,16 +176,26 @@ export function buildFallbackBrain(input: ManuscriptLike, opts: { vertical?: str
     }
   ];
 
-  const page_manifest: BookBrainPageManifest[] = input.pages.map((page) => ({
-    page_num: page.pageNum,
-    text_excerpt: page.text,
-    setting: settings[0]!.name,
-    characters_present: characters.slice(0, 2).map((c) => c.name),
-    primary_action: "narrative beat",
-    emotion: "reflective",
-    camera_angle: "eye-level medium shot",
-    animation_prompt_draft: `Cinematic slow camera movement over a still atmospheric scene evoking the chapter text. ${page.text.slice(0, 80)}`
-  }));
+  const page_manifest: BookBrainPageManifest[] = input.pages.map((page, idx) => {
+    // Deterministic motionTier: ~25% HERO (every 4th page), the rest
+    // STANDARD. Always includes a reason so the UI can show why.
+    const tier = idx % 4 === 0 ? "HERO" : "STANDARD";
+    const reason = tier === "HERO"
+      ? "Opening of a sequence — deserves the longer 10s treatment."
+      : "Quiet narrative beat — the default 5s clip is enough.";
+    return {
+      page_num: page.pageNum,
+      text_excerpt: page.text,
+      setting: settings[0]!.name,
+      characters_present: characters.slice(0, 2).map((c) => c.name),
+      primary_action: "narrative beat",
+      emotion: "reflective",
+      camera_angle: "eye-level medium shot",
+      animation_prompt_draft: `Cinematic slow camera movement over a still atmospheric scene evoking the chapter text. ${page.text.slice(0, 80)}`,
+      motionTier: tier,
+      motionReason: reason
+    };
+  });
 
   return {
     title: input.title ?? "Untitled AnimBook",
@@ -213,8 +232,9 @@ style_recommendation must be one of: desert-realism, painterly-mysticism, graphi
 Return valid JSON only. No prose.`;
 
 const MANIFEST_SYSTEM = `You are the AnimBook Book Brain engine. You are given a book overview and a slice of its pages. Return ONE JSON object: {"page_manifest": [...]} covering EXACTLY the page numbers given, in order.
-Each entry: {page_num, text_excerpt (verbatim first sentence or two), setting, characters_present[] (names from the overview), primary_action, emotion, camera_angle, animation_prompt_draft}.
+Each entry: {page_num, text_excerpt (verbatim first sentence or two), setting, characters_present[] (names from the overview), primary_action, emotion, camera_angle, animation_prompt_draft, motionTier, motionReason}.
 animation_prompt_draft describes one frame to illustrate that page: who is in it (by look, not name), where, the light and the framing. Never mention text, titles, letters or logos.
+motionTier is 'HERO' or 'STANDARD'. HERO pages are real action or key story moments that benefit from a longer (10s) clip; STANDARD is the default (5s). Aim for 20-30% HERO across the whole book (more is fine for action-heavy genres; quieter books can have fewer). motionReason is one short sentence justifying your pick.
 Return valid JSON only. No prose.`;
 
 function sampleForOverview(pages: ManuscriptLike["pages"]): ManuscriptLike["pages"] {
@@ -261,16 +281,21 @@ async function chunkedBrain(input: { title?: string; author?: string; vertical?:
     } else {
       // Keep going: a missing batch falls back to the page's own text.
       manifest.push(
-        ...slice.map((p) => ({
-          page_num: p.pageNum,
-          text_excerpt: p.text.slice(0, 200),
-          setting: overview.settings?.[0]?.name ?? "",
-          characters_present: [],
-          primary_action: "a quiet moment",
-          emotion: "calm",
-          camera_angle: "medium shot",
-          animation_prompt_draft: p.text.slice(0, 220)
-        }))
+        ...slice.map((p, idx) => {
+          const tier = idx % 4 === 0 ? "HERO" : "STANDARD";
+          return {
+            page_num: p.pageNum,
+            text_excerpt: p.text.slice(0, 200),
+            setting: overview.settings?.[0]?.name ?? "",
+            characters_present: [],
+            primary_action: "a quiet moment",
+            emotion: "calm",
+            camera_angle: "medium shot",
+            animation_prompt_draft: p.text.slice(0, 220),
+            motionTier: tier,
+            motionReason: tier === "HERO" ? "Key moment — longer 10s treatment." : "Quiet moment — 5s default."
+          };
+        })
       );
     }
   }

@@ -176,6 +176,21 @@ export default function SplitReview({ projectId, pages, published, onPublish, on
     }
   }
 
+  async function setMotionTier(pageId: string, tier: "HERO" | "STANDARD") {
+    setWorkingPage(pageId);
+    try {
+      await apiFetch(`/api/pages/${pageId}/motion-tier`, {
+        method: "PUT",
+        body: JSON.stringify({ motionTier: tier })
+      });
+      await onRefresh();
+    } catch (err) {
+      toast((err as Error).message || "Couldn't change clip length");
+    } finally {
+      setWorkingPage(null);
+    }
+  }
+
   async function reanimateClip(pageId: string) {
     setWorkingPage(pageId);
     try {
@@ -338,6 +353,24 @@ export default function SplitReview({ projectId, pages, published, onPublish, on
                       >
                         {workingPage === page.id ? "Regenerating…" : editing ? "Edit + regenerate" : "Regenerate"}
                       </button>
+                    </div>
+                    <div className="motion-toggle" title="HERO = 10s clip, STANDARD = 5s">
+                      <span className="motion-label">Clip length</span>
+                      <div className="motion-pills" role="radiogroup" aria-label="Clip length">
+                        {(["STANDARD", "HERO"] as const).map((tier) => (
+                          <button
+                            key={tier}
+                            type="button"
+                            role="radio"
+                            aria-checked={page.motionTier === tier}
+                            className={`motion-pill ${page.motionTier === tier ? "selected" : ""}`}
+                            disabled={workingPage === page.id || published}
+                            onClick={() => void setMotionTier(page.id, tier)}
+                          >
+                            {tier === "HERO" ? "10s HERO" : "5s"}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </>
                 )}

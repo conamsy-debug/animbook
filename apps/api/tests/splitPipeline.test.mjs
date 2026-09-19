@@ -108,15 +108,17 @@ const data = { projectId: "proj-1", pageId: "page-1", stillVersion: 1 };
  * pickClipSeconds + estimateClipCostUsd
  * --------------------------------------------------------------------- */
 
-test("pickClipSeconds returns 10s for both HERO and STANDARD in Part A", () => {
+test("pickClipSeconds: HERO -> 10s, STANDARD -> 5s (Part B)", () => {
+  // Part B: STANDARD is the default 5s clip; HERO is the 10s longer
+  // treatment for real action / key beats.
   assert.equal(pickClipSeconds("HERO"), 10);
-  assert.equal(pickClipSeconds("STANDARD"), 10);
+  assert.equal(pickClipSeconds("STANDARD"), 5);
 });
 
 test("estimateClipCostUsd = seconds * 5 credits/sec * $0.01", () => {
   // 10s * 5 = 50 credits * $0.01 = $0.50
   assert.equal(estimateClipCostUsd(10), 0.5);
-  // 5s would be $0.25 if Part B moves STANDARD down
+  // 5s * 5 = 25 credits * $0.01 = $0.25 (Part B default)
   assert.equal(estimateClipCostUsd(5), 0.25);
 });
 

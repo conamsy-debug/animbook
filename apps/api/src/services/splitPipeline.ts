@@ -61,12 +61,14 @@ const STILL_CONCURRENCY = readConcurrency("STILL_PAGE_CONCURRENCY", 4);
 const ANIMATE_CONCURRENCY = readConcurrency("ANIMATE_PAGE_CONCURRENCY", 2);
 
 /* --------------------------------------------------------------------- *
- * Clip-length picker. Part A pins both tiers at 10s — Part B will move
- * STANDARD to 5s and let the Brain / author override.
+ * Clip-length picker. Part B: HERO = 10s (real action / key beats),
+ * STANDARD = 5s (the default). The Brain's motionTier sets the default;
+ * the author can override per page via the motion-tier toggle in the
+ * Studio REVIEW screen.
  * --------------------------------------------------------------------- */
 
-export function pickClipSeconds(_tier: MotionTier): number {
-  return 10;
+export function pickClipSeconds(tier: MotionTier): number {
+  return tier === "HERO" ? 10 : 5;
 }
 
 export function estimateClipCostUsd(seconds: number): number {

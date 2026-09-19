@@ -323,18 +323,22 @@ async function buildPrompts(projectId: string, brain: BookBrain): Promise<void> 
   const project = await prisma.studioProject.findUnique({ where: { id: projectId }, select: { bookId: true } });
   if (!project?.bookId) return;
   await Promise.all(
-    brain.page_manifest.map((page) =>
-      prisma.page.update({
+    brain.page_manifest.map((page) => {
+      // Backwards-compat: older stored brains don't carry motionTier; we
+      // default to STANDARD so legacy rows get the cheaper 5s clip.
+      const tier = page.motionTier ?? "STANDARD";
+      return prisma.page.update({
         where: { bookId_pageNum: { bookId: project.bookId!, pageNum: page.page_num } },
         data: {
           animationPrompt: page.animation_prompt_draft,
           negativePrompt: "blurry, low quality, distorted faces",
           sceneType: page.primary_action,
           emotionalRegister: page.emotion,
-          cameraAngle: page.camera_angle
+          cameraAngle: page.camera_angle,
+          motionTier: tier
         }
-      })
-    )
+      });
+    })
   );
 }
 
