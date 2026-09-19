@@ -93,6 +93,7 @@ export default function SplitReview({ projectId, pages, published, onPublish, on
     () => pages.filter((p) => p.audioStatus === "GENERATING" || p.audioStatus === "FAILED" || p.audioStatus === "NONE"),
     [pages]
   );
+  const audioReady = useMemo(() => pages.filter((p) => p.audioStatus === "READY"), [pages]);
 
   const publishBlockers = useMemo(
     () =>
@@ -518,9 +519,13 @@ export default function SplitReview({ projectId, pages, published, onPublish, on
           )}
           {audioInFlight.length > 0 && (
             <p className="muted">
-              Audio is queued in the background — pages with audioStatus not yet READY will
-              fill in over the next few minutes.
+              Audio in progress — <strong>{audioReady.length} of {pages.length}</strong> narrated
+              ({Math.round((audioReady.length / Math.max(1, pages.length)) * 100)}%).
+              Pages with audioStatus not yet READY will fill in over the next few minutes.
             </p>
+          )}
+          {audioInFlight.length === 0 && pages.length > 0 && (
+            <p className="muted">All {pages.length} pages narrated.</p>
           )}
         </section>
       )}
