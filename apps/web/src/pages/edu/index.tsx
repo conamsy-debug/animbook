@@ -45,7 +45,9 @@ export default function TeacherDashboardPage() {
   const [projectionMode, setProjectionMode] = useState(false);
   const toast = useToastStore((s) => s.push);
 
-  /** Load dashboard + roster + available EDU books once on mount. */
+  /** Load dashboard + roster + available EDU books once on mount.
+   *  Wrapped in a 12s timeout so a hung API (Railway restart, 502)
+   *  doesn't leave the dashboard on "Loading class analytics…" forever. */
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -59,6 +61,10 @@ export default function TeacherDashboardPage() {
         if (dash) {
           setData(dash);
           setSelectedBookSlug(dash.summary.bookSlug);
+        } else {
+          // No data + no error means the API returned a non-200 that
+          // the .catch swallowed into null. Surface it as a soft error.
+          setError("Teacher dashboard API is offline. Try again in a moment.");
         }
         setStudents(roster?.students ?? []);
         setEduBooks(books?.items ?? []);
@@ -66,35 +72,15 @@ export default function TeacherDashboardPage() {
         if (!cancelled) setError((err as Error).message);
       }
     }
+    const timeout = window.setTimeout(() => {
+      if (!cancelled) setError("Teacher dashboard is taking longer than expected. The API may be down — try again in a moment.");
+    }, 12_000);
     load();
     return () => {
       cancelled = true;
+      window.clearTimeout(timeout);
     };
   }, []);
-
-  /** Reload dashboard + roster when the selected book changes (so each
-   *  EDU book has its own analytics surface). */
-  useEffect(() => {
-    if (!selectedBookSlug) return;
-    let cancelled = false;
-    async function load() {
-      try {
-        const [dash, roster] = await Promise.all([
-          apiFetch<DashboardResponse>(`/api/edu/teacher/dashboard?bookSlug=${encodeURIComponent(selectedBookSlug)}`).catch(() => null),
-          apiFetch<{ students: StudentRecord[] }>("/api/edu/teacher/students").catch(() => null)
-        ]);
-        if (cancelled) return;
-        if (dash) setData(dash);
-        setStudents(roster?.students ?? []);
-      } catch (err) {
-        if (!cancelled) setError((err as Error).message);
-      }
-    }
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedBookSlug]);
 
   /** If the teacher has an institution, hydrate its detail (seats + roster). */
   const institutionId = data?.institutions?.[0]?.id ?? null;
@@ -182,7 +168,21 @@ export default function TeacherDashboardPage() {
       <div className="app-shell">
         <Topbar />
         <main className="container">
-          <div className="empty-state">Teacher dashboard offline · {error}</div>
+          <div className="empty-state">
+            Teacher dashboard offline · {error}
+            <div style={{ marginTop: 16 }}>
+              <button type="button" className="btn primary" onClick={() => {
+                setError(null);
+                setData(null);
+                setSelectedBookSlug(null);
+                // Force a remount by reloading — simpler than threading a
+                // refresh key through every effect.
+                if (typeof window !== "undefined") window.location.reload();
+              }}>
+                Retry
+              </button>
+            </div>
+          </div>
         </main>
       </div>
     );

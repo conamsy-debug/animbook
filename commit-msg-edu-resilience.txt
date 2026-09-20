@@ -1,0 +1,35 @@
+fix(edu): dashboard hangs forever when the API is down
+
+The screenshot showed /edu stuck on "Loading class analytics…" with
+no escape. Two real bugs:
+
+**Bug 1 — the API was crashed.**
+`npx railway status` confirmed `melodious-success` was in
+"Crashed" state (502 from Cloudflare for 3+ minutes straight). I
+ran `npx railway redeploy --yes` and the service came back online
+(health/ready returns 200 with db/redis ok). Not something this
+fix prevents — just got us unblocked.
+
+**Bug 2 — the dashboard hangs forever on "Loading…" if the API
+ever does this again.**
+The initial useEffect's `.catch(() => null)` swallowed 5xx errors
+into a null `dash`, which silently skipped `setData`. data stayed
+null, so the page rendered the loading state with no path out.
+
+Two changes:
+1. When `dash` is null (API returned non-200), set a soft error
+   instead of silently staying loading. Same pattern when the
+   timeout fires (12s ceiling — anything longer than that and the
+   API is probably down, not slow).
+2. The error state now has a Retry button that reloads the page.
+   Force a full reload via window.location.reload() so all effects
+   re-run cleanly — simpler than threading a refresh key through
+   every fetch effect on the page.
+
+The 12s timeout is intentionally generous (a Railway cold start
+can take that long during a fresh deploy) but not infinite. Pinned
+window.clearTimeout in the cleanup so the timer doesn't fire after
+unmount.
+
+No test changes (this is a resilience fix, not a new feature).
+Web build clean.
