@@ -1,0 +1,85 @@
+feat(edu): institution seats + EDU book picker + real classroom projection
+
+EDU had the teacher dashboard, checkpoint flow, curriculum map, and
+a "start classroom projection" button. But the projection button
+just minted a meaningless token, there was no way to create an
+institution or seat a student, and the dashboard hardcoded the
+first EDU book with no way to switch. Audit found three real gaps
+in production; this commit closes all three.
+
+**Gap 1 — no way to create or manage institutions.**
+Production had 0 institutions. The dashboard's `classSize` was
+silently falling back to `studentProgressMap.size`. Teachers had
+no path from "I'm a teacher" to "I have a class of 30".
+
+New API: `apps/api/src/modules/institutions/routes.ts`:
+- `GET /api/institutions` — list (any authed user, used for the
+  admin's own institution list)
+- `POST /api/institutions` — create (platform_admin only — keeps
+  it from being spammed by anyone with a Clerk account)
+- `GET /api/institutions/:id` — detail + seated user ids
+- `PATCH /api/institutions/:id` — admin can rename / change seat
+  count / set license expiry; platform_admin can edit anyone
+- `POST /api/institutions/:id/seats` — invite by email, dedupes
+  if already seated, refuses if at capacity (409 + clear message)
+- `DELETE /api/institutions/:id/seats/:userId` — release
+- `GET /api/institutions/:id/seats` — list seated students
+
+Seats are stored as `lmsIntegration.studentIds: string[]` JSON
+column — keeps it simple, no extra table, and the existing
+`seat_count` column is the binding cap. Idempotent on
+already-seated. 409 on capacity. Admin-only mutations.
+
+**Gap 2 — dashboard hardcoded the first EDU book.**
+With only one EDU book this worked, but we now have two (Mitosis +
+How a Seed Becomes a Tree). Teachers need to pick.
+
+`apps/web/src/pages/edu/index.tsx`:
+- New `<select>` in the header lists every EDU book from
+  `/api/books?vertical=EDU`. On change, refetches the dashboard
+  with `?bookSlug=<slug>` and the roster, so each book has its own
+  analytics surface.
+- Falls back to a static `<span>` badge when the book list fails
+  to load, so the dashboard still works offline.
+- New "Institution" card below the stats grid. Loads when the
+  teacher has an institution: shows seat-fill status (e.g. "12/30
+  seats filled · 18 left"), email input to seat a student, list of
+  seated students with a Release button each. Surfaces "at
+  capacity" and "5 seats left" warnings inline.
+- Toast on success: "<email> seated."
+
+**Gap 3 — classroom projection was fake.**
+The API minted a `sessionToken` and the UI opened
+`/read/<slug>?projection=<token>` — but the Reader never
+subscribed to anything. The token was meaningless.
+
+Fix: `/api/edu/classroom/projection` now creates a real
+LiveSession, seeds the initial `page.flipped` event so attendees
+open on the right page, and returns the session id. The teacher
+opens `/live/<sessionId>` (the existing AnimBook Live host view),
+the API copies the attendee URL `/live/<sessionId>` to clipboard,
+and the teacher can share it with the class. Every page flip the
+teacher makes on the host view broadcasts over the existing Live
+SSE bus (already shipping). No new infra — AnimBook Live is the
+projection substrate.
+
+The `/read?projection=` URL is no longer used by the projection
+flow, but `?projection` is still respected by the Reader for the
+existing full-screen projection mode (different feature).
+
+**Tests**:
+
+- `apps/web/tests/eduSync.test.mjs` (11 new): readSeats handles
+  valid/garbage/null JSON; seatsRemaining caps at 0 when over
+  capacity; buildProjectionPayload keeps pageNum as a number;
+  buildProjectionAttendeeUrl composes origin + /live/<sessionId>;
+  pickEduBook returns first slug or null when list empty.
+
+- `apps/api/tests/institutions.test.mjs` (10 new): readSeats
+  defensive reads; addSeat idempotent on already-seated, refuses
+  beyond seatCount, succeeds at capacity with vacated seat;
+  removeSeat is no-op on missing student; round-trip add/remove
+  preserves remaining state.
+
+API 91/91 (was 81, +10 institutions). Web 105/105 (was 94, +11
+eduSync). Web build clean (`/edu` 3.72 → 4.56 kB).
