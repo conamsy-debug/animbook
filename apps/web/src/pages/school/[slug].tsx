@@ -200,7 +200,7 @@ export default function ClassroomPage() {
             <dt>Grade</dt>
             <dd>{data.gradeBand ?? "—"}</dd>
             <dt>Teacher</dt>
-            <dd>{data.teacher.name}</dd>
+            <dd>{data.teacher?.name ?? "—"}</dd>
             <dt>Students</dt>
             <dd>{data.members.length}</dd>
             <dt>Slug</dt>
@@ -282,8 +282,8 @@ export default function ClassroomPage() {
             {data.members.map((m) => (
               <article key={m.id} className="card">
                 <span className="label">{m.role}</span>
-                <h3 style={{ marginTop: 6 }}>{m.student.name}</h3>
-                <p className="muted">{m.student.email}</p>
+                <h3 style={{ marginTop: 6 }}>{m.student?.name ?? "Unknown student"}</h3>
+                <p className="muted">{m.student?.email ?? "—"}</p>
               </article>
             ))}
             {data.members.length === 0 && (

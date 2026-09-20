@@ -13,11 +13,24 @@ interface ApiKeyListItem {
   createdAt: string;
 }
 
+interface WhoAmIResponse {
+  key: { id: string; prefix: string; scopes: string[]; rateLimitRpm: number };
+}
+
+const SCOPE_DOCS: { scope: string; label: string; description: string }[] = [
+  { scope: "books:read", label: "Read books", description: "GET /api/books, GET /api/books/:id, GET /api/books/:id/pages — list and read published AnimBooks." },
+  { scope: "library:write", label: "Modify library", description: "POST /api/library — record the reader's progress on behalf of a signed-in user." },
+  { scope: "edu:write", label: "Post EDU work", description: "POST /api/edu/* — push curriculum data on behalf of a teacher account." },
+  { scope: "creator:read", label: "Read creator profile", description: "GET /api/creator/:handle — read public creator profiles and book metadata." }
+];
+
 export default function NetworkPage() {
   const [keys, setKeys] = useState<ApiKeyListItem[] | null>(null);
   const [newKeyName, setNewKeyName] = useState("Integration");
   const [newKeyScopes, setNewKeyScopes] = useState<string[]>(["books:read"]);
   const [issued, setIssued] = useState<{ prefix: string; secret: string; scopes: string[] } | null>(null);
+  const [testResult, setTestResult] = useState<{ ok: boolean; body: string; status: number } | null>(null);
+  const [testing, setTesting] = useState(false);
   const toast = useToastStore((s) => s.push);
 
   useEffect(() => {
@@ -43,11 +56,34 @@ export default function NetworkPage() {
         json: { name: newKeyName, scopes: newKeyScopes, rateLimitRpm: 60 }
       });
       setIssued({ prefix: res.prefix, secret: res.secret, scopes: res.scopes });
+      setTestResult(null);
       const refreshed = await apiFetch<{ items: ApiKeyListItem[] }>("/api/network/keys");
       setKeys(refreshed.items);
       toast("API key issued — copy the secret now");
     } catch (err) {
       toast(`Could not issue key: ${(err as Error).message}`);
+    }
+  }
+
+  /** Hit /api/whoami with the freshly-issued key as Bearer, so the user
+   *  can verify their copy is correct before integrating. Direct fetch
+   *  (not apiFetch) — we need to send the new key, not the Clerk token. */
+  async function testKey() {
+    if (!issued) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+      const token = `${issued.prefix}.${issued.secret}`;
+      const res = await fetch(`${base}/api/whoami`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const body = await res.text();
+      setTestResult({ ok: res.ok, status: res.status, body });
+    } catch (err) {
+      setTestResult({ ok: false, status: 0, body: (err as Error).message });
+    } finally {
+      setTesting(false);
     }
   }
 
@@ -105,9 +141,24 @@ export default function NetworkPage() {
             <p style={{ fontFamily: "var(--mono)", padding: 12, background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)", overflowX: "auto" }}>
               {issued.prefix}.{issued.secret}
             </p>
-            <button type="button" className="btn" onClick={() => navigator.clipboard?.writeText(`${issued.prefix}.${issued.secret}`)}>
-              Copy to clipboard
-            </button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button type="button" className="btn" onClick={() => navigator.clipboard?.writeText(`${issued.prefix}.${issued.secret}`)}>
+                Copy to clipboard
+              </button>
+              <button type="button" className="btn primary" onClick={testKey} disabled={testing}>
+                {testing ? "Testing…" : "Test this key"}
+              </button>
+            </div>
+            {testResult && (
+              <div style={{ marginTop: 12 }}>
+                <p style={{ color: testResult.ok ? "var(--wellness)" : "var(--comics)" }}>
+                  {testResult.ok ? `✓ ${testResult.status}` : `✗ ${testResult.status}`}
+                </p>
+                <pre style={{ fontFamily: "var(--mono)", padding: 10, background: "var(--bg)", borderRadius: 6, border: "1px solid var(--border)", overflowX: "auto", margin: 0, fontSize: ".75rem" }}>
+                  {testResult.body}
+                </pre>
+              </div>
+            )}
           </section>
         )}
 
@@ -157,10 +208,42 @@ export default function NetworkPage() {
           <header className="section-header">
             <div className="left">
               <span className="dot" style={{ background: "#56738A" }} />
-              <h2>Endpoint reference</h2>
+              <h2>Scopes</h2>
             </div>
           </header>
-          <p className="muted">All endpoints under <code>/api/*</code> accept the bearer API key. The recommended echo endpoint is <code>GET /api/whoami</code>.</p>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <Th>Scope</Th>
+                <Th>Label</Th>
+                <Th>What it unlocks</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {SCOPE_DOCS.map((s) => (
+                <tr key={s.scope} style={{ borderTop: "1px solid var(--border)" }}>
+                  <Td><code>{s.scope}</code></Td>
+                  <Td>{s.label}</Td>
+                  <Td><span className="muted">{s.description}</span></Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section style={{ marginTop: 24 }}>
+          <header className="section-header">
+            <div className="left">
+              <span className="dot" style={{ background: "#C49A1C" }} />
+              <h2>Echo endpoint</h2>
+            </div>
+          </header>
+          <p className="muted">Hit <code>GET /api/whoami</code> with your bearer key to confirm the server can resolve it. Returns the key's id, prefix, scopes, and rate-limit.</p>
+          <pre style={{ fontFamily: "var(--mono)", padding: 12, background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)", overflowX: "auto", margin: 0, fontSize: ".75rem" }}>
+{`curl -H "Authorization: Bearer $TOKEN" \\
+     https://api.animbook.com/api/whoami
+# → { "key": { "id": "...", "prefix": "abk_xxxx", "scopes": ["books:read"], "rateLimitRpm": 60 } }`}
+          </pre>
         </section>
       </main>
     </div>
@@ -175,6 +258,6 @@ function Th({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Td({ children }: { children: React.ReactNode }) {
-  return <td style={{ padding: "8px 12px", verticalAlign: "top" }}>{children}</td>;
+function Td({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <td className={className} style={{ padding: "8px 12px", verticalAlign: "top" }}>{children}</td>;
 }

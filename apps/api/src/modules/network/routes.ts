@@ -98,8 +98,40 @@ networkPublicRouter.get("/whoami", apiKeyMiddleware, (req: Request, res: Respons
 });
 
 /**
+ * In-memory token bucket per API key. Resets on server restart — the
+ * rate limit is an honor system, not a quota. The bucket refills at
+ * rateLimitRpm tokens per minute. Headers expose remaining tokens so
+ * partners can self-throttle.
+ */
+type Bucket = { tokens: number; updatedAt: number };
+const rateBuckets = new Map<string, Bucket>();
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+function consumeToken(keyId: string, rateLimitRpm: number): { allowed: boolean; remaining: number; limit: number } {
+  const now = Date.now();
+  let bucket = rateBuckets.get(keyId);
+  if (!bucket) {
+    bucket = { tokens: rateLimitRpm, updatedAt: now };
+    rateBuckets.set(keyId, bucket);
+  } else {
+    const elapsed = now - bucket.updatedAt;
+    if (elapsed > 0) {
+      const refill = (elapsed / RATE_LIMIT_WINDOW_MS) * rateLimitRpm;
+      bucket.tokens = Math.min(rateLimitRpm, bucket.tokens + refill);
+      bucket.updatedAt = now;
+    }
+  }
+  if (bucket.tokens >= 1) {
+    bucket.tokens -= 1;
+    return { allowed: true, remaining: Math.floor(bucket.tokens), limit: rateLimitRpm };
+  }
+  return { allowed: false, remaining: 0, limit: rateLimitRpm };
+}
+
+/**
  * Express middleware that authenticates a Bearer API key. Populates
  * `req.apiKey = { id, prefix, scopes, rateLimitRpm }` on success.
+ * Also enforces an in-memory rate limit and sets X-RateLimit-* headers.
  */
 export async function apiKeyMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
   const auth = req.header("authorization");
@@ -125,6 +157,14 @@ export async function apiKeyMiddleware(req: Request, res: Response, next: NextFu
     res.status(401).json({ error: "Invalid API key" });
     return;
   }
+  const limit = consumeToken(key.id, key.rateLimitRpm);
+  res.setHeader("X-RateLimit-Limit", String(limit.limit));
+  res.setHeader("X-RateLimit-Remaining", String(limit.remaining));
+  if (!limit.allowed) {
+    res.setHeader("Retry-After", "60");
+    res.status(429).json({ error: "Rate limit exceeded", limit: limit.limit, retryAfterSeconds: 60 });
+    return;
+  }
   void prisma.apiKey.update({ where: { id: key.id }, data: { lastUsedAt: new Date() } }).catch(() => undefined);
   (req as Request & { apiKey?: unknown }).apiKey = {
     id: key.id,
@@ -134,5 +174,8 @@ export async function apiKeyMiddleware(req: Request, res: Response, next: NextFu
   };
   next();
 }
+
+/** Exposed for unit tests. */
+export const _internal = { rateBuckets, RATE_LIMIT_WINDOW_MS };
 
 export default router;

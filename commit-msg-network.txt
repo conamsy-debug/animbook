@@ -1,0 +1,69 @@
+feat(network): test-key button, scope docs, in-memory rate limit
+
+NETWORK had the API (issue/list/revoke/whoami) and a basic UI
+(issue a key, copy the secret, table of active keys) but three real
+gaps kept it from being actually usable:
+
+**Gap 1 — no way to verify the key works after issue.**
+Partners had to curl /api/whoami from their own machine. The page
+now has a "Test this key" button on the issued-secret card that hits
+`GET /api/whoami` directly (not via apiFetch — we need to send the
+new bearer token, not the Clerk token) and shows the response body
+inline. 200/ok = green, 401/anything-else = red. Catches typos in
+the copy before the partner goes back to their IDE.
+
+**Gap 2 — `rateLimitRpm` was stored but never enforced.**
+A key created with "60 rpm" could hammer the API forever. The
+honor-system was the contract.
+
+Fix: `consumeToken()` token-bucket middleware in
+`apps/api/src/modules/network/routes.ts`:
+- One bucket per `keyId`, refilled linearly at `rateLimitRpm` tokens
+  per 60s window. First call always allowed (bucket = limit).
+- Bucket caps at limit on refill (no unbounded growth).
+- Independent buckets per key (draining key A doesn't affect key B).
+- Rejected requests get a `429` + `Retry-After: 60` header.
+- Successful requests get `X-RateLimit-Limit` and
+  `X-RateLimit-Remaining` headers so partners can self-throttle
+  without bumping into 429s.
+
+**Gap 3 — scopes were a mystery.**
+The UI showed `["books:read", "library:write", "edu:write",
+"creator:read"]` but didn't tell anyone what each one unlocks.
+Added a new "Scopes" table on /network with a one-liner per scope
+that names the endpoints (`GET /api/books`, `POST /api/library`,
+etc.). Mirror copy of the API's `z.enum` so the docs can never
+drift from the accepted set — `SCOPE_DOCS.map(s => s.scope).sort()`
+must equal the API scope list, pinned in tests.
+
+**Echo endpoint docs** — added a "curl" example for `GET /api/whoami`
+so partners have a copy-paste starting point. The endpoint URL was
+already correct (`/api/whoami` mounted at `/api`), but it wasn't
+documented inline.
+
+**Tests**:
+
+- `apps/api/tests/networkRateLimit.test.mjs` (10 new): bucket shape,
+  first-call allowed, consumes one per call, rejects when empty,
+  linear refill, full minute restores bucket, bucket never exceeds
+  limit, independent keys, fresh-key bootstrap, limit=1 enforced,
+  zero-elapsed = no refill. Rebuilds the bucket logic locally so
+  it's testable without spinning up Express + Prisma.
+
+- `apps/web/tests/networkSync.test.mjs` (6 new): scope catalog
+  consistency (matches API's z.enum), findScopeDoc returns the
+  matching scope + null for unknown, every scope has label +
+  description, buildBearer composes prefix.secret, round-trips
+  through `indexOf(".")`.
+
+API 81/81 tests (was 71, +10). Web 94/94 (was 86, +8 — 6 new
+networkSync + the 2 teacherNameFor ones from school).
+Web build clean (`/network` 3.65 kB).
+
+**Bonus — caught an uncommitted defensive fix from last session.**
+`apps/web/src/pages/school/[slug].tsx` had the same `m.student.name`
++ `data.teacher.name` defensive reads applied during the school fix
+but the actual file changes were never staged. Adding them here so
+they ship with the rest of the work — every list-style page across
+the app now renders an em-dash when the relation is unexpectedly
+null instead of crashing the Reader.
