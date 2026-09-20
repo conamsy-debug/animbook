@@ -267,20 +267,26 @@ router.post("/assignments/:id/submit", async (req: AuthedRequest, res: Response)
 
 router.get("/me", async (req: AuthedRequest, res: Response) => {
   const userId = requireUserId(req);
-  const memberships = await prisma.classroomMembership.findMany({
-    where: { studentId: userId },
-    include: {
-      classroom: {
-        include: {
-          assignments: {
-            orderBy: { createdAt: "desc" },
-            include: { submissions: { where: { studentId: userId } } }
+  const [user, memberships] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, roles: true, accountKind: true }
+    }),
+    prisma.classroomMembership.findMany({
+      where: { studentId: userId },
+      include: {
+        classroom: {
+          include: {
+            assignments: {
+              orderBy: { createdAt: "desc" },
+              include: { submissions: { where: { studentId: userId } } }
+            }
           }
         }
       }
-    }
-  });
-  res.json({ items: memberships });
+    })
+  ]);
+  res.json({ user, items: memberships });
 });
 
 export default router;

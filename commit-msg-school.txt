@@ -1,0 +1,67 @@
+feat(school): full teacher + student flows — create, invite, post, submit
+
+SCHOOL had the API and the read-only view. There was no way for a
+teacher to *do* anything from the UI — no create-classroom form, no
+invite-student form, no post-assignment form, no submit-assignment
+flow. Every teacher action required leaving the app and calling
+curl.
+
+**API** — `apps/api/src/modules/school/routes.ts`:
+- `GET /api/school/me` now also returns `{ user: { id, name, roles,
+  accountKind } }` alongside the memberships. The roles field is
+  what gates the teacher UI on the index page; the accountKind
+  tells us if the reader is on a school account (community
+  writing off, etc.).
+
+**Web — `/school` index** — `apps/web/src/pages/school/index.tsx`:
+- Loads both `/api/school/classrooms` and `/api/school/me` in
+  parallel; derives `isTeacher` from the roles array.
+- Teachers see a "Teacher controls" card with a "Create classroom"
+  button. The form expands inline with name / slug / schoolName /
+  gradeBand inputs.
+- Validation: name + slug required (slug is kebab-case via the
+  API zod regex). Empty school/grade bands collapse to undefined
+  (the API treats undefined as "leave null").
+- Refreshes the classroom list on success. Friendly error if the
+  account isn't a teacher yet: "Your account isn't a teacher yet.
+  Ask an admin to grant the role."
+
+**Web — `/school/[slug]` classroom** — `apps/web/src/pages/school/[slug].tsx`:
+- Teacher-only section above the roster: two cards.
+  - **Invite a student** — email input + Invite button. Shows
+    success/error inline (`student@school.edu joined the classroom.`).
+    Re-fetches the classroom to show the new member immediately.
+  - **Post an assignment** — title + brief + optional due date.
+    Posts via `POST /api/school/classrooms/:slug/assignments`. The
+    due date is a `datetime-local` input that the page converts to
+    ISO-8601 before sending.
+- Student section: each assignment card has a collapsible "Submit
+  your AnimBook" details. Loads the student's own studio projects
+  via `/api/studio/projects`. Pick a project (optional) + page
+  count → POST `/api/school/assignments/:id/submit`.
+- All forms use `apiFetch` + `ApiError`. Errors surface inline with
+  `var(--comics)` red and successes with `var(--wellness)` green so
+  the reader knows what happened.
+- Slug surfaced on the classroom metadata block — students
+  sometimes ask "what was the code?", now it's right there.
+
+**Ops** — `apps/api/scripts/grant-teacher-role.mjs`:
+- Idempotent: `[email]` arg, defaults to `founder@animbook.app`.
+  Adds 'teacher' to the user's roles array if not already present.
+- Used to bootstrap the SCHOOL test flow; conamsy@gmail.com and
+  demo@animbook.app now both have the role.
+
+**Tests** — `apps/web/tests/schoolSync.test.mjs` (12 new):
+- buildCreatePayload: trims + lowercases slug; empty optionals
+  collapse to undefined
+- isTeacher: true only when 'teacher' is in roles; handles empty,
+  missing, null, undefined, non-array
+- buildInvitePayload: email trim + lowercase
+- buildAssignmentPayload: dueAt → ISO-8601 with Z suffix; missing
+  dueAt → undefined
+- clampPageCount: 0/-3/NaN/garbage → 1; positive numbers preserved
+- extractApiError: pulls .error out of details; null for empty/wrong
+  shape
+
+86/86 web tests pass. Web build clean (`/school` 2.64 kB,
+`/school/[slug]` 3.38 kB). API tests still 71/71.

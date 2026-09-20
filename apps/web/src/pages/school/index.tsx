@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Topbar } from "@/components/Topbar";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
 
 interface ClassroomListItem {
   id: string;
@@ -13,24 +13,65 @@ interface ClassroomListItem {
   _count?: { members: number; assignments: number };
 }
 
+interface UserProfile {
+  id: string;
+  roles: string[];
+}
+
 export default function SchoolIndex() {
   const [items, setItems] = useState<ClassroomListItem[] | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [createForm, setCreateForm] = useState({ name: "", slug: "", schoolName: "", gradeBand: "" });
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    async function load() {
-      try {
-        const res = await apiFetch<{ items: ClassroomListItem[] }>("/api/school/classrooms");
-        if (!cancelled) setItems(res.items);
-      } catch (err) {
-        if (!cancelled) console.warn(err);
-      }
-    }
-    load();
+    Promise.all([
+      apiFetch<{ items: ClassroomListItem[] }>("/api/school/classrooms").catch(() => null),
+      apiFetch<{ user: UserProfile }>("/api/school/me").catch(() => null)
+    ]).then(([classrooms, me]) => {
+      if (cancelled) return;
+      setItems(classrooms?.items ?? []);
+      setUser(me?.user ?? null);
+    });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const isTeacher = !!user?.roles?.includes("teacher");
+
+  async function createClassroom() {
+    if (busy) return;
+    setBusy(true);
+    setCreateError(null);
+    try {
+      await apiFetch("/api/school/classrooms", {
+        method: "POST",
+        json: {
+          name: createForm.name.trim(),
+          slug: createForm.slug.trim().toLowerCase(),
+          schoolName: createForm.schoolName.trim() || undefined,
+          gradeBand: createForm.gradeBand.trim() || undefined
+        }
+      });
+      // Refresh list
+      const res = await apiFetch<{ items: ClassroomListItem[] }>("/api/school/classrooms");
+      setItems(res.items);
+      setCreateForm({ name: "", slug: "", schoolName: "", gradeBand: "" });
+      setCreating(false);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        setCreateError("Your account isn't a teacher yet. Ask an admin to grant the role.");
+      } else {
+        setCreateError((err as Error).message);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -44,8 +85,72 @@ export default function SchoolIndex() {
           <span className="label">Students as AnimBook creators</span>
         </header>
 
-        {items && items.length === 0 && (
-          <div className="empty-state">No classrooms yet.</div>
+        {isTeacher && (
+          <section className="card" style={{ marginBottom: 16, borderColor: "#1A6B3C" }}>
+            {creating ? (
+              <>
+                <h3>Create a classroom</h3>
+                <p className="muted">Teachers-only. Name it, slug it, share the slug with students.</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
+                  <label>
+                    <span className="label">Class name</span>
+                    <input
+                      value={createForm.name}
+                      onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                      placeholder="Year 8 Storytelling"
+                    />
+                  </label>
+                  <label>
+                    <span className="label">Slug (kebab-case)</span>
+                    <input
+                      value={createForm.slug}
+                      onChange={(e) => setCreateForm({ ...createForm, slug: e.target.value })}
+                      placeholder="year-8-storytelling"
+                    />
+                  </label>
+                  <label>
+                    <span className="label">School (optional)</span>
+                    <input
+                      value={createForm.schoolName}
+                      onChange={(e) => setCreateForm({ ...createForm, schoolName: e.target.value })}
+                      placeholder="Greenhill Academy"
+                    />
+                  </label>
+                  <label>
+                    <span className="label">Grade band (optional)</span>
+                    <input
+                      value={createForm.gradeBand}
+                      onChange={(e) => setCreateForm({ ...createForm, gradeBand: e.target.value })}
+                      placeholder="Year 8 / Age 13"
+                    />
+                  </label>
+                </div>
+                {createError && <p style={{ color: "var(--comics)", marginTop: 8 }}>{createError}</p>}
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <button type="button" className="btn primary" onClick={createClassroom} disabled={busy || !createForm.name || !createForm.slug}>
+                    {busy ? "Creating…" : "Create classroom"}
+                  </button>
+                  <button type="button" className="btn" onClick={() => { setCreating(false); setCreateError(null); }}>
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3>Teacher controls</h3>
+                <p className="muted">You're signed in as a teacher. Spin up a new classroom in seconds.</p>
+                <button type="button" className="btn primary" onClick={() => setCreating(true)} style={{ marginTop: 8 }}>
+                  + Create classroom
+                </button>
+              </>
+            )}
+          </section>
+        )}
+
+        {!isTeacher && items && items.length === 0 && (
+          <div className="empty-state">
+            No classrooms yet. Ask your teacher to share a classroom slug, or apply for the teacher role.
+          </div>
         )}
         {items && items.length > 0 && (
           <div className="grid">
