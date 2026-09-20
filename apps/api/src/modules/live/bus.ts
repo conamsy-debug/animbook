@@ -27,6 +27,16 @@ class LiveEventBus {
       if (bucket && bucket.size === 0) this.subscribers.delete(sessionId);
     };
   }
+
+  /**
+   * Number of currently-connected subscribers for a session. Used by
+   * the active-sessions list so hosts can see how many people are
+   * watching. Returns 0 if no one's connected — that's a valid state
+   * (e.g. session was just created, no one has subscribed yet).
+   */
+  subscriberCount(sessionId: string): number {
+    return this.subscribers.get(sessionId)?.size ?? 0;
+  }
 }
 
 export const liveEventBus = new LiveEventBus();

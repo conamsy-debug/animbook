@@ -278,6 +278,7 @@ model User {
   classroomMemberships     ClassroomMembership[] @relation("ClassroomStudent")
   taskSubmissions          BookTaskSubmission[]
   usageEvents              UsageEvent[]
+  liveSessions             LiveSession[]        @relation("LiveHost")
 
   @@map("users")
 }
@@ -875,6 +876,7 @@ model LiveSession {
   currentPage   Int         @default(1) @map("current_page")
   audienceCount Int         @default(0) @map("audience_count")
   book          Book        @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  host          User        @relation("LiveHost", fields: [hostId], references: [id], onDelete: Cascade)
   events        LiveEvent[]
 
   @@index([status, startedAt])

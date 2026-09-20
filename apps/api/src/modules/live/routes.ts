@@ -40,11 +40,73 @@ router.post("/sessions", async (req: AuthedRequest, res: Response) => {
 router.get("/sessions", async (_req: Request, res: Response) => {
   const sessions = await prisma.liveSession.findMany({
     where: { status: "LIVE" },
-    include: { book: { select: { id: true, slug: true, title: true, totalPages: true } } },
+    include: {
+      book: { select: { id: true, slug: true, title: true, totalPages: true, coverUrl: true } },
+      host: { select: { id: true, name: true } }
+    },
     orderBy: { startedAt: "desc" },
     take: 20
   });
   res.json({ items: sessions });
+});
+
+/**
+ * Public listing of LIVE sessions for attendees to discover. Same shape
+ * as /sessions but auth-optional (so unauthenticated readers can see
+ * what's happening before they sign in). Subscribe-count comes from the
+ * in-memory event bus — falls back to 0 if the bus isn't populated
+ * (e.g. across server restarts).
+ */
+router.get("/active", async (_req: Request, res: Response) => {
+  const sessions = await prisma.liveSession.findMany({
+    where: { status: "LIVE" },
+    include: {
+      book: { select: { id: true, slug: true, title: true, totalPages: true, coverUrl: true } },
+      host: { select: { id: true, name: true } }
+    },
+    orderBy: { startedAt: "desc" },
+    take: 50
+  });
+  const items = sessions.map((s) => ({
+    id: s.id,
+    title: s.title,
+    currentPage: s.currentPage,
+    startedAt: s.startedAt,
+    host: s.host,
+    book: s.book,
+    attendeeCount: liveEventBus.subscriberCount(s.id)
+  }));
+  res.json({ items });
+});
+
+/**
+ * Single-session detail for the attendee page. Public — the session
+ * itself is discoverable (otherwise how would attendees find it?), so
+ * host name + book info is fair game.
+ */
+router.get("/sessions/:id", async (req: Request, res: Response) => {
+  const id = req.params["id"];
+  if (typeof id !== "string") {
+    res.status(400).json({ error: "Missing session id" });
+    return;
+  }
+  const session = await prisma.liveSession.findUnique({
+    where: { id },
+    include: {
+      book: { select: { id: true, slug: true, title: true, totalPages: true, coverUrl: true } },
+      host: { select: { id: true, name: true } }
+    }
+  });
+  if (!session) {
+    res.status(404).json({ error: "Session not found" });
+    return;
+  }
+  res.json({
+    session: {
+      ...session,
+      attendeeCount: liveEventBus.subscriberCount(session.id)
+    }
+  });
 });
 
 router.post("/sessions/:id/append", async (req: AuthedRequest, res: Response) => {

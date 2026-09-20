@@ -56,6 +56,11 @@ export default function ReaderPage() {
   const router = useRouter();
   const id = typeof router.query.id === "string" ? router.query.id : null;
   const isProjection = typeof router.query.projection === "string";
+  /** ?live=<sessionId> means the attendee followed a Live share link — we
+   *  subscribe to the host's SSE stream and auto-jump to whatever page the
+   *  host flips to. The chip overlay at the top of the reader shows who's
+   *  driving. */
+  const liveSessionId = typeof router.query.live === "string" ? router.query.live : null;
   const [book, setBook] = useState<BookSummary | null>(null);
   const [pages, setPages] = useState<PageRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,7 +75,12 @@ export default function ReaderPage() {
   const [dreamSessionId, setDreamSessionId] = useState<string | null>(null);
   const [oracleOpen, setOracleOpen] = useState(false);
   const [translationWord, setTranslationWord] = useState<string | null>(null);
-  const { pageIndex, flipNext, flipPrev, mode: readerMode } = useReaderStore();
+  /** Live-mode state. liveHostName shown in the chip overlay, liveConnected
+   *  drives the ●/○ glyph. Both null when the reader isn't following a
+   *  session. */
+  const [liveHostName, setLiveHostName] = useState<string | null>(null);
+  const [liveConnected, setLiveConnected] = useState(false);
+  const { pageIndex, flipNext, flipPrev, goTo, mode: readerMode } = useReaderStore();
   // Select pieces, not the whole store: depending on the store object made the
   // load effect re-run after every library update, reloading the book and
   // resetting the reader to page 1.
@@ -400,8 +410,56 @@ export default function ReaderPage() {
   useReaderGestures(readerRef, {
     onPrev: flipPrev,
     onNext: flipNext,
-    disabled: fullscreen || dreamActive || oracleOpen || notesOpen || checkpointOpen || translationWord !== null
+    disabled: fullscreen || dreamActive || oracleOpen || notesOpen || checkpointOpen || translationWord !== null || liveSessionId !== null
   });
+
+  // Live-mode SSE subscription. Resolves the host name once (for the chip
+  // overlay), then opens the event stream and auto-jumps to whatever page the
+  // host flips to. Manual flipping is disabled above while liveSessionId is
+  // set, so the reader is purely passive — they see what the host sees.
+  useEffect(() => {
+    if (!liveSessionId) {
+      setLiveHostName(null);
+      return;
+    }
+    let cancelled = false;
+    apiFetch<{ session: { host: { name: string } } }>(`/api/live/sessions/${liveSessionId}`)
+      .then((res) => {
+        if (!cancelled) setLiveHostName(res.session.host.name);
+      })
+      .catch(() => {
+        if (!cancelled) toast("Live session link is no longer valid");
+      });
+    const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+    const es = new EventSource(`${base}/api/live/sessions/${liveSessionId}/events`);
+    es.addEventListener("live", (ev) => {
+      try {
+        const data = JSON.parse((ev as MessageEvent).data) as { type: string; payload: Record<string, unknown> };
+        if (data.type === "page.flipped") {
+          const next = Number(data.payload["pageNum"]);
+          if (Number.isFinite(next)) {
+            // Events are 1-indexed page numbers; the store is 0-indexed.
+            goTo(Math.max(0, next - 1));
+          }
+        } else if (data.type === "session.ended") {
+          toast("The live reading has ended");
+          // Drop the live param so the reader becomes interactive again.
+          const url = new URL(window.location.href);
+          url.searchParams.delete("live");
+          window.history.replaceState({}, "", url.toString());
+        }
+      } catch {
+        // ignore malformed payloads
+      }
+    });
+    es.onopen = () => setLiveConnected(true);
+    es.onerror = () => setLiveConnected(false);
+    return () => {
+      cancelled = true;
+      es.close();
+      setLiveConnected(false);
+    };
+  }, [liveSessionId, goTo, toast]);
   useEffect(() => {
     if (!book?.id) return;
     let cancelled = false;
@@ -578,6 +636,21 @@ export default function ReaderPage() {
             <span className="dream-dot" aria-hidden />
             <span className="dream-text">{dreamProfile?.caption ?? "DREAM mode"}</span>
             <span className="dream-track">{dreamProfile?.ambientTrack?.replace("_", " ")}</span>
+          </div>
+        )}
+        {liveSessionId && (
+          <div className="live-banner" role="status" aria-live="polite">
+            <span
+              className="live-dot"
+              data-connected={liveConnected ? "yes" : "no"}
+              aria-hidden
+            />
+            <span className="live-text">
+              Reading along with {liveHostName ?? "the host"}
+            </span>
+            <span className="live-track">
+              {liveConnected ? "● live" : "reconnecting"}
+            </span>
           </div>
         )}
         {book.vertical === "KIDS" && !dreamActive && (

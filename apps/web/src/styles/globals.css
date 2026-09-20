@@ -1168,6 +1168,45 @@ h1 {
   50% { opacity: 1; }
 }
 
+/* ==== AnimBook Live (attendee banner on Reader) ==== */
+.live-banner {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(8, 12, 20, 0.82);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(212, 106, 10, 0.55);
+  padding: 8px 16px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  z-index: 6;
+}
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.live-dot[data-connected="yes"] {
+  background: #D46A0A;
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+.live-text { color: var(--text); font-weight: 500; }
+.live-track {
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  letter-spacing: 0.05em;
+  font-size: 0.75rem;
+}
+@keyframes live-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.15); }
+}
+
 /* ==== Animations ==== */
 .fade-in { animation: fade-in 0.4s ease-out; }
 @keyframes fade-in {

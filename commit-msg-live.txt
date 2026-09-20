@@ -1,0 +1,65 @@
+feat(live): ship AnimBook Live — host, attendee, Reader SSE sync
+
+Live is AnimBook's take on "watch a book being read out loud, together,
+in real time". One person hosts (the author or a friend); everyone
+else follows along as a reader, and the host's page flips become
+their reader's page flips.
+
+Schema:
+- Move `liveSessions LiveSession[] @relation("LiveHost")` from Book to
+  User (it was misplaced in a prior WIP — Prisma threw "missing opposite
+  relation"). Add the un-named `liveSessions LiveSession[]` to Book so
+  LiveSession.book still has a back-reference. Migration
+  `20260920113029_live_session_host_relation` adds the FK
+  `live_sessions.host_id → users.id ON DELETE CASCADE`. Also picks up
+  accumulated drift (index renames, `book_shares.updated_at` default,
+  `users.voice_quality_computed_at` type, dropped redundant indexes).
+
+API:
+- `GET /api/live/active` (public) — list of LIVE sessions with host name,
+  book cover, attendee count from in-memory bus (falls back to 0 across
+  restarts).
+- `GET /api/live/sessions/:id` (public) — single session detail for the
+  attendee page; same shape as the host's view.
+- `GET /api/live/sessions` now includes host + book.coverUrl.
+- `liveEventBus.subscriberCount(sessionId)` for attendee counts.
+- 6/6 new bus unit tests (no-subscribers, fanout, count tracking,
+  unsubscribe, throw-isolation, no cross-session leak).
+
+Web — host dashboard (`/live`):
+- Real book picker from `/api/studio/projects` (replaces the hard-coded
+  "the-night-train" default).
+- Active session card with prev/next/end, attendee count, and a
+  "Share attendee link →" hint.
+- Live event log (page flips, annotation, session start/end).
+- "Happening now" grid of all live sessions with attendee pills and
+  Join buttons (consumes `/api/live/active`).
+
+Web — attendee page (`/live/[sessionId]`):
+- Book cover, host name, current page (live updating), attendee count,
+  ended-state.
+- "Read along" CTA → `/read/<bookSlug>?live=<sessionId>`.
+- SSE subscription flips the displayed page when the host flips.
+- Polls session detail every 12s as a fallback if SSE drops.
+
+Web — Reader sync (`/read/[id]?live=<sessionId>`):
+- Reads `router.query.live`, opens SSE stream, dispatches
+  `page.flipped` events to `useReaderStore.goTo(pageNum - 1)`
+  (events are 1-indexed, store is 0-indexed).
+- Disables manual gestures while live (attendee is purely passive).
+- Top-of-screen "Reading along with {host}" chip with a pulsing
+  orange dot — orange (#D46A0A) for AnimBook Live identity, sits above
+  the page like a TV station watermark.
+- On `session.ended` toast + drop the `?live` param so manual flipping
+  resumes.
+- New CSS in `globals.css`: `.live-banner`, `.live-dot[data-connected]`,
+  pulse animation.
+
+Tests:
+- `apps/api/tests/liveBus.test.mjs` — 6 tests, all pass.
+- `apps/web/tests/liveSync.test.mjs` — 10 tests pinning the
+  pageEventToStoreIndex mapping + decideLiveAction + share-link shape.
+
+Total: 71/71 API tests, 48/48 web tests pass.
+Web build clean (`/live` 3.5 kB, `/live/[sessionId]` 3.14 kB,
+`/read/[id]` 19.7 → 20.1 kB).
