@@ -62,6 +62,14 @@ export default function ReaderPage() {
    *  host flips to. The chip overlay at the top of the reader shows who's
    *  driving. */
   const liveSessionId = typeof router.query.live === "string" ? router.query.live : null;
+  /** Companion / NFC scans deep-link to a specific anchor page with
+   *  ?from=companion|nfc and forward the linkId so we can log the
+   *  session for the creator's reach analytics. */
+  const companionFrom = typeof router.query.from === "string" ? router.query.from : null;
+  const companionLinkId = typeof router.query.linkId === "string" ? router.query.linkId : null;
+  const companionPage = typeof router.query.page === "string"
+    ? Math.max(1, Number.parseInt(router.query.page, 10) || 1)
+    : null;
   const [book, setBook] = useState<BookSummary | null>(null);
   const [pages, setPages] = useState<PageRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -109,6 +117,17 @@ export default function ReaderPage() {
           setDreamActive(true);
         }
         setLoading(false);
+        // Companion / NFC deep-link: jump to the anchor page the creator
+        // pinned, then log the session for reach analytics.
+        if (companionFrom && companionLinkId && companionPage) {
+          useReaderStore.getState().goTo(Math.max(0, Math.min(pagesRes.pages.length - 1, companionPage - 1)));
+          const triggerMode = companionFrom === "nfc" ? "NFC_ANCHOR" : "AR_OVERLAY";
+          apiFetch("/api/studio-pro/sessions", {
+            method: "POST",
+            json: { linkId: companionLinkId, triggerMode, pageReached: companionPage }
+          }).catch(() => undefined);
+          toast(companionFrom === "nfc" ? "Opened from NFC tag" : "Opened from AR marker");
+        }
         try {
           const lib = await apiFetch<{ items: { bookId: string; progressPage: number; mode: string; lastRead: string; completed: boolean; id: string }[] }>("/api/library");
           hydrateLibrary(

@@ -1,0 +1,58 @@
+feat(companion): scan landing pages + downloadable marker PNG
+
+Companion (STUDIO PRO) is what creators use to mint an AR marker and
+an NFC tag for every published AnimBook. Until now, scanning a marker
+hit a JSON endpoint with no web page to land on, and the marker was
+just a decorative SVG with no way to download it for printing.
+
+**New public landing pages** (no auth required, share with anyone):
+- `apps/web/src/pages/s/[marker].tsx` — when a phone camera app
+  decodes an AnimBook AR marker, it opens this URL. The page looks
+  up the marker via `/api/studio-pro/scan/marker/:marker`, shows
+  the book cover + title + anchor-page for half a beat, then
+  redirects to `/read/<slug>?from=companion&page=<n>&linkId=<id>`.
+  Includes an explicit "Open AnimBook →" CTA so the auto-redirect
+  isn't the only path.
+- `apps/web/src/pages/n/[tagId].tsx` — same shape for NFC tag taps.
+  Redirects to `?from=nfc&...` so the Reader can tell the two apart
+  in analytics.
+
+**Reader deep-link + session logging** — `apps/web/src/pages/read/[id].tsx`:
+- Reads `?from=companion|nfc`, `?linkId=<id>`, `?page=<n>`.
+- Once the book + pages are loaded, jumps to the anchor page and
+  fires `POST /api/studio-pro/sessions` with `triggerMode` mapped
+  from `from` ("nfc" → NFC_ANCHOR, everything else → AR_OVERLAY).
+  Best-effort — anonymous readers still get the deep-link.
+- Toasts "Opened from NFC tag" / "Opened from AR marker" so the
+  reader knows where they came from.
+
+**Downloadable marker PNG** — `apps/web/src/pages/companion.tsx`:
+- New `downloadMarkerPng()` helper bakes the same deterministic 6×6
+  cells into a 360×360 PNG via canvas (white background, dark cells,
+  one-cell quiet-zone border so QR scanners lock on cleanly).
+- "Download marker PNG" button on the AR marker card. Filename:
+  `<book-slug>-marker.png`. Pure client-side — no server upload.
+
+**CSS** — `apps/web/src/styles/globals.css`:
+- `.companion-grid` (3-up responsive grid for the three trigger cards)
+- `.companion-marker` (96×96 frame for the SVG with subtle border)
+- `.companion-overlay` (the AR preview gradient panel with anchor
+  page + book title)
+- `.companion-fallback` (the dashed-border card for manual marker /
+  NFC lookup inputs)
+- `.scan-landing` (the public scan page shell: cover, CTA, error,
+  meta)
+- `.scan-cta` (the brand-warmth "Open AnimBook →" pill button)
+- `.scan-cover` (clamped 140-220px cover image with glow shadow)
+- `.scan-error` (red-tinted error panel)
+- `.scan-meta` (DM Mono meta line for marker hashes + tag ids)
+
+**Tests** — `apps/web/tests/companionSync.test.mjs` (12 new):
+- cellsFromHash: deterministic, always 36 cells, all booleans,
+  different hashes yield different patterns (no degenerate output)
+- buildScanTarget: includes from + page + linkId
+- clampCompanionPage: underflow → 1, overflow → totalPages, garbage → 1
+- triggerModeFor: "nfc" → NFC_ANCHOR, anything else → AR_OVERLAY
+
+73/73 web tests pass. Web build clean (`/s/[marker]` 1.16 kB,
+`/n/[tagId]` 1.14 kB, `/companion` 3.89 kB, `/read/[id]` 20.4 → 20.6 kB).

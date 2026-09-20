@@ -1229,6 +1229,116 @@ h1 {
 .companion-card:hover { border-color: rgba(63, 129, 114, 0.5); }
 .companion-card strong { color: var(--text); }
 
+.companion-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.companion-marker {
+  width: 96px;
+  height: 96px;
+  background: #0a0710;
+  border: 1px solid #1f2937;
+  border-radius: 6px;
+  padding: 4px;
+}
+.companion-marker svg { width: 100%; height: 100%; display: block; }
+.companion-overlay {
+  background: linear-gradient(180deg, rgba(63, 129, 114, 0.18), rgba(8, 12, 20, 0.9));
+  border: 1px solid rgba(63, 129, 114, 0.5);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 120px;
+  justify-content: flex-end;
+}
+.companion-overlay .anchor-page {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.78rem;
+  color: var(--wellness);
+  letter-spacing: 0.06em;
+}
+.companion-overlay .book-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.companion-fallback {
+  background: rgba(8, 12, 20, 0.5);
+  border: 1px dashed #1f2937;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.companion-fallback input {
+  width: 100%;
+  background: #0a0710;
+  border: 1px solid #1f2937;
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.85rem;
+  padding: 8px 10px;
+}
+
+/* ==== Companion scan landing (/s/[marker], /n/[tagId]) ==== */
+.scan-landing {
+  min-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px 16px;
+}
+.scan-landing h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(2rem, 6vw, 3rem);
+  margin: 8px 0;
+}
+.scan-landing .scan-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 12px 22px;
+  background: var(--wellness);
+  color: #080C14;
+  border-radius: 999px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 0.18s ease;
+}
+.scan-landing .scan-cta:hover { transform: scale(1.02); }
+.scan-landing .scan-cover {
+  width: clamp(140px, 32vw, 220px);
+  aspect-ratio: 3 / 4;
+  border-radius: 14px;
+  box-shadow: 0 18px 60px rgba(63, 129, 114, 0.32);
+  object-fit: cover;
+  margin-bottom: 18px;
+}
+.scan-landing .scan-meta {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+}
+.scan-landing .scan-error {
+  background: rgba(201, 75, 50, 0.12);
+  border: 1px solid rgba(201, 75, 50, 0.5);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 16px 20px;
+  max-width: 420px;
+}
+
 .dream-track-card {
   cursor: pointer;
   position: relative;

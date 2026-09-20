@@ -60,6 +60,52 @@ function MarkerTile({ hash }: { hash: string }) {
   );
 }
 
+/** Convert the deterministic 6×6 marker cells into a downloadable PNG so
+ *  creators can print it on a book cover. Pure client-side via canvas. */
+function cellsFromHash(hash: string): boolean[] {
+  const out: boolean[] = [];
+  for (let i = 0; i < 36; i++) {
+    const byte = parseInt(hash.slice(i * 2, i * 2 + 2), 16);
+    out.push(((byte >> (i % 8)) & 1) === 1);
+  }
+  return out;
+}
+
+function downloadMarkerPng(hash: string, title: string) {
+  if (typeof window === "undefined") return;
+  const cells = cellsFromHash(hash);
+  const size = 360; // final PNG size in px
+  const cellSize = size / 6;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  // Background — paper white so it prints legibly.
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, size, size);
+  // Quiet-zone border (one cell wide) so QR scanners lock on cleanly.
+  const off = cellSize;
+  ctx.fillStyle = "#080C14";
+  for (let i = 0; i < 36; i++) {
+    if (!cells[i]) continue;
+    const x = off + (i % 6) * cellSize;
+    const y = off + Math.floor(i / 6) * cellSize;
+    ctx.fillRect(x, y, cellSize, cellSize);
+  }
+  canvas.toBlob((blob) => {
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-marker.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, "image/png");
+}
+
 export default function CompanionPage() {
   const [books, setBooks] = useState<ListedBook[]>([]);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
@@ -280,6 +326,13 @@ export default function CompanionPage() {
                   <p className="muted" style={{ margin: 0, fontFamily: "var(--mono)", fontSize: ".7rem" }}>{link.markerHash}</p>
                   <button type="button" className="btn" onClick={() => openSession("AR_OVERLAY")}>
                     Open AR overlay session
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => downloadMarkerPng(link.markerHash, book?.title ?? "animbook")}
+                  >
+                    Download marker PNG
                   </button>
                 </div>
               </div>
