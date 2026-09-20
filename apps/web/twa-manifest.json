@@ -1,0 +1,33 @@
+{
+  "packageId": "com.animbook.app",
+  "host": "animbook.com",
+  "name": "AnimBook",
+  "launcherName": "AnimBook",
+  "display": "standalone",
+  "themeColor": "#080C14",
+  "backgroundColor": "#080C14",
+  "enableSiteSettingsShortcut": true,
+  "enableNotifications": false,
+  "startUrl": "/",
+  "iconUrl": "https://animbook.com/icon-512.png",
+  "splashColor": "#080C14",
+  "splashImageUrl": "https://animbook.com/icon-512.png",
+  "monochromeIconUrl": "https://animbook.com/icon-maskable-512.png",
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "android"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "animbook-cli",
+  "webManifestUrl": "/site.webmanifest",
+  "fallbackType": "customtabs",
+  "additionalTrustedOrigins": [
+    "www.animbook.com"
+  ],
+  "appVersion": "1.0.0",
+  "displayMode": "standalone",
+  "orientation": "default",
+  "fingerprints": []
+}
