@@ -6,6 +6,7 @@ import { ErrorBoundary, ErrorState } from "@/components/ErrorBoundary";
 import { AuthBridge } from "@/components/AuthBridge";
 import { AccessGate } from "@/components/AccessGate";
 import "@/styles/globals.css";
+import { Toast } from "@/components/Toast";
 
 const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -54,6 +55,7 @@ export default function App({ Component, pageProps }: AppProps) {
         >
           <Component {...pageProps} />
         </ErrorBoundary>
+        <Toast />
       </>
     );
   }
@@ -108,6 +110,7 @@ export default function App({ Component, pageProps }: AppProps) {
           <Component {...pageProps} />
         </AccessGate>
       </ErrorBoundary>
+      <Toast />
     </ClerkProvider>
   );
 }

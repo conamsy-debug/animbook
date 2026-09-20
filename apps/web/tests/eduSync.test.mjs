@@ -28,6 +28,12 @@ function buildProjectionAttendeeUrl(origin, sessionId) {
   return `${origin}/live/${sessionId}`;
 }
 
+/** Host tab URL after a successful projection: opens the /live host
+ *  dashboard with the new session pre-activated via ?session= query. */
+function buildProjectionHostUrl(origin, sessionId) {
+  return `${origin}/live?session=${sessionId}`;
+}
+
 function pickEduBook(eduBooks, fallbackSlug) {
   if (eduBooks.length === 0) return null;
   return eduBooks[0].slug ?? fallbackSlug;
@@ -74,6 +80,21 @@ test("buildProjectionPayload: keeps pageNum as a number", () => {
 
 test("buildProjectionAttendeeUrl: origin + /live/<sessionId>", () => {
   assert.equal(buildProjectionAttendeeUrl("https://animbook.com", "ses_abc123"), "https://animbook.com/live/ses_abc123");
+});
+
+test("buildProjectionHostUrl: origin + /live?session=<id> (host view, not attendee)", () => {
+  assert.equal(buildProjectionHostUrl("https://animbook.com", "ses_abc123"), "https://animbook.com/live?session=ses_abc123");
+});
+
+test("host URL and attendee URL are distinct routes (no confusion)", () => {
+  const sessionId = "ses_xyz789";
+  const host = buildProjectionHostUrl("https://animbook.com", sessionId);
+  const attendee = buildProjectionAttendeeUrl("https://animbook.com", sessionId);
+  // Host uses ?session= query → goes to /live (host dashboard with controls).
+  // Attendee uses /<id> path → goes to /live/[id] (read-only attendee view).
+  assert.match(host, /\?session=/);
+  assert.match(attendee, /\/live\/ses_xyz789$/);
+  assert.notEqual(host, attendee);
 });
 
 test("pickEduBook: returns first book's slug when list non-empty", () => {

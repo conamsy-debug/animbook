@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import { Topbar } from "@/components/Topbar";
 import { apiFetch } from "@/lib/api";
@@ -32,6 +33,7 @@ interface LiveEventRow {
 }
 
 export default function LivePage() {
+  const router = useRouter();
   const [books, setBooks] = useState<BookOption[]>([]);
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
   const [hostTitle, setHostTitle] = useState("Live reading");
@@ -92,6 +94,39 @@ export default function LivePage() {
   useEffect(() => () => {
     sourceRef.current?.close();
   }, []);
+
+  /** When the user lands on /live?session=<id>, they came from the EDU
+   *  projection button. Fetch that session and auto-activate it so the
+   *  host controls (prev/next/end) show up immediately — no extra click. */
+  useEffect(() => {
+    if (!router.isReady) return;
+    const target = typeof router.query.session === "string" ? router.query.session : null;
+    if (!target) return;
+    if (activeSession?.id === target) return; // already activated
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch<{ session: HostSession }>(`/api/live/sessions/${target}`);
+        if (cancelled) return;
+        setActiveSession(res.session);
+        setSessions((prev) => {
+          const without = prev.filter((s) => s.id !== res.session.id);
+          return [{ ...res.session, attendeeCount: 0 }, ...without];
+        });
+        subscribe(res.session.id);
+        toast(`Now driving "${res.session.title}"`);
+        // Strip the query param so a refresh doesn't try to re-activate.
+        const { session: _drop, ...rest } = router.query;
+        void _drop;
+        router.replace({ pathname: "/live", query: rest }, undefined, { shallow: true });
+      } catch (err) {
+        if (!cancelled) toast(`Could not join projection: ${(err as Error).message}`);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router.isReady, router.query.session, activeSession?.id, router, toast]);
 
   async function startSession() {
     if (!hostBookId || starting) return;

@@ -88,15 +88,19 @@ export const useLibraryStore = create<LibraryState>((set) => ({
 
 export interface ToastState {
   message: string | null;
-  push(message: string): void;
+  push(message: string, durationMs?: number): void;
   dismiss(): void;
 }
 
 export const useToastStore = create<ToastState>((set) => ({
   message: null,
-  push(message) {
+  push(message, durationMs) {
     set({ message });
-    setTimeout(() => set({ message: null }), 2400);
+    // Default 4s — long enough to read a URL, short enough to not pile up
+    // if many toasts fire in succession. Errors and success with URLs can
+    // pass an explicit duration (e.g. 6000) if they need more time.
+    const duration = typeof durationMs === "number" && durationMs > 0 ? durationMs : 4000;
+    setTimeout(() => set({ message: null }), duration);
   },
   dismiss() {
     set({ message: null });

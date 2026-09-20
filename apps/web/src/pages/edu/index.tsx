@@ -46,16 +46,29 @@ export default function TeacherDashboardPage() {
   const toast = useToastStore((s) => s.push);
 
   /** Load dashboard + roster + available EDU books once on mount.
-   *  Wrapped in a 12s timeout so a hung API (Railway restart, 502)
-   *  doesn't leave the dashboard on "Loading class analytics…" forever. */
+   *  Wrapped in an 8s timeout so a hung API (Railway restart, 502,
+   *  slow bundle download) doesn't leave the dashboard on
+   *  "Loading class analytics…" forever. We also expose a manual
+   *  "Still loading? Tap here." button after 4s — the original 12s
+   *  timeout was too patient on flaky mobile connections. */
+  const [stuck, setStuck] = useState(false);
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
         const [dash, roster, books] = await Promise.all([
-          apiFetch<DashboardResponse>("/api/edu/teacher/dashboard").catch(() => null),
-          apiFetch<{ students: StudentRecord[] }>("/api/edu/teacher/students").catch(() => null),
-          apiFetch<{ items: EduBook[] }>("/api/books?vertical=EDU&status=PUBLISHED&limit=20").catch(() => null)
+          apiFetch<DashboardResponse>("/api/edu/teacher/dashboard").catch((err) => {
+            console.warn("[EDU] dashboard fetch failed:", err);
+            return null;
+          }),
+          apiFetch<{ students: StudentRecord[] }>("/api/edu/teacher/students").catch((err) => {
+            console.warn("[EDU] students fetch failed:", err);
+            return null;
+          }),
+          apiFetch<{ items: EduBook[] }>("/api/books?vertical=EDU&status=PUBLISHED&limit=20").catch((err) => {
+            console.warn("[EDU] books fetch failed:", err);
+            return null;
+          })
         ]);
         if (cancelled) return;
         if (dash) {
@@ -69,15 +82,28 @@ export default function TeacherDashboardPage() {
         setStudents(roster?.students ?? []);
         setEduBooks(books?.items ?? []);
       } catch (err) {
-        if (!cancelled) setError((err as Error).message);
+        if (!cancelled) {
+          console.error("[EDU] dashboard load threw:", err);
+          setError((err as Error).message);
+        }
       }
     }
+    // Manual escape hatch — after 4s, offer the teacher a Retry button so
+    // they don't sit and stare at the spinner on a flaky connection.
+    const stuckTimer = window.setTimeout(() => {
+      if (!cancelled) setStuck(true);
+    }, 4_000);
+    // Hard ceiling — anything beyond 8s is "API down".
     const timeout = window.setTimeout(() => {
-      if (!cancelled) setError("Teacher dashboard is taking longer than expected. The API may be down — try again in a moment.");
-    }, 12_000);
+      if (!cancelled) {
+        console.warn("[EDU] dashboard timeout fired at 8s");
+        setError("Teacher dashboard is taking longer than expected. The API may be down — try again in a moment.");
+      }
+    }, 8_000);
     load();
     return () => {
       cancelled = true;
+      window.clearTimeout(stuckTimer);
       window.clearTimeout(timeout);
     };
   }, []);
@@ -133,7 +159,11 @@ export default function TeacherDashboardPage() {
   const frameworkPills = useMemo(() => data?.frameworks ?? [], [data]);
 
   async function startProjection() {
-    if (!data) return;
+    if (!data) {
+      toast("Dashboard still loading — try again in a moment.");
+      return;
+    }
+    setProjectionMode(true); // disable button until the click resolves
     try {
       const res = await apiFetch<{ sessionId: string; bookSlug: string; attendeeUrl: string; pageNum: number }>("/api/edu/classroom/projection", {
         method: "POST",
@@ -142,24 +172,35 @@ export default function TeacherDashboardPage() {
           pageNum: 1
         }
       });
+      // Copy the attendee link FIRST so a popup-blocked teacher still has
+      // the URL to share manually.
+      const attendeeAbsolute = typeof window !== "undefined"
+        ? `${window.location.origin}${res.attendeeUrl}`
+        : res.attendeeUrl;
+      try {
+        await navigator.clipboard?.writeText(attendeeAbsolute);
+      } catch {
+        // Clipboard may be denied in non-secure contexts — fall through.
+      }
       if (typeof window !== "undefined") {
-        // Teacher drives via Live. Attendee URL opens the Live page that
-        // auto-subscribes to page.flipped events; share that link with
-        // the class and they'll see every flip as it happens.
-        const host = window.open(`/live/${res.sessionId}`, "_blank", "noopener,noreferrer");
-        if (!host) setProjectionMode(true);
-        try {
-          await navigator.clipboard?.writeText(`${window.location.origin}${res.attendeeUrl}`);
-          toast(`Live session started · attendee link copied`);
-        } catch {
-          toast(`Live session started · share ${res.attendeeUrl}`);
+        // Open the HOST view with the new session pre-activated. /live is
+        // the host dashboard (prev/next/end controls); /live/[id] is the
+        // attendee view (read-only). Teachers were getting confused when
+        // they landed on the attendee page and saw no controls.
+        const hostTab = window.open(`/live?session=${res.sessionId}`, "_blank", "noopener,noreferrer");
+        if (hostTab) {
+          toast(`Classroom projection live · attendee link copied`);
+        } else {
+          // Popup blocked — surface the attendee URL prominently so the
+          // teacher can copy it and host the session from the main tab.
+          toast(`Popup blocked. Open /live and attendee URL: ${res.attendeeUrl}`);
         }
       }
     } catch (err) {
-      // Projection failure should NOT take down the dashboard — surface
-      // it as a toast and leave the rest of the analytics intact.
       const msg = err instanceof Error ? err.message : String(err);
       toast(`Could not start projection: ${msg}`);
+    } finally {
+      setProjectionMode(false);
     }
   }
 
@@ -193,7 +234,22 @@ export default function TeacherDashboardPage() {
       <div className="app-shell">
         <Topbar />
         <main className="container">
-          <div className="empty-state">Loading class analytics…</div>
+          <div className="empty-state">
+            Loading class analytics…
+            {stuck && (
+              <div style={{ marginTop: 12 }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    if (typeof window !== "undefined") window.location.reload();
+                  }}
+                >
+                  Still loading? Tap to retry.
+                </button>
+              </div>
+            )}
+          </div>
         </main>
       </div>
     );
@@ -227,8 +283,8 @@ export default function TeacherDashboardPage() {
             <Link href={`/edu/curriculum/${data.summary.bookSlug}`} className="btn">
               Curriculum map
             </Link>
-            <button type="button" className="btn primary" onClick={startProjection}>
-              Start classroom projection
+            <button type="button" className="btn primary" onClick={startProjection} disabled={projectionMode}>
+              {projectionMode ? "Starting…" : "Start classroom projection"}
             </button>
           </div>
         </header>
