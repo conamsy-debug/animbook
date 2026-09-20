@@ -1,0 +1,19 @@
+fix(live): move auth from router-level to per-route
+
+The router used `router.use(authMiddleware)` so every /api/live/*
+endpoint required auth — including the public discovery routes
+(/active, /sessions/:id, /sessions/:id/events) that attendees need
+to reach without an account.
+
+Move `authMiddleware` from `router.use(...)` to the three routes
+that actually mutate state on behalf of the host:
+  POST /sessions                 (start a session)
+  POST /sessions/:id/append      (host-only event append)
+  POST /sessions/:id/end         (host-only end)
+
+GET /sessions, GET /active, GET /sessions/:id, GET /sessions/:id/events
+stay public so unauthenticated readers can discover and follow a
+live reading.
+
+Same commit also pushes the prior fix (live bus + attendee routes)
+that was bundled in 91cb445 — this is purely the auth split.

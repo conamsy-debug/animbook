@@ -6,14 +6,15 @@ import { prisma } from "../../db.js";
 import { liveEventBus } from "./bus.js";
 
 const router = Router();
-router.use(authMiddleware);
+// Auth is per-route: hosts need to be signed in to start / drive a session,
+// but attendees must be able to discover + watch a session without an account.
 
 const startSchema = z.object({
   bookId: z.string().min(1),
   title: z.string().min(1).max(160)
 });
 
-router.post("/sessions", async (req: AuthedRequest, res: Response) => {
+router.post("/sessions", authMiddleware, async (req: AuthedRequest, res: Response) => {
   const userId = requireUserId(req);
   const parsed = startSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -109,7 +110,7 @@ router.get("/sessions/:id", async (req: Request, res: Response) => {
   });
 });
 
-router.post("/sessions/:id/append", async (req: AuthedRequest, res: Response) => {
+router.post("/sessions/:id/append", authMiddleware, async (req: AuthedRequest, res: Response) => {
   const userId = requireUserId(req);
   const id = req.params["id"];
   if (typeof id !== "string") {
@@ -154,7 +155,7 @@ router.post("/sessions/:id/append", async (req: AuthedRequest, res: Response) =>
   res.json({ event });
 });
 
-router.post("/sessions/:id/end", async (req: AuthedRequest, res: Response) => {
+router.post("/sessions/:id/end", authMiddleware, async (req: AuthedRequest, res: Response) => {
   const userId = requireUserId(req);
   const id = req.params["id"];
   if (typeof id !== "string") {
