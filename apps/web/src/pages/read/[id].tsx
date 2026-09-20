@@ -74,6 +74,9 @@ export default function ReaderPage() {
   const [pages, setPages] = useState<PageRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  /** Bumped on retry so the load effect re-runs without a full reload. */
+  const [retryKey, setRetryKey] = useState(0);
   const [checkpointOpen, setCheckpointOpen] = useState(false);
   const [checkpointDismissed, setCheckpointDismissed] = useState<Record<string, boolean>>({});
   const [bedtime, setBedtime] = useState(false);
@@ -101,53 +104,68 @@ export default function ReaderPage() {
     if (!id) return;
     let cancelled = false;
     async function load() {
-      try {
-        const [bookRes, pagesRes, memRes, dreamRes] = await Promise.all([
-          apiFetch<BookSummary>(`/api/books/${encodeURIComponent(id!)}`),
-          apiFetch<{ pages: PageRecord[] }>(`/api/books/${encodeURIComponent(id!)}/pages`),
-          apiFetch<{ profile: MemoryProfile }>("/api/memory/settings").catch(() => null),
-          apiFetch<{ active: boolean; profile: DreamProfile }>(`/api/dream/profile/${encodeURIComponent(id!)}`).catch(() => null)
-        ]);
-        if (cancelled) return;
-        setBook(bookRes);
-        setPages(pagesRes.pages);
-        if (memRes) setMemory(memRes.profile);
-        if (dreamRes && dreamRes.active && dreamRes.profile) {
-          setDreamProfile(dreamRes.profile);
-          setDreamActive(true);
-        }
-        setLoading(false);
-        // Companion / NFC deep-link: jump to the anchor page the creator
-        // pinned, then log the session for reach analytics.
-        if (companionFrom && companionLinkId && companionPage) {
-          useReaderStore.getState().goTo(Math.max(0, Math.min(pagesRes.pages.length - 1, companionPage - 1)));
-          const triggerMode = companionFrom === "nfc" ? "NFC_ANCHOR" : "AR_OVERLAY";
-          apiFetch("/api/studio-pro/sessions", {
-            method: "POST",
-            json: { linkId: companionLinkId, triggerMode, pageReached: companionPage }
-          }).catch(() => undefined);
-          toast(companionFrom === "nfc" ? "Opened from NFC tag" : "Opened from AR marker");
-        }
+      // Each fetch is independent — one failure shouldn't take the whole
+      // Reader down. Network blips on a parallel call used to surface as
+      // a bare "Failed to fetch" with no recovery path.
+      const safe = async <T,>(p: Promise<T>, label: string): Promise<T | null> => {
         try {
-          const lib = await apiFetch<{ items: { bookId: string; progressPage: number; mode: string; lastRead: string; completed: boolean; id: string }[] }>("/api/library");
-          hydrateLibrary(
-            lib.items.map((e) => ({
-              id: e.id,
-              bookId: e.bookId,
-              progressPage: e.progressPage,
-              mode: e.mode as "WATCH" | "BOTH" | "READ",
-              completed: e.completed,
-              lastRead: e.lastRead,
-              book: bookRes
-            }))
-          );
-        } catch {
-          // Library hydration is best-effort.
+          return await p;
+        } catch (err) {
+          if (cancelled) return null;
+          const msg = (err as Error).message || label;
+          // Only set the blocking error if we don't have a book yet.
+          setLoadError((prev) => prev ?? `${label}: ${msg}`);
+          return null;
         }
-      } catch (err) {
-        if (cancelled) return;
-        setError((err as Error).message);
-        setLoading(false);
+      };
+      const [bookRes, pagesRes, memRes, dreamRes] = await Promise.all([
+        safe(apiFetch<BookSummary>(`/api/books/${encodeURIComponent(id!)}`), "Book"),
+        safe(apiFetch<{ pages: PageRecord[] }>(`/api/books/${encodeURIComponent(id!)}/pages`), "Pages"),
+        safe(apiFetch<{ profile: MemoryProfile }>("/api/memory/settings"), "Memory"),
+        safe(apiFetch<{ active: boolean; profile: DreamProfile }>(`/api/dream/profile/${encodeURIComponent(id!)}`), "Dream")
+      ]);
+      if (cancelled) return;
+      if (bookRes) setBook(bookRes);
+      if (pagesRes?.pages) setPages(pagesRes.pages);
+      if (memRes?.profile) setMemory(memRes.profile);
+      if (dreamRes && dreamRes.active && dreamRes.profile) {
+        setDreamProfile(dreamRes.profile);
+        setDreamActive(true);
+      }
+      setLoading(false);
+      if (bookRes && !pagesRes?.pages) {
+        // Book loaded but pages didn't — show a friendly retry rather
+        // than the generic "Failed to fetch".
+        setError("We couldn't load the pages. Tap Retry to try again.");
+      } else if (!bookRes) {
+        setError("We couldn't find this AnimBook. It may have been unpublished.");
+      }
+      // Companion / NFC deep-link: jump to the anchor page the creator
+      // pinned, then log the session for reach analytics.
+      if (companionFrom && companionLinkId && companionPage && pagesRes?.pages) {
+        useReaderStore.getState().goTo(Math.max(0, Math.min(pagesRes.pages.length - 1, companionPage - 1)));
+        const triggerMode = companionFrom === "nfc" ? "NFC_ANCHOR" : "AR_OVERLAY";
+        apiFetch("/api/studio-pro/sessions", {
+          method: "POST",
+          json: { linkId: companionLinkId, triggerMode, pageReached: companionPage }
+        }).catch(() => undefined);
+        toast(companionFrom === "nfc" ? "Opened from NFC tag" : "Opened from AR marker");
+      }
+      try {
+        const lib = await apiFetch<{ items: { bookId: string; progressPage: number; mode: string; lastRead: string; completed: boolean; id: string }[] }>("/api/library");
+        hydrateLibrary(
+          lib.items.map((e) => ({
+            id: e.id,
+            bookId: e.bookId,
+            progressPage: e.progressPage,
+            mode: e.mode as "WATCH" | "BOTH" | "READ",
+            completed: e.completed,
+            lastRead: e.lastRead,
+            book: bookRes ?? undefined
+          }))
+        );
+      } catch {
+        // Library hydration is best-effort.
       }
     }
     load();
@@ -155,7 +173,7 @@ export default function ReaderPage() {
       cancelled = true;
       stopSpeaking();
     };
-  }, [id, hydrateLibrary]);
+  }, [id, hydrateLibrary, companionFrom, companionLinkId, companionPage, toast, retryKey]);
 
   // Open a DREAM session once the book + profile are settled.
   useEffect(() => {
@@ -653,6 +671,12 @@ export default function ReaderPage() {
           <EmptyState
             title="Could not open this AnimBook"
             message={error ?? "The book record is missing or unreachable."}
+            retry={{ label: "Retry", onClick: () => {
+              setError(null);
+              setLoadError(null);
+              setLoading(true);
+              setRetryKey((k) => k + 1);
+            }}}
             cta={{ href: "/library", label: "Back to library" }}
           />
         </main>

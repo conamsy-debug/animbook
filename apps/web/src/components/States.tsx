@@ -110,13 +110,16 @@ interface EmptyStateProps {
   message?: string;
   icon?: ReactNode;
   cta?: { href: string; label: string };
+  /** Optional retry button for transient load failures. */
+  retry?: { label: string; onClick: () => void };
 }
 
 /**
  * Shared empty state. Used when a list has no items (no AnimBooks yet,
- * no Library entries, no search results, no consents, etc.).
+ * no Library entries, no search results, no consents, etc.) or when a
+ * page failed to load and we want to give the reader a recovery path.
  */
-export function EmptyState({ title, message, icon, cta }: EmptyStateProps) {
+export function EmptyState({ title, message, icon, cta, retry }: EmptyStateProps) {
   return (
     <div
       role="status"
@@ -133,22 +136,41 @@ export function EmptyState({ title, message, icon, cta }: EmptyStateProps) {
       {icon ? <div style={{ fontSize: 36 }}>{icon}</div> : null}
       <h2 style={{ margin: 0, fontSize: 22 }}>{title}</h2>
       {message ? <p style={{ margin: 0, opacity: 0.7, maxWidth: 480 }}>{message}</p> : null}
-      {cta ? (
-        <a
-          href={cta.href}
-          style={{
-            marginTop: 8,
-            padding: "10px 20px",
-            borderRadius: 10,
-            background: "var(--accent, #C49A1C)",
-            color: "#0D1B2E",
-            fontWeight: 600,
-            textDecoration: "none"
-          }}
-        >
-          {cta.label}
-        </a>
-      ) : null}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginTop: 8 }}>
+        {retry ? (
+          <button
+            type="button"
+            onClick={retry.onClick}
+            style={{
+              padding: "10px 20px",
+              borderRadius: 10,
+              background: "var(--accent, #C49A1C)",
+              color: "#0D1B2E",
+              fontWeight: 600,
+              border: "none",
+              cursor: "pointer"
+            }}
+          >
+            {retry.label}
+          </button>
+        ) : null}
+        {cta ? (
+          <a
+            href={cta.href}
+            style={{
+              padding: "10px 20px",
+              borderRadius: 10,
+              background: "transparent",
+              color: "var(--text)",
+              border: "1px solid rgba(255,255,255,0.18)",
+              fontWeight: 600,
+              textDecoration: "none"
+            }}
+          >
+            {cta.label}
+          </a>
+        ) : null}
+      </div>
     </div>
   );
 }

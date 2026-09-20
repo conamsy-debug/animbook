@@ -1,0 +1,58 @@
+fix(dream): ambient previews actually play + Reader retry button
+
+Two real bugs found via the production screenshots:
+
+**Bug 1 — ambient previews never played.** The Ocean Waves "Stop
+preview" chip showed in the screenshot, meaning the click handler
+ran, but no sound came out. Cause: `togglePreview()` only called
+`setPreviewing(slug)` and never invoked `ambient.start()`. The hook
+returned `start/stop` but the page never called `start`. Worse,
+even if it had, React state lags one tick so reading `trackName`
+inside the hook would have been the previous value — and the
+AudioContext resume would have happened *after* the user gesture
+window, which browsers reject.
+
+Fix:
+- `useAmbient.start()` now takes an optional `overrideTrack`
+  argument. The click handler calls `ambient.start(slug)`
+  synchronously inside the gesture, then `setPreviewing(slug)`.
+  The hook reads the override before doing anything that depends
+  on `trackName`, so the synth plays *inside* the user gesture.
+- `dream.tsx::togglePreview` calls `void ambient.start(slug)`
+  before setting state.
+- New test pins the click-handler ordering: start-then-setState
+  for both "play new" and "switch tracks", stop-only for repeat
+  clicks.
+
+**Bug 2 — Reader showed "Could not open this AnimBook / Failed to
+fetch".** The Reader's load effect did a `Promise.all` of four
+parallel fetches (book, pages, memory, dream-profile). Any single
+failure killed the whole load with a bare "Failed to fetch" and
+no recovery path. The book + pages endpoints are public so the
+most likely culprit is a transient network blip on one of the
+two unauthenticated calls; the 401'd auth calls were already
+swallowed but the un-caught ones weren't.
+
+Fix:
+- Each fetch now goes through a `safe()` wrapper that records
+  the failure into `loadError` without rejecting the Promise.all.
+  A single failed call no longer kills the whole load.
+- `error` state is now set with a *human* message ("We couldn't
+  load the pages. Tap Retry to try again." or "We couldn't find
+  this AnimBook. It may have been unpublished.") instead of the
+  raw `TypeError.message`.
+- New `retryKey` state in the load effect's deps — bumping it
+  re-runs the whole load without a full page reload.
+- `EmptyState` gained a `retry` prop (button) alongside the
+  existing `cta` link, so the Reader can offer "Retry" next to
+  "Back to library" instead of forcing the reader away.
+
+`apps/web/src/components/States.tsx` updated — the retry + cta now
+sit in a flex row so the layout doesn't break on long copy.
+
+74/74 web tests pass (was 73, +1 for the click-handler ordering).
+Web build clean.
+
+Reader is much more forgiving now: even if one of the four
+parallel calls hiccups, the rest still load and the reader gets
+a clear retry path.

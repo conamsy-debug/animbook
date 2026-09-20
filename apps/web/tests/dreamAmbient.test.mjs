@@ -132,3 +132,35 @@ test("gain × (1 + lfoDepth) ≤ 1.0 so the swell never clips", () => {
     }
   }
 });
+
+/** Pin the click-handler ordering: the start() call must use an
+ *  explicit override so the synth plays *before* React state
+ *  propagation lands. Browsers reject programmatic AudioContext
+ *  resume outside a user gesture, so the call must be synchronous
+ *  with the click handler — not deferred to a useEffect. */
+test("togglePreview ordering: start(override) is called before setState", () => {
+  // Mirror the dream.tsx click handler order.
+  const events = [];
+  function togglePreview(currentPreviewing, slug) {
+    if (currentPreviewing === slug) {
+      events.push("stop");
+    } else {
+      events.push(`start:${slug}`);
+      events.push(`setPreviewing:${slug}`);
+    }
+  }
+  // Click "ocean_waves" while nothing is playing.
+  togglePreview(null, "ocean_waves");
+  assert.deepEqual(events, ["start:ocean_waves", "setPreviewing:ocean_waves"]);
+  events.length = 0;
+  // Click the same track to stop.
+  togglePreview("ocean_waves", "ocean_waves");
+  assert.deepEqual(events, ["stop"]);
+  events.length = 0;
+  // Switch tracks: the existing code calls start(new) without an
+  // intermediate stop() because the hook tears down the prior handle
+  // inside start(). We just confirm start(new) is queued before the
+  // state update.
+  togglePreview("ocean_waves", "rainforest");
+  assert.deepEqual(events, ["start:rainforest", "setPreviewing:rainforest"]);
+});

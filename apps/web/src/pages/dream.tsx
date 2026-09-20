@@ -67,6 +67,11 @@ export default function DreamPage() {
       ambient.stop();
       setPreviewing(null);
     } else {
+      // Call start() inside the click handler so the AudioContext
+      // resume() runs in a user gesture — browsers reject programmatic
+      // resume otherwise. Pass the slug explicitly so the hook doesn't
+      // have to wait for the React state update.
+      void ambient.start(slug as AmbientTrackName);
       setPreviewing(slug as AmbientTrackName);
     }
   }

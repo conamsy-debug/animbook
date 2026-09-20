@@ -33,9 +33,14 @@ export function useAmbient(trackName: AmbientTrackName | null | undefined, opts?
   const ctxRef = useRef<AudioContext | null>(null);
   const handleRef = useRef<AmbientHandle | null>(null);
 
-  async function start() {
+  async function start(overrideTrack?: AmbientTrackName) {
     if (!enabled) return;
-    if (!trackName || !recipeFor(trackName)) return;
+    // Prefer an explicit override (passed from the click handler so the
+    // track is known *synchronously* inside the user gesture — React
+    // state lags one tick so reading `trackName` here would always be
+    // the previous value).
+    const track = overrideTrack ?? trackName;
+    if (!track || !recipeFor(track)) return;
     try {
       if (!ctxRef.current) {
         const Ctor = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
@@ -45,7 +50,7 @@ export function useAmbient(trackName: AmbientTrackName | null | undefined, opts?
       if (ctx.state === "suspended") await ctx.resume();
       // Stop any prior track before starting the new one.
       if (handleRef.current) handleRef.current.stop();
-      handleRef.current = startAmbient(ctx, trackName);
+      handleRef.current = startAmbient(ctx, track);
       handleRef.current.setVolume(volume);
       setPlaying(true);
     } catch (e) {
