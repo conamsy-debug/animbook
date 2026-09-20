@@ -9,7 +9,7 @@ interface ClassroomListItem {
   name: string;
   schoolName: string | null;
   gradeBand: string | null;
-  teacher: { id: string; name: string };
+  teacher?: { id: string; name: string };
   _count?: { members: number; assignments: number };
 }
 
@@ -169,7 +169,7 @@ export default function SchoolIndex() {
                 </div>
                 <span className="by" style={{ color: "#1A6B3C" }}>{item.schoolName ?? "Classroom"} · Grade {item.gradeBand ?? "—"}</span>
                 <h3>{item.name}</h3>
-                <p className="muted">Teacher · {item.teacher.name}</p>
+                <p className="muted">Teacher · {item.teacher?.name ?? "—"}</p>
                 <span className="label">{item._count?.assignments ?? 0} assignments</span>
               </Link>
             ))}

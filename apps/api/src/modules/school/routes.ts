@@ -30,10 +30,15 @@ async function getMembership(userId: string, classroomId: string) {
 router.get("/classrooms", async (req: AuthedRequest, res: Response) => {
   const userId = requireUserId(req);
   const user = await prisma.user.findUnique({ where: { id: userId } });
+  // Both branches surface the same ClassroomListItem shape:
+  //   { id, slug, name, schoolName, gradeBand, teacher: { id, name },
+  //     _count: { members, assignments } }
+  // Frontend renders the same tile either way.
   if (user?.roles.includes("teacher") || user?.roles.includes("platform_admin")) {
     const classrooms = await prisma.classroom.findMany({
       where: user.roles.includes("platform_admin") ? undefined : { teacherId: userId },
       include: {
+        teacher: { select: { id: true, name: true } },
         _count: { select: { members: true, assignments: true } }
       },
       orderBy: { updatedAt: "desc" }
@@ -45,7 +50,10 @@ router.get("/classrooms", async (req: AuthedRequest, res: Response) => {
     where: { studentId: userId },
     include: {
       classroom: {
-        include: { _count: { select: { members: true, assignments: true } } }
+        include: {
+          teacher: { select: { id: true, name: true } },
+          _count: { select: { members: true, assignments: true } }
+        }
       }
     }
   });

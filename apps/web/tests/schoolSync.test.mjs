@@ -122,3 +122,22 @@ test("extractApiError: null when details is empty or wrong shape", () => {
   assert.equal(extractApiError({}), null);
   assert.equal(extractApiError({ message: "oops" }), null);
 });
+
+/** Pin the index page defensive read: a classroom list item from the
+ *  API may be missing the `teacher` field (the older /api/school/classrooms
+ *  endpoint didn't include it, and crashed the index with
+ *  "Cannot read properties of undefined (reading 'name')"). The UI must
+ *  render a fallback rather than throwing. */
+function teacherNameFor(item) {
+  return item.teacher?.name ?? "—";
+}
+
+test("teacherNameFor: returns name when teacher is present", () => {
+  assert.equal(teacherNameFor({ teacher: { id: "u1", name: "Ms. Ade" } }), "Ms. Ade");
+});
+
+test("teacherNameFor: falls back to em-dash when teacher is missing", () => {
+  assert.equal(teacherNameFor({}), "—");
+  assert.equal(teacherNameFor({ teacher: null }), "—");
+  assert.equal(teacherNameFor({ teacher: { id: "u1", name: null } }), "—");
+});

@@ -1,0 +1,31 @@
+fix(school): include teacher on /api/school/classrooms + harden UI
+
+Caught from the production screenshot: opening /school threw
+"AnimBook ran into a snag / Cannot read properties of undefined
+(reading 'name')" and the global ErrorBoundary caught it with the
+new Try again button.
+
+**Root cause**: `GET /api/school/classrooms` didn't `include`
+`teacher` in either the teacher branch or the student branch.
+The frontend's `ClassroomListItem.teacher` field was marked
+required and rendered as `item.teacher.name` — guaranteed crash
+on every load.
+
+**API** — `apps/api/src/modules/school/routes.ts`:
+- Both branches now include `teacher: { select: { id, name } }`.
+  Same shape either way, so the frontend renders the same tile.
+
+**Web** — `apps/web/src/pages/school/index.tsx`:
+- `ClassroomListItem.teacher` is now optional (`teacher?: ...`).
+- `item.teacher.name` → `item.teacher?.name ?? "—"`. Defensive
+  against any future regression where a teacher row is missing.
+- `school/[slug].tsx` already hardened last commit
+  (`m.student?.name ?? "Unknown student"` + `data.teacher?.name ?? "—"`),
+  so the only remaining render-time crash was the index.
+
+**Tests** — `apps/web/tests/schoolSync.test.mjs`:
+- New `teacherNameFor(item)` helper mirrors the index-page read
+  with `?.` and an em-dash fallback.
+- 14/14 tests pass (was 12, +2 for the teacher-fallback cases).
+
+Web build clean. Ready to push so the crash is gone.
