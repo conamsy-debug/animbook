@@ -147,7 +147,16 @@ router.get("/sessions", async (req: AuthedRequest, res: Response) => {
   const userId = requireUserId(req);
   const limitCoerced = req.query["limit"];
   const limit = typeof limitCoerced === "string" ? Math.min(50, Math.max(1, Number.parseInt(limitCoerced, 10) || 10)) : 10;
-  const items = await recentDreamSessions(userId, limit);
+  const rows = await recentDreamSessions(userId, limit);
+  // Hydrate the book summary so the UI can show the title instead of a
+  // raw cuid. Cheap — limited to 50 rows max and we have an index on userId.
+  const bookIds = Array.from(new Set(rows.map((r) => r.bookId)));
+  const books = await prisma.book.findMany({
+    where: { id: { in: bookIds } },
+    select: { id: true, slug: true, title: true, author: true, vertical: true, coverUrl: true }
+  });
+  const bookMap = new Map(books.map((b) => [b.id, b]));
+  const items = rows.map((s) => ({ ...s, book: bookMap.get(s.bookId) ?? null }));
   res.json({ items });
 });
 

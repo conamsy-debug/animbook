@@ -1163,10 +1163,114 @@ h1 {
 }
 .dream-text { color: var(--text); }
 .dream-track { color: var(--muted); font-family: 'DM Mono', monospace; letter-spacing: 0.05em; }
+.dream-sound {
+  appearance: none;
+  border: 1px solid rgba(63, 129, 114, 0.55);
+  background: rgba(63, 129, 114, 0.08);
+  color: var(--text);
+  font-size: 0.72rem;
+  font-family: 'DM Mono', monospace;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+.dream-sound:hover { background: rgba(63, 129, 114, 0.18); }
+.dream-sound[aria-pressed="true"] {
+  background: rgba(63, 129, 114, 0.32);
+  border-color: var(--wellness);
+}
 @keyframes dream-pulse {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 1; }
 }
+
+/* ==== Dream page UI ==== */
+.dream-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 16px 0 24px;
+}
+.dream-stat {
+  background: rgba(8, 12, 20, 0.5);
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dream-stat .stat-value {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1;
+}
+.dream-stat .stat-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.companion-card {
+  background: rgba(8, 12, 20, 0.5);
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.18s ease;
+}
+.companion-card:hover { border-color: rgba(63, 129, 114, 0.5); }
+.companion-card strong { color: var(--text); }
+
+.dream-track-card {
+  cursor: pointer;
+  position: relative;
+}
+.dream-track-card[data-active="true"] {
+  border-color: var(--wellness);
+  background: rgba(63, 129, 114, 0.12);
+}
+.dream-track-card .dream-play {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--wellness);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 4px 0;
+  text-align: left;
+  font-family: 'DM Mono', monospace;
+  letter-spacing: 0.05em;
+}
+.dream-track-card .dream-play:hover { text-decoration: underline; }
+
+.dream-books {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+  list-style: none;
+  padding: 0;
+}
+.dream-book-card {
+  background: rgba(8, 12, 20, 0.5);
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dream-book-card h3 { margin: 0; font-family: 'Cormorant Garamond', serif; }
+.dream-book-card a { color: var(--wellness); text-decoration: none; font-size: 0.85rem; }
+.dream-book-card a:hover { text-decoration: underline; }
 
 /* ==== AnimBook Live (attendee banner on Reader) ==== */
 .live-banner {

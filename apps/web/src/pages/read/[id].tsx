@@ -22,6 +22,7 @@ import { useNarration } from "@/lib/useNarration";
 import { readStoredSpeed, persistSpeed, type Speed } from "@/lib/speed";
 import { pickPrefetchLinks } from "@/lib/readerPlaybackPrefetch.mjs";
 import { useReaderGestures } from "@/lib/useReaderGestures";
+import { useAmbient, type AmbientTrackName } from "@/lib/useAmbient";
 
 /** Shape produced by pickPrefetchLinks — duplicated here because the
  *  helper is .mjs (plain ES module) and TS can't infer JSDoc types
@@ -175,6 +176,30 @@ export default function ReaderPage() {
       }
     };
   }, [dreamSessionId]);
+
+  // Ambient sound — only on the reader's first user gesture (browser
+  // autoplay policy). The dream-banner chip carries a "Sound off / on"
+  // toggle so the reader can mute the synth without leaving DREAM mode.
+  const ambientTrack = (dreamProfile?.ambientTrack ?? null) as AmbientTrackName | null;
+  const ambient = useAmbient(ambientTrack, { enabled: dreamActive, volume: 1 });
+  const [ambientOn, setAmbientOn] = useState(false);
+  // Auto-start the synth on the first user gesture after dreamActive flips
+  // on. Browsers reject programmatic .resume() without a click/keypress.
+  useEffect(() => {
+    if (!dreamActive) return;
+    function onGesture() {
+      void ambient.start();
+      setAmbientOn(true);
+      window.removeEventListener("pointerdown", onGesture);
+      window.removeEventListener("keydown", onGesture);
+    }
+    window.addEventListener("pointerdown", onGesture, { once: false });
+    window.addEventListener("keydown", onGesture, { once: false });
+    return () => {
+      window.removeEventListener("pointerdown", onGesture);
+      window.removeEventListener("keydown", onGesture);
+    };
+  }, [dreamActive, ambient]);
 
   // Push the current page index into the DREAM session every 4 pages.
   useEffect(() => {
@@ -636,6 +661,23 @@ export default function ReaderPage() {
             <span className="dream-dot" aria-hidden />
             <span className="dream-text">{dreamProfile?.caption ?? "DREAM mode"}</span>
             <span className="dream-track">{dreamProfile?.ambientTrack?.replace("_", " ")}</span>
+            <button
+              type="button"
+              className="dream-sound"
+              onClick={() => {
+                if (ambientOn) {
+                  ambient.stop();
+                  setAmbientOn(false);
+                } else {
+                  void ambient.start();
+                  setAmbientOn(true);
+                }
+              }}
+              aria-pressed={ambientOn}
+              title={ambientOn ? "Mute ambient" : "Play ambient"}
+            >
+              {ambientOn ? "♪ Sound on" : "♪ Sound off"}
+            </button>
           </div>
         )}
         {liveSessionId && (

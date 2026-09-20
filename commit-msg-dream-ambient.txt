@@ -1,0 +1,74 @@
+feat(dream): ship real ambient audio + reader wiring + page polish
+
+DREAM was wired to the Reader but the ambient track was just a label.
+Now it actually plays.
+
+**Synth** — `apps/web/src/lib/dreamAmbient.mjs` (pure Web Audio API,
+no external audio files, works offline):
+- pink / brown / white noise generators (Voss-McCartney pink)
+- 5 looping tracks: ocean_waves, rainforest, fireplace, river, white_noise
+- per-track filter recipe (cutoff, Q, gain)
+- slow LFO swell for ocean/river/white_noise (1/7 Hz reads as a wave)
+- random click impulses for rainforest/fireplace/river
+- 4-second loop buffer at 22050 Hz — loop point is inaudible on stationary noise
+- peak gain × (1 + lfoDepth) ≤ 1.0 so the swell never clips
+
+**Hook** — `apps/web/src/lib/useAmbient.ts`:
+- single shared AudioContext, lazily created on first user gesture
+- `start()` resumes the suspended context (browser autoplay policy)
+- `setVolume(v)` ramps the gain (linear, 0.4s)
+- `stop()` cleanly tears down source + filter + gain + LFO + click timer
+- `enabled` gate so the Reader can pause the synth without unmounting
+
+**Reader** — `apps/web/src/pages/read/[id].tsx`:
+- `useAmbient(ambientTrack, { enabled: dreamActive })` runs only while
+  dreamActive is on
+- Auto-starts on the first pointerdown/keydown after dreamActive flips on
+  (browsers reject programmatic resume without a user gesture)
+- dream-banner chip now carries a "♪ Sound off / Sound on" toggle so the
+  reader can mute without leaving DREAM mode
+- aria-pressed reflects state
+
+**CSS** — `apps/web/src/styles/globals.css`:
+- `.dream-stat` + `.stat-value` + `.stat-label` (the stat tiles on /dream
+  used the class but no CSS existed — they fell back to defaults)
+- `.companion-card` (shared by /dream + /companion — both referenced the
+  class without styles)
+- `.dream-track-card[data-active="true"]` highlights the currently
+  previewing ambient track
+- `.dream-play` toggle button on each ambient card
+- `.dream-books` + `.dream-book-card` for the WELLNESS picker grid
+- `.dream-sound` button on the Reader banner chip
+
+**Page** — `apps/web/src/pages/dream.tsx`:
+- Stat tiles now render in real CSS
+- Ambient library has a "▶ Preview / ■ Stop preview" toggle on each card
+  that drives the Web Audio synth through `useAmbient`
+- New "WELLNESS books" grid pulls `/api/books?vertical=WELLNESS` so the
+  reader sees actual books to dream on, with an "Open in DREAM →" CTA
+- Session log now shows book title (was raw bookId)
+
+**API** — `apps/api/src/modules/dream/routes.ts`:
+- `GET /api/dream/sessions` now hydrates `book: { id, slug, title,
+  author, vertical, coverUrl }` so the UI can show titles without
+  a second round-trip. BookMap keyed by bookId, dedup via Set.
+
+**Seed** — `apps/api/scripts/seed-wellness-book.mjs`:
+- New "The Quiet Hour" — 17-page sleep story, WELLNESS vertical,
+  cool palette, calm mood
+- Idempotent upsert by slug, deletes + recreates pages + BookBrain on
+  rerun. Discovered along the way: Page model requires
+  `sourceTextSha256`, BookBrain requires both `rawJson` + structured
+  fields (genre/culturalOrigin/targetAudience/styleSelected) — fixed
+  the script accordingly. (Production already had 4 other WELLNESS
+  books — this seeds a fifth, all DREAM-eligible.)
+
+**Tests**:
+- `apps/web/tests/dreamAmbient.test.mjs` — 13 new tests pinning the
+  recipes: noise bounds (RMS in range, no NaN), every track has a
+  valid noise+filter combo, ocean LFO = 0.14 Hz (one swell every 7s),
+  fireplace = brown noise, rainforest sparse, white_noise gentle,
+  buffer math (88.2k samples), peak gain never clips.
+
+71/71 API tests + 61/61 web tests pass. Web build clean
+(`/dream` 3.5 kB, `/read/[id]` 20.1 → 20.4 kB).
