@@ -361,6 +361,140 @@ h1 {
 .card .btn + .btn, .card p + .btn { margin-top: 10px; }
 
 /* ==== Misc ==== */
+
+/* Memory page swatches + selected preset ring */
+.memory-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+.memory-presets .preset {
+  text-align: left;
+  padding: 18px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1.5px solid rgba(196, 154, 28, 0.18);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.memory-presets .preset:hover {
+  border-color: rgba(196, 154, 28, 0.55);
+  background: rgba(196, 154, 28, 0.05);
+}
+.memory-presets .preset.selected {
+  border-color: #C49A1C;
+  background: rgba(196, 154, 28, 0.10);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 18px rgba(196, 154, 28, 0.15);
+}
+.memory-presets .preset-label {
+  font-family: "DM Mono", monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(196, 154, 28, 0.85);
+}
+.memory-presets .preset-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 4px 0;
+}
+.memory-presets .preset-desc {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.45;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+}
+.swatches .swatch {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  outline: none;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.swatches .swatch:hover {
+  transform: scale(1.08);
+}
+.swatches .swatch.selected {
+  border-color: #F4E9D8;
+  box-shadow: 0 0 0 3px rgba(196, 154, 28, 0.4);
+}
+.swatches .swatch:focus-visible {
+  box-shadow: 0 0 0 3px rgba(196, 154, 28, 0.6);
+}
+
+.tuning-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+.tuning-card .label {
+  font-family: "DM Mono", monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+.tuning-card .value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 2px 0 4px;
+}
+.tuning-card input[type="range"] {
+  width: 100%;
+  accent-color: #C49A1C;
+}
+.tuning-card .flag-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.tuning-card .flag-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #C49A1C;
+}
+
+.memory-save-state {
+  font-family: "DM Mono", monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.memory-save-state.saving {
+  background: rgba(196, 154, 28, 0.15);
+  color: #E8B748;
+}
+.memory-save-state.saved {
+  background: rgba(26, 107, 60, 0.20);
+  color: #6FCF97;
+}
+.memory-save-state.error {
+  background: rgba(201, 75, 50, 0.18);
+  color: #E27A65;
+}
+
 .empty-state {
   padding: 24px;
   border: 1px dashed var(--border);

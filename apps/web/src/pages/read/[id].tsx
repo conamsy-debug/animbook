@@ -371,6 +371,24 @@ export default function ReaderPage() {
   const autoFlipTimer = useRef<number | null>(null);
   const flipStateRef = useRef({ autoFlip, pageIndex, total: pages.length });
   flipStateRef.current = { autoFlip, pageIndex, total: pages.length };
+  // Track the previous pageIndex so the signal hook can tell whether
+  // the latest flip was forwards (normal) or backwards (scrollback).
+  const prevPageIndexRef = useRef<number>(pageIndex);
+  // Signal tracking: post dwell-time events to /api/signal/page on every
+  // flip, then roll the buffer into /api/memory/adapt every 6 pages
+  // (or 60s) so the Reader's profile adapts to actual reading speed.
+  useReaderSignal(
+    book && currentPage
+      ? {
+          bookId: book.id,
+          vertical: book.vertical,
+          pageNum: currentPage.pageNum,
+          scrolledBack: pageIndex < prevPageIndexRef.current,
+          onProfile: (profile) => setMemory(profile as MemoryProfile | null)
+        }
+      : { bookId: "", vertical: "CONSUMER", pageNum: 1 }
+  );
+  prevPageIndexRef.current = pageIndex;
   // Margin notes from other readers.
   const [notesOpen, setNotesOpen] = useState(false);
   const [noteCounts, setNoteCounts] = useState<Record<string, number>>({});
@@ -673,4 +691,4 @@ export default function ReaderPage() {
       </main>
     </div>
   );
-}
+}import { useReaderSignal } from "@/lib/useReaderSignal";
