@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Topbar } from "@/components/Topbar";
 import { apiFetch } from "@/lib/api";
+import { useToastStore } from "@/lib/store";
 import type { TeacherDashboardSummary } from "../../domain/index.js";
 
 interface DashboardResponse {
@@ -19,23 +20,48 @@ interface StudentRecord {
   avgTimeSeconds: number;
 }
 
+interface EduBook {
+  id: string;
+  slug: string;
+  title: string;
+  totalPages: number;
+}
+
+interface InstitutionDetail {
+  institution: { id: string; name: string; type: string; seatCount: number; licenseExpiresAt: string | null };
+  seatedUserIds: string[];
+}
+
 export default function TeacherDashboardPage() {
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [students, setStudents] = useState<StudentRecord[] | null>(null);
+  const [eduBooks, setEduBooks] = useState<EduBook[]>([]);
+  const [selectedBookSlug, setSelectedBookSlug] = useState<string | null>(null);
+  const [institutionDetail, setInstitutionDetail] = useState<InstitutionDetail | null>(null);
+  const [seatedStudents, setSeatedStudents] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [seatEmail, setSeatEmail] = useState("");
+  const [seatStatus, setSeatStatus] = useState<{ ok: boolean; msg: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [projectionMode, setProjectionMode] = useState(false);
+  const toast = useToastStore((s) => s.push);
 
+  /** Load dashboard + roster + available EDU books once on mount. */
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const [dash, roster] = await Promise.all([
-          apiFetch<DashboardResponse>("/api/edu/teacher/dashboard"),
-          apiFetch<{ students: StudentRecord[] }>("/api/edu/teacher/students")
+        const [dash, roster, books] = await Promise.all([
+          apiFetch<DashboardResponse>("/api/edu/teacher/dashboard").catch(() => null),
+          apiFetch<{ students: StudentRecord[] }>("/api/edu/teacher/students").catch(() => null),
+          apiFetch<{ items: EduBook[] }>("/api/books?vertical=EDU&status=PUBLISHED&limit=20").catch(() => null)
         ]);
         if (cancelled) return;
-        setData(dash);
-        setStudents(roster.students);
+        if (dash) {
+          setData(dash);
+          setSelectedBookSlug(dash.summary.bookSlug);
+        }
+        setStudents(roster?.students ?? []);
+        setEduBooks(books?.items ?? []);
       } catch (err) {
         if (!cancelled) setError((err as Error).message);
       }
@@ -46,25 +72,108 @@ export default function TeacherDashboardPage() {
     };
   }, []);
 
+  /** Reload dashboard + roster when the selected book changes (so each
+   *  EDU book has its own analytics surface). */
+  useEffect(() => {
+    if (!selectedBookSlug) return;
+    let cancelled = false;
+    async function load() {
+      try {
+        const [dash, roster] = await Promise.all([
+          apiFetch<DashboardResponse>(`/api/edu/teacher/dashboard?bookSlug=${encodeURIComponent(selectedBookSlug)}`).catch(() => null),
+          apiFetch<{ students: StudentRecord[] }>("/api/edu/teacher/students").catch(() => null)
+        ]);
+        if (cancelled) return;
+        if (dash) setData(dash);
+        setStudents(roster?.students ?? []);
+      } catch (err) {
+        if (!cancelled) setError((err as Error).message);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedBookSlug]);
+
+  /** If the teacher has an institution, hydrate its detail (seats + roster). */
+  const institutionId = data?.institutions?.[0]?.id ?? null;
+  useEffect(() => {
+    if (!institutionId) return;
+    let cancelled = false;
+    async function load() {
+      try {
+        const detail = await apiFetch<InstitutionDetail>(`/api/institutions/${institutionId}`);
+        if (cancelled) return;
+        setInstitutionDetail(detail);
+        const seats = await apiFetch<{ seatedUserIds: string[]; students: { id: string; name: string; email: string }[] }>(`/api/institutions/${institutionId}/seats`);
+        if (!cancelled) setSeatedStudents(seats.students);
+      } catch (err) {
+        // Non-fatal — the dashboard already shows what it can.
+        if (!cancelled) console.warn("Institution hydrate failed:", err);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [institutionId]);
+
+  async function seatStudent() {
+    if (!institutionId || !seatEmail.trim()) return;
+    setSeatStatus(null);
+    try {
+      await apiFetch(`/api/institutions/${institutionId}/seats`, {
+        method: "POST",
+        json: { studentEmail: seatEmail.trim().toLowerCase() }
+      });
+      setSeatStatus({ ok: true, msg: `${seatEmail} seated.` });
+      setSeatEmail("");
+      // refresh seats
+      const seats = await apiFetch<{ students: { id: string; name: string; email: string }[] }>(`/api/institutions/${institutionId}/seats`);
+      setSeatedStudents(seats.students);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setSeatStatus({ ok: false, msg });
+    }
+  }
+
+  async function unseatStudent(studentId: string) {
+    if (!institutionId) return;
+    await apiFetch(`/api/institutions/${institutionId}/seats/${studentId}`, { method: "DELETE" });
+    setSeatedStudents((prev) => prev.filter((s) => s.id !== studentId));
+  }
+
   const frameworkPills = useMemo(() => data?.frameworks ?? [], [data]);
 
   async function startProjection() {
     if (!data) return;
     try {
-      const res = await apiFetch<{ session: string; bookSlug: string; pageNum: number }>("/api/edu/classroom/projection", {
+      const res = await apiFetch<{ sessionId: string; bookSlug: string; attendeeUrl: string; pageNum: number }>("/api/edu/classroom/projection", {
         method: "POST",
         json: {
           bookSlug: data.summary.bookSlug,
-          pageNum: 1,
-          sessionToken: `classroom-${Date.now()}`
+          pageNum: 1
         }
       });
       if (typeof window !== "undefined") {
-        const projectionWindow = window.open(`/read/${res.bookSlug}?projection=${res.session}`, "_blank", "noopener,noreferrer");
-        if (!projectionWindow) setProjectionMode(true);
+        // Teacher drives via Live. Attendee URL opens the Live page that
+        // auto-subscribes to page.flipped events; share that link with
+        // the class and they'll see every flip as it happens.
+        const host = window.open(`/live/${res.sessionId}`, "_blank", "noopener,noreferrer");
+        if (!host) setProjectionMode(true);
+        try {
+          await navigator.clipboard?.writeText(`${window.location.origin}${res.attendeeUrl}`);
+          toast(`Live session started · attendee link copied`);
+        } catch {
+          toast(`Live session started · share ${res.attendeeUrl}`);
+        }
       }
     } catch (err) {
-      setError(`Could not start projection: ${(err as Error).message}`);
+      // Projection failure should NOT take down the dashboard — surface
+      // it as a toast and leave the rest of the analytics intact.
+      const msg = err instanceof Error ? err.message : String(err);
+      toast(`Could not start projection: ${msg}`);
     }
   }
 
@@ -90,6 +199,8 @@ export default function TeacherDashboardPage() {
     );
   }
 
+  const seatRemaining = institutionDetail ? Math.max(0, institutionDetail.institution.seatCount - seatedStudents.length) : null;
+
   return (
     <div className="app-shell">
       <Topbar />
@@ -99,8 +210,20 @@ export default function TeacherDashboardPage() {
             <span className="dot" style={{ background: "#1A6B3C" }} />
             <h1>Teacher Dashboard</h1>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <span className="badge">{data.summary.bookTitle}</span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            {eduBooks.length > 0 ? (
+              <select
+                value={selectedBookSlug ?? data.summary.bookSlug}
+                onChange={(e) => setSelectedBookSlug(e.target.value)}
+                style={{ minWidth: 200 }}
+              >
+                {eduBooks.map((b) => (
+                  <option key={b.id} value={b.slug}>{b.title}</option>
+                ))}
+              </select>
+            ) : (
+              <span className="badge">{data.summary.bookTitle}</span>
+            )}
             <Link href={`/edu/curriculum/${data.summary.bookSlug}`} className="btn">
               Curriculum map
             </Link>
@@ -116,6 +239,48 @@ export default function TeacherDashboardPage() {
           <Stat label="Avg progress" value={`${data.summary.averageProgress}%`} accent="#C49A1C" />
           <Stat label="Avg accuracy" value={`${data.summary.averageAccuracy}%`} accent="#1A8A4A" />
         </section>
+
+        {institutionDetail && (
+          <section className="card" style={{ marginTop: 16, borderColor: "#1A6B3C" }}>
+            <h3>{institutionDetail.institution.name}</h3>
+            <p className="muted" style={{ marginBottom: 12 }}>
+              {seatedStudents.length} / {institutionDetail.institution.seatCount} seats filled
+              {seatRemaining !== null && seatRemaining <= 5 && seatRemaining > 0 && (
+                <span style={{ color: "#C49A1C" }}> · {seatRemaining} seat{seatRemaining === 1 ? "" : "s"} left</span>
+              )}
+              {seatRemaining === 0 && (
+                <span style={{ color: "#D46A0A" }}> · at capacity</span>
+              )}
+            </p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                type="email"
+                placeholder="seat@school.edu"
+                value={seatEmail}
+                onChange={(e) => setSeatEmail(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button type="button" className="btn primary" onClick={seatStudent} disabled={!seatEmail.trim()}>
+                Seat student
+              </button>
+            </div>
+            {seatStatus && (
+              <p style={{ color: seatStatus.ok ? "var(--wellness)" : "var(--comics)", marginTop: 8 }}>
+                {seatStatus.msg}
+              </p>
+            )}
+            {seatedStudents.length > 0 && (
+              <ul style={{ marginTop: 12, listStyle: "none", padding: 0 }}>
+                {seatedStudents.map((s) => (
+                  <li key={s.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
+                    <span><strong>{s.name}</strong> <span className="muted">· {s.email}</span></span>
+                    <button type="button" className="btn ghost" onClick={() => unseatStudent(s.id)}>Release</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
 
         <section style={{ marginTop: 24 }}>
           <header className="section-header">

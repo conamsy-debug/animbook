@@ -1,0 +1,36 @@
+fix(edu): teacher-gated projection + toast (don't kill the dashboard)
+
+Two real bugs from the production screenshot:
+
+**Bug 1 — 403 on "Start classroom projection".**
+The API at /api/edu/classroom/projection required the caller to be
+the adminUserId of an Institution. With 0 institutions in production
+(the seed never created one), every teacher was blocked. The
+endpoint also said "Only institution admins can drive classroom
+projection. Create one first." — but there was no UI to create one
+that a non-platform-admin user could reach.
+
+Fix: gate on the `teacher` role on the user's account record instead
+of requiring an Institution. The teacher role was already granted to
+the user via grant-teacher-role.mjs. Now any teacher can drive a
+classroom projection regardless of whether they've set up an
+institution yet. Institution is still loaded if present (used for
+the session title); falling back to the teacher's name when there
+isn't one yet.
+
+**Bug 2 — projection 403 nuked the whole dashboard.**
+startProjection() called `setError("Could not start projection: 403")`
+which is the same state the dashboard uses for the empty-state.
+A single projection failure rendered the entire analytics page
+unusable — no flagged pages, no roster, no live responses. The
+empty state was the page's whole reason for existing.
+
+Fix: surface projection errors as a toast instead of a page-level
+error. Same change as we did for the school invite form: failed
+mutations shouldn't kill the view that drove the user to the
+mutation. The dashboard keeps rendering with whatever data it
+already loaded, the toast tells them what went wrong with the
+projection, and they can try again or move on.
+
+No test changes (the existing tests don't touch this surface).
+Web build clean, API TS clean.
