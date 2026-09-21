@@ -3994,7 +3994,7 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   .lib-page .lib-hcopy { width: 480px; left: 40px; }
 }
 /* ==== Library redesign: cinematic nav ==== */
-.lib-page .lib-nav {
+:where(.lib-page, .home-page) .lib-nav {
   position: sticky;
   top: 0;
   z-index: 40;
@@ -4005,7 +4005,7 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   backdrop-filter: blur(16px);
   border-bottom: 1px solid rgba(242, 238, 230, 0.07);
 }
-.lib-page .lib-nav-inner {
+:where(.lib-page, .home-page) .lib-nav-inner {
   height: 100%;
   display: flex;
   align-items: center;
@@ -4013,7 +4013,7 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   padding: 0 var(--lib-gutter);
   position: relative;
 }
-.lib-page .lib-brand {
+:where(.lib-page, .home-page) .lib-brand {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -4025,8 +4025,8 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   text-decoration: none;
   flex-shrink: 0;
 }
-.lib-page .lib-brand-word { color: var(--lib-text); }
-.lib-page .lib-navlinks {
+:where(.lib-page, .home-page) .lib-brand-word { color: var(--lib-text); }
+:where(.lib-page, .home-page) .lib-navlinks {
   display: flex;
   align-items: center;
   gap: 24px;
@@ -4036,8 +4036,8 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
-.lib-page .lib-navlinks::-webkit-scrollbar { display: none; }
-.lib-page .lib-navlinks a {
+:where(.lib-page, .home-page) .lib-navlinks::-webkit-scrollbar { display: none; }
+:where(.lib-page, .home-page) .lib-navlinks a {
   position: relative;
   padding: 10px 0;
   font-size: 14.5px;
@@ -4047,9 +4047,9 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   flex-shrink: 0;
   white-space: nowrap;
 }
-.lib-page .lib-navlinks a:hover,
-.lib-page .lib-navlinks a.on { color: var(--lib-text); }
-.lib-page .lib-navlinks a::after {
+:where(.lib-page, .home-page) .lib-navlinks a:hover,
+:where(.lib-page, .home-page) .lib-navlinks a.on { color: var(--lib-text); }
+:where(.lib-page, .home-page) .lib-navlinks a::after {
   content: "";
   position: absolute;
   left: 0; right: 0; bottom: 2px;
@@ -4060,21 +4060,21 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   transform-origin: left;
   transition: transform .25s cubic-bezier(.2, .7, .2, 1);
 }
-.lib-page .lib-navlinks a:hover::after,
-.lib-page .lib-navlinks a.on::after { transform: scaleX(1); }
+:where(.lib-page, .home-page) .lib-navlinks a:hover::after,
+:where(.lib-page, .home-page) .lib-navlinks a.on::after { transform: scaleX(1); }
 
-.lib-page .lib-navtools {
+:where(.lib-page, .home-page) .lib-navtools {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
 }
-.lib-page .lib-sform {
+:where(.lib-page, .home-page) .lib-sform {
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.lib-page .lib-sinput {
+:where(.lib-page, .home-page) .lib-sinput {
   width: 0;
   height: 40px;
   border-radius: 999px;
@@ -4086,13 +4086,13 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   opacity: 0;
   transition: width .35s cubic-bezier(.2, .7, .2, 1), opacity .25s, padding .35s, border-color .25s;
 }
-.lib-page .lib-sform.open .lib-sinput {
+:where(.lib-page, .home-page) .lib-sform.open .lib-sinput {
   width: 250px;
   opacity: 1;
   padding: 0 14px;
 }
-.lib-page .lib-sinput::placeholder { color: var(--lib-placeholder); }
-.lib-page .lib-navbtn {
+:where(.lib-page, .home-page) .lib-sinput::placeholder { color: var(--lib-placeholder); }
+:where(.lib-page, .home-page) .lib-navbtn {
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -4106,14 +4106,14 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   text-decoration: none;
   flex-shrink: 0;
 }
-.lib-page .lib-navbtn:hover { background: rgba(242, 238, 230, 0.12); color: #fff; }
-.lib-page .lib-account-initials {
+:where(.lib-page, .home-page) .lib-navbtn:hover { background: rgba(242, 238, 230, 0.12); color: #fff; }
+:where(.lib-page, .home-page) .lib-account-initials {
   font-family: var(--lib-display);
   font-weight: 600;
   font-size: 15px;
   color: #C9CFD8;
 }
-.lib-page .lib-navmore {
+:where(.lib-page, .home-page) .lib-navmore {
   position: absolute;
   top: 64px;
   right: 16px;
@@ -4128,7 +4128,7 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   gap: 2px;
   z-index: 50;
 }
-.lib-page .lib-navmore-item {
+:where(.lib-page, .home-page) .lib-navmore-item {
   display: block;
   padding: 10px 12px;
   border-radius: 8px;
@@ -4137,17 +4137,17 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   font-weight: 500;
   transition: background .15s;
 }
-.lib-page .lib-navmore-item:hover { background: rgba(242, 238, 230, 0.08); }
+:where(.lib-page, .home-page) .lib-navmore-item:hover { background: rgba(242, 238, 230, 0.08); }
 
 /* Hide the navlinks row on narrow screens — the "More" sheet replaces it. */
 @media (max-width: 1279px) {
-  .lib-page .lib-navlinks a:nth-child(n+8) { display: none; }
+  :where(.lib-page, .home-page) .lib-navlinks a:nth-child(n+8) { display: none; }
 }
 @media (max-width: 1099px) {
-  .lib-page .lib-navlinks a:nth-child(n+6) { display: none; }
+  :where(.lib-page, .home-page) .lib-navlinks a:nth-child(n+6) { display: none; }
 }
 @media (max-width: 899px) {
-  .lib-page .lib-navlinks a { display: none; }
+  :where(.lib-page, .home-page) .lib-navlinks a { display: none; }
 }
 /* ==== Library redesign: chips + grid + layout ==== */
 .lib-page .lib-main {
@@ -4217,16 +4217,16 @@ a.vertical-tile .vertical-count { color: var(--accent); }
     --lib-card-h: 198px;
     --lib-card-gap: 10px;
   }
-  .lib-page .lib-nav { height: 64px; margin-bottom: -64px; }
-  .lib-page .lib-nav-inner { padding: 0 var(--lib-gutter); gap: 12px; }
-  .lib-page .lib-brand-word { display: none; }
-  .lib-page .lib-navlinks { display: none; }
+  :where(.lib-page, .home-page) .lib-nav { height: 64px; margin-bottom: -64px; }
+  :where(.lib-page, .home-page) .lib-nav-inner { padding: 0 var(--lib-gutter); gap: 12px; }
+  :where(.lib-page, .home-page) .lib-brand-word { display: none; }
+  :where(.lib-page, .home-page) .lib-navlinks { display: none; }
 
-  .lib-page .lib-hero {
+  :where(.lib-page, .home-page) .lib-hero {
     height: 650px;
     min-height: 0;
   }
-  .lib-page .lib-hposter {
+  :where(.lib-page, .home-page) .lib-hposter {
     width: 232px;
     right: auto;
     left: 50%;
@@ -4303,6 +4303,29 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   --home-sans: 'Figtree', 'Inter', system-ui, sans-serif;
 
   --home-gutter: 64px;
+
+  /* Mirror the --home-* tokens as --lib-* so the cinematic nav (whose
+   * rules live in the library brief section but apply here too via the
+   * `:where(.lib-page, .home-page)` selector) resolves the variables it
+   * expects. Library and home values are identical by design; if you
+   * change one, change the other. */
+  --lib-ink: var(--home-ink);
+  --lib-surface: var(--home-surface);
+  --lib-line: var(--home-line);
+  --lib-ring: var(--home-ring);
+  --lib-line-soft: var(--home-line-soft);
+  --lib-text: var(--home-text);
+  --lib-text-soft: var(--home-text-soft);
+  --lib-muted: var(--home-muted);
+  --lib-muted-2: var(--home-muted-2);
+  --lib-placeholder: var(--home-placeholder);
+  --lib-link: var(--home-link);
+  --lib-gold: var(--home-gold);
+  --lib-gold-bright: var(--home-gold-bright);
+  --lib-on-gold: var(--home-on-gold);
+  --lib-display: var(--home-display);
+  --lib-sans: var(--home-sans);
+  --lib-gutter: var(--home-gutter);
 
   background: var(--home-ink);
   color: var(--home-text);
