@@ -4149,3 +4149,60 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 @media (max-width: 899px) {
   .lib-page .lib-navlinks a { display: none; }
 }
+/* ==== Library redesign: chips + grid + layout ==== */
+.lib-page .lib-main {
+  padding-top: 0;
+  padding-bottom: 80px;
+}
+.lib-page .lib-chips {
+  position: relative;
+  z-index: 6;
+  display: flex;
+  gap: 10px;
+  padding: 0 var(--lib-gutter);
+  margin-top: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.lib-page .lib-chips::-webkit-scrollbar { display: none; }
+.lib-page .lib-chips.over-hero { margin-top: -64px; }
+.lib-page .lib-chips.subs { margin-top: -52px; margin-bottom: 8px; }
+.lib-page .lib-chip {
+  flex: none;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(242, 238, 230, 0.18);
+  background: rgba(13, 20, 32, 0.72);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  font-size: 14.5px;
+  font-weight: 500;
+  color: #DCD8CF;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: background .22s, border-color .22s, color .22s;
+  cursor: pointer;
+}
+.lib-page .lib-chip:hover { border-color: rgba(242, 238, 230, 0.55); color: #fff; }
+.lib-page .lib-chip.on {
+  background: var(--lib-gold);
+  border-color: var(--lib-gold);
+  color: var(--lib-on-gold);
+}
+.lib-page .lib-chip[disabled] { opacity: .38; cursor: default; }
+.lib-page .lib-chip[disabled]:hover { border-color: rgba(242, 238, 230, 0.18); color: #DCD8CF; }
+.lib-page .lib-n {
+  font-size: 12.5px;
+  opacity: .7;
+}
+.lib-page .lib-chip.on .lib-n { color: inherit; opacity: .8; }
+
+.lib-page .lib-rows { padding-top: 24px; }
+.lib-page .lib-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 28px 14px;
+  padding: 24px var(--lib-gutter);
+}

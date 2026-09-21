@@ -1,18 +1,41 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { Topbar } from "@/components/Topbar";
 import { ErrorBoundary, ErrorState } from "@/components/ErrorBoundary";
-import { BookCard } from "@/components/BookCard";
 import { EmptyState, LoadingState } from "@/components/States";
+import { LibraryHero } from "@/components/library/LibraryHero";
+import { LibraryRow } from "@/components/library/LibraryRow";
+import { LibraryPosterCard } from "@/components/library/LibraryPosterCard";
 import { apiFetch, type BookSummary } from "@/lib/api";
-import { VERTICALS, subcategoriesFor, subcategoryLabel, verticalById } from "@/lib/verticals";
+import { VERTICALS, verticalById } from "@/lib/verticals";
+import { pickFeaturedBook } from "@/lib/library/heroSelection";
+import { deriveRows } from "@/lib/library/rowDerivation";
+import { useResilientFetch } from "@/lib/useResilientFetch";
 
+/**
+ * Library page — AnimBook redesign.
+ *
+ * Default render (vertical=ALL, no query):
+ *   CinematicTopbar · Hero · Chips (overlapping) · Rows
+ *
+ * Filtered/searched render (vertical != ALL OR query != ""):
+ *   CinematicTopbar · Chips · Wrapped grid of poster cards
+ */
 export default function LibraryPage() {
   const router = useRouter();
   const [books, setBooks] = useState<BookSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+
+  const { data, loading, error } = useResilientFetch<{ items: BookSummary[] }>(
+    "/api/books?status=PUBLISHED&limit=100",
+    { tag: "[LIBRARY]" }
+  );
+
+  // Keep local `books` in sync with the hook so downstream `useMemo`s
+  // don't recompute every render on parent state changes.
+  useEffect(() => {
+    if (data?.items) setBooks(data.items);
+  }, [data]);
 
   const vertical = typeof router.query.vertical === "string" ? router.query.vertical.toUpperCase() : "ALL";
   const sub = typeof router.query.sub === "string" ? router.query.sub : null;
@@ -21,23 +44,6 @@ export default function LibraryPage() {
     if (typeof router.query.q === "string") setQuery(router.query.q);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady]);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch<{ items: BookSummary[] }>("/api/books?status=PUBLISHED&limit=100")
-      .then((json) => {
-        if (!cancelled) setBooks(json.items);
-      })
-      .catch((err) => {
-        if (!cancelled) setError((err as Error).message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const counts = useMemo(() => {
     const map = new Map<string, number>();
@@ -62,19 +68,61 @@ export default function LibraryPage() {
     );
   }, [inVertical, sub, query]);
 
-  function choose(id: string, subId: string | null = null) {
-    const nextQuery: Record<string, string> = {};
-    if (id !== "ALL") nextQuery.vertical = id;
-    if (subId) nextQuery.sub = subId;
-    if (query.trim()) nextQuery.q = query.trim();
+  function navigate(nextQuery: Record<string, string>) {
     void router.replace({ pathname: "/library", query: nextQuery }, undefined, { shallow: true, scroll: false });
   }
 
+  const choose = useCallback((id: string, subId: string | null = null) => {
+    const next: Record<string, string> = {};
+    if (id !== "ALL") next.vertical = id;
+    if (subId) next.sub = subId;
+    if (query.trim()) next.q = query.trim();
+    navigate(next);
+  }, [query]);
+
+  /** Wire the "Explore all" link on each row. Vertical / series rows push
+   *  their own filter into the URL so the library's filter mechanism
+   *  takes over. */
+  const onExploreRow = useCallback((filter: { kind: "originals" | "series" | "vertical"; series?: string; filterLabel: string }) => {
+    const next: Record<string, string> = {};
+    if (filter.kind === "vertical") {
+      const v = VERTICALS.find((vv) => vv.label === filter.filterLabel);
+      if (v) next.vertical = v.id;
+    } else if (filter.kind === "originals") {
+      next.vertical = "ORIGINALS";
+    }
+    // Series rows: no vertical filter exists yet — drop the user into
+    // the full All view with the series name as the search query so
+    // they can find the books. (The brief allows this when no series
+    // field exists.)
+    if (filter.kind === "series" && filter.series) {
+      next.q = filter.series;
+      delete next.vertical;
+    }
+    navigate(next);
+  }, []);
+
+  const featured = useMemo(() => pickFeaturedBook(books), [books]);
+  const rows = useMemo(() => deriveRows({ books }), [books]);
   const current = verticalById(vertical);
+  const isFiltered = vertical !== "ALL" || query.trim().length > 0;
 
   return (
-    <div className="app-shell">
-      <Topbar />
+    <div className="app-shell lib-page">
+      <Topbar
+        variant="cinematic"
+        searchValue={query}
+        onSearchChange={(next) => {
+          setQuery(next);
+          // Reflect in URL without losing other params.
+          const url: Record<string, string> = {};
+          if (vertical !== "ALL") url.vertical = vertical;
+          if (sub) url.sub = sub;
+          if (next.trim()) url.q = next.trim();
+          navigate(url);
+        }}
+      />
+
       <ErrorBoundary
         fallback={(err, reset) => (
           <main className="container">
@@ -82,94 +130,107 @@ export default function LibraryPage() {
           </main>
         )}
       >
-        <main className="container library-page">
-          <header className="library-head">
-            <div>
-              <span className="label">The AnimBook library</span>
-              <h1>{subcategoryLabel(vertical, sub) ?? (current ? current.label : "Every AnimBook")}</h1>
-              <p className="muted">
-                {sub && current
-                  ? `${current.label} · ${shown.length} ${shown.length === 1 ? "book" : "books"}`
-                  : current
-                    ? current.blurb
-                    : "Read, watch and listen. Pick a vertical or search for a title."}
-              </p>
-            </div>
-            <label className="search-box">
-              <span className="visually-hidden">Search the library</span>
-              <svg viewBox="0 0 24 24" aria-hidden>
-                <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
-                <path d="m16 16 4.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-              </svg>
-              <input
-                type="search"
-                placeholder="Search titles, authors, stories…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </label>
-          </header>
+        <main className="lib-main">
+          {/* Hero: shown in default view only, behind the chips. */}
+          {!isFiltered && featured && (
+            <LibraryHero book={featured} />
+          )}
 
-          <nav className="filter-chips" aria-label="Filter by vertical">
-            <button type="button" className={vertical === "ALL" ? "active" : ""} onClick={() => choose("ALL")}>
-              All <span>{books.length || ""}</span>
+          {/* Chips overlap the hero by 64px in default view; sit normally in filtered view. */}
+          <nav
+            className={`lib-chips${!isFiltered ? " over-hero" : ""}`}
+            aria-label="Filter by vertical"
+          >
+            <button
+              type="button"
+              className={`lib-chip${vertical === "ALL" ? " on" : ""}`}
+              onClick={() => choose("ALL")}
+              aria-pressed={vertical === "ALL"}
+            >
+              All <span className="lib-n">{books.length || ""}</span>
             </button>
             {VERTICALS.map((v) => {
               const n = counts.get(v.id) ?? 0;
+              const empty = !loading && n === 0;
               return (
                 <button
                   key={v.id}
                   type="button"
-                  className={vertical === v.id ? "active" : ""}
+                  className={`lib-chip${vertical === v.id ? " on" : ""}`}
                   onClick={() => choose(v.id)}
-                  disabled={!loading && n === 0}
-                  style={vertical === v.id ? { background: v.accent, borderColor: v.accent } : undefined}
-                  title={!loading && n === 0 ? "Coming soon" : undefined}
+                  disabled={empty}
+                  aria-pressed={vertical === v.id}
+                  title={empty ? "Coming soon" : undefined}
                 >
-                  {v.label} {n > 0 && <span>{n}</span>}
+                  {v.label} {n > 0 && <span className="lib-n">{n}</span>}
                 </button>
               );
             })}
           </nav>
 
-          {current && (
-            <nav className="filter-chips subs" aria-label={`Shelves in ${current.label}`}>
-              <button type="button" className={!sub ? "active" : ""} onClick={() => choose(current.id)}>
-                All {current.label} <span>{inVertical.length || ""}</span>
+          {/* Subcategory chips: only when a vertical is active. */}
+          {current && !isFiltered && vertical !== "ALL" && (
+            <nav className="lib-chips subs" aria-label={`Shelves in ${current.label}`}>
+              <button type="button" className={`lib-chip${!sub ? " on" : ""}`} onClick={() => choose(current.id)} aria-pressed={!sub}>
+                All {current.label} <span className="lib-n">{inVertical.length || ""}</span>
               </button>
-              {subcategoriesFor(current.id).map((option) => {
+              {current.subcategories.map((option) => {
                 const n = subCounts.get(option.id) ?? 0;
+                const empty = !loading && n === 0;
                 return (
                   <button
                     key={option.id}
                     type="button"
-                    className={sub === option.id ? "active" : ""}
+                    className={`lib-chip${sub === option.id ? " on" : ""}`}
                     onClick={() => choose(current.id, option.id)}
-                    disabled={!loading && n === 0}
-                    style={sub === option.id ? { background: current.accent, borderColor: current.accent } : undefined}
-                    title={!loading && n === 0 ? "Nothing on this shelf yet" : undefined}
+                    disabled={empty}
+                    aria-pressed={sub === option.id}
+                    title={empty ? "Nothing on this shelf yet" : undefined}
                   >
-                    {option.label} {n > 0 && <span>{n}</span>}
+                    {option.label} {n > 0 && <span className="lib-n">{n}</span>}
                   </button>
                 );
               })}
             </nav>
           )}
 
-          {loading && <LoadingState variant="card" skeleton={8} message="Curating your library…" />}
-          {error && <EmptyState title="The library is offline" message="Please try again in a moment." cta={{ href: "/library", label: "Retry" }} />}
-          {!loading && !error && shown.length === 0 && (
+          {loading && books.length === 0 && (
+            <LoadingState variant="card" skeleton={8} message="Curating your library…" />
+          )}
+
+          {error && (
             <EmptyState
-              title={query ? "No books match your search" : "Nothing on this shelf yet"}
-              message={query ? "Try another word, or clear the search." : "New AnimBooks arrive here as creators publish them."}
-              cta={{ href: "/library", label: "See all books" }}
+              title="The library is offline"
+              message={error}
+              retry={{ label: "Retry", onClick: () => router.replace(router.asPath) }}
             />
           )}
-          <div className="grid">
-            {shown.map((book) => (
-              <BookCard key={book.id} book={book} />
-            ))}
-          </div>
+
+          {/* Default view: rows */}
+          {!loading && !error && !isFiltered && rows.length > 0 && (
+            <div className="lib-rows">
+              {rows.map((row) => (
+                <LibraryRow key={row.id} row={row} onExplore={onExploreRow} />
+              ))}
+            </div>
+          )}
+
+          {/* Filtered / searched view: grid */}
+          {!loading && !error && isFiltered && (
+            <div className="lib-grid">
+              {shown.length === 0 ? (
+                <EmptyState
+                  title="No AnimBooks match your search."
+                  message="Try another word, or clear the filters."
+                  cta={{ href: "/library", label: "Clear filters" }}
+                />
+              ) : (
+                shown.map((book) => (
+                  <LibraryPosterCard key={book.id} book={book} gridMode />
+                ))
+              )}
+            </div>
+          )}
         </main>
       </ErrorBoundary>
     </div>
