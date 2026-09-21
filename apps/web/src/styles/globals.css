@@ -4327,6 +4327,14 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   --lib-sans: var(--home-sans);
   --lib-gutter: var(--home-gutter);
 
+  /* ORACLE marquee (next-gen features, S2). Verse-paper palette —
+   * warm parchment + Verse-vertical accent (#9D4C73). Reuses --home-*
+   * for everything else (text, gold, surface). */
+  --home-oracle-paper: #F1E6CE;
+  --home-oracle-paper-text: #2A221A;
+  --home-oracle-paper-rule: #9D4C73;
+  --home-oracle-glow: rgba(157, 76, 115, 0.35);
+
   background: var(--home-ink);
   color: var(--home-text);
   font-family: var(--home-sans);
