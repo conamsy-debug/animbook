@@ -4030,11 +4030,14 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   display: flex;
   align-items: center;
   gap: 24px;
-  flex: 1;
+  /* Sit tight to the brand on the left; tools (search + profile + More)
+   * stay anchored to the right edge of the nav bar via margin-left: auto. */
+  flex: 0 0 auto;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  margin-left: 16px;
 }
 :where(.lib-page, .home-page) .lib-navlinks::-webkit-scrollbar { display: none; }
 :where(.lib-page, .home-page) .lib-navlinks a {
@@ -4068,6 +4071,9 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  /* Push tools to the right edge now that the navlinks row no longer
+   * fills the middle space. */
+  margin-left: auto;
 }
 :where(.lib-page, .home-page) .lib-sform {
   display: flex;
