@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { Topbar } from "@/components/Topbar";
 import { ErrorBoundary, ErrorState } from "@/components/ErrorBoundary";
@@ -105,8 +105,14 @@ export default function LibraryPage() {
   const rows = useMemo(() => deriveRows({ books }), [books]);
   // Hero cycles through the strongest books every minute. No page
   // fetcher — the hero only needs cover/title/synopsis, all already on
-  // the book record.
-  const { book: featured } = useFeaturedRotator({ books, intervalMs: 60_000 });
+  // the book record. Hovering the hero pauses rotation so the reader
+  // can study the book, parallax, and CTAs without it slipping away.
+  const heroRef = useRef<HTMLDivElement | null>(null);
+  const { book: featured } = useFeaturedRotator({
+    books,
+    intervalMs: 60_000,
+    pauseOnHoverRef: heroRef
+  });
   const current = verticalById(vertical);
   const isFiltered = vertical !== "ALL" || query.trim().length > 0;
 
@@ -138,9 +144,13 @@ export default function LibraryPage() {
            *  `key={featured.id}` forces the hero to remount every time
            *  the rotator advances — the parallax/load animation then
            *  re-runs for the new book, so each rotation gets its own
-           *  cinematic entrance instead of an abrupt prop swap. */}
+           *  cinematic entrance instead of an abrupt prop swap. The
+           *  wrapper `ref` is what the rotator watches to implement
+           *  pause-on-hover. */}
           {!isFiltered && featured && (
-            <LibraryHero key={featured.id} book={featured} />
+            <div ref={heroRef}>
+              <LibraryHero key={featured.id} book={featured} />
+            </div>
           )}
 
           {/* Chips overlap the hero by 64px in default view; sit normally in filtered view. */}

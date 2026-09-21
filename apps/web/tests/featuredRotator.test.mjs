@@ -55,6 +55,7 @@ function nextIndex(current, length) {
 function shouldAdvance(opts) {
   if (opts.reducedMotion) return false;
   if (opts.documentHidden) return false;
+  if (opts.hovering) return false;
   return true;
 }
 
@@ -147,7 +148,16 @@ test("shouldAdvance: blocks when tab hidden", () => {
   assert.equal(shouldAdvance({ reducedMotion: false, documentHidden: true }), false);
 });
 
+test("shouldAdvance: blocks when hovering the target", () => {
+  assert.equal(shouldAdvance({ reducedMotion: false, documentHidden: false, hovering: true }), false);
+});
+
 test("shouldAdvance: allows when neither condition is set", () => {
+  assert.equal(shouldAdvance({ reducedMotion: false, documentHidden: false }), true);
+});
+
+test("shouldAdvance: hovering defaults to false when omitted", () => {
+  // Backwards compat with the old 2-field signature.
   assert.equal(shouldAdvance({ reducedMotion: false, documentHidden: false }), true);
 });
 

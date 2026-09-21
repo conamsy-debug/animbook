@@ -9,12 +9,15 @@
 //     cover + synopsis, capped at `poolSize`).
 //   - Advances the rotation index every `intervalMs` while the page is
 //     visible and the user hasn't requested reduced motion.
+//   - Pauses when the cursor is over `pauseOnHoverRef.current`, when
+//     `paused` is true, when the tab is hidden, or when prefers-
+//     reduced-motion is on. Resumes from where it left off.
 //   - When `pageFetcher` is provided, prefetches the pages for every
 //     pool member once on mount, then resolves the "best" page per book
 //     on demand so swaps have zero blank-flash.
 //   - Cleans up timers and fetchers on unmount.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { BookSummary, PageRecord } from "@/lib/api";
 import {
   DEFAULT_INTERVAL_MS,
@@ -36,6 +39,16 @@ export interface UseFeaturedRotatorOpts {
    *  resolves the best page so crossfades have no blank-flash.
    *  When omitted, only `book` is populated (library-style usage). */
   pageFetcher?: (slug: string) => Promise<PageRecord[]>;
+  /** Ref to a DOM element. When the cursor is over this element (or
+   *  one of its CSS hover descendants), the rotation timer pauses;
+   *  when the cursor leaves, the timer resumes from where it stopped.
+   *  Checked via `el.matches(':hover')` so there's no listener to
+   *  register or teardown. */
+  pauseOnHoverRef?: RefObject<HTMLElement>;
+  /** Force a paused state. Overrides everything else. Useful for
+   *  tests, storybook, or callers that want their own pause logic
+   *  (e.g. video open, modal visible). */
+  paused?: boolean;
 }
 
 export interface RotatorResult {
@@ -57,7 +70,9 @@ export function useFeaturedRotator({
   books,
   intervalMs = DEFAULT_INTERVAL_MS,
   poolSize = DEFAULT_POOL_SIZE,
-  pageFetcher
+  pageFetcher,
+  pauseOnHoverRef,
+  paused
 }: UseFeaturedRotatorOpts): RotatorResult {
   const pool = useMemo(() => pickFeaturedCandidates(books, poolSize), [books, poolSize]);
 
@@ -75,6 +90,21 @@ export function useFeaturedRotator({
     fetcherRef.current = pageFetcher;
   }, [pageFetcher]);
 
+  // Read the latest pauseOnHoverRef through a ref so callers can
+  // pass a stable-but-not-already-rendered ref object without
+  // re-running the timer effect (the ref's `.current` is what we
+  // actually check at tick time anyway).
+  const hoverRefRef = useRef(pauseOnHoverRef);
+  useEffect(() => {
+    hoverRefRef.current = pauseOnHoverRef;
+  }, [pauseOnHoverRef]);
+
+  // Read the latest `paused` flag through a ref for the same reason.
+  const pausedRef = useRef(paused);
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
+
   // Reset the rotation cursor if the pool shrinks or empties.
   useEffect(() => {
     if (indexRef.current >= pool.length) {
@@ -84,14 +114,21 @@ export function useFeaturedRotator({
   }, [pool.length]);
 
   // Rotation timer. Skipped on reduced-motion, when the pool has fewer
-  // than two candidates (no point), and when intervalMs is 0/disabled.
+  // than two candidates (no point), when explicitly paused, and when
+  // intervalMs is 0/disabled. Reads the cursor hover state via the
+  // CSS pseudo-class at tick time, which means there's nothing to
+  // attach or detach for pause-on-hover — the timer keeps running at
+  // its cadence, but the tick is a no-op while the target is hovered.
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!intervalMs || intervalMs <= 0) return;
     if (pool.length <= 1) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const id = window.setInterval(() => {
+      if (pausedRef.current) return;
       if (document.hidden) return;
+      const target = hoverRefRef.current?.current;
+      if (target && target.matches(":hover")) return;
       indexRef.current = nextIndex(indexRef.current, pool.length);
       setIndex(indexRef.current);
     }, intervalMs);

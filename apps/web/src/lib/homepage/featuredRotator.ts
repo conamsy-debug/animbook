@@ -88,13 +88,15 @@ export function nextIndex(current: number, length: number): number {
 }
 
 /** Decide whether the rotator should advance given the user's
- *  preferences and tab state. Tab-hidden and reduced-motion users
- *  should NOT see auto-rotations. */
+ *  preferences and tab state. Tab-hidden, reduced-motion, and
+ *  hovering-on-target users should NOT see auto-rotations. */
 export function shouldAdvance(opts: {
   reducedMotion: boolean;
   documentHidden: boolean;
+  hovering?: boolean;
 }): boolean {
   if (opts.reducedMotion) return false;
   if (opts.documentHidden) return false;
+  if (opts.hovering) return false;
   return true;
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@clerk/nextjs";
 import { Topbar } from "@/components/Topbar";
@@ -47,9 +47,15 @@ export default function HomePage() {
     return Array.isArray(pages) ? pages : [];
   }, []);
 
+  // Wraps both the LivingCard (in HomeHero) and the BeforeAfter panel
+  // so hovering anywhere over the showcase pauses the rotation. The
+  // hook checks this ref via `:hover` at tick time — no listeners.
+  const showcaseRef = useRef<HTMLDivElement | null>(null);
+
   const { book: featuredBook, page: featuredPage } = useFeaturedRotator({
     books,
-    pageFetcher: fetchPagesForBook
+    pageFetcher: fetchPagesForBook,
+    pauseOnHoverRef: showcaseRef
   });
 
   // Default narrator voice id — used by LivingCard on play.
@@ -74,20 +80,22 @@ export default function HomePage() {
         )}
       >
         <main>
-          <HomeHero
-            featuredPage={featuredPage}
-            totalBooks={books.length}
-            loading={loading}
-          >
-            <LivingCard
-              page={featuredPage}
-              bookTitle={featuredBook?.title ?? null}
-              defaultVoiceId={defaultVoiceId}
-              signedIn={Boolean(isSignedIn)}
-            />
-          </HomeHero>
+          <div ref={showcaseRef} className="home-showcase">
+            <HomeHero
+              featuredPage={featuredPage}
+              totalBooks={books.length}
+              loading={loading}
+            >
+              <LivingCard
+                page={featuredPage}
+                bookTitle={featuredBook?.title ?? null}
+                defaultVoiceId={defaultVoiceId}
+                signedIn={Boolean(isSignedIn)}
+              />
+            </HomeHero>
 
-          <BeforeAfter page={featuredPage} />
+            <BeforeAfter page={featuredPage} />
+          </div>
 
           <VerticalSection books={books} loading={loading} />
 
