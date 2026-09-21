@@ -45,13 +45,14 @@ export const useReaderStore = create<ReaderState>((set, get) => ({
     const { pages, pageIndex, isFlipping } = get();
     if (isFlipping || pageIndex >= pages.length - 1) return;
     set({ isFlipping: true, flippingDirection: "next" });
-    // Keep isFlipping true for the full animation (900ms) plus a small
-    // buffer so the underlay reveal, pane rotateY, lift, and
-    // flip-shadow opacity transitions all complete before we swap
-    // pageIndex.
+    // Keep isFlipping true for the full flip animation (1.6s) plus a
+    // small buffer so the underlay reveal, pane rotateY, sustained
+    // lift, and flip-shadow opacity transitions all complete before we
+    // swap pageIndex. Going short here cuts the animation in half — the
+    // store must always wait at least animation duration + buffer.
     setTimeout(() => {
       set({ pageIndex: pageIndex + 1, isFlipping: false });
-    }, 950);
+    }, 1700);
   },
   flipPrev() {
     const { pageIndex, isFlipping } = get();
@@ -59,7 +60,7 @@ export const useReaderStore = create<ReaderState>((set, get) => ({
     set({ isFlipping: true, flippingDirection: "prev" });
     setTimeout(() => {
       set({ pageIndex: pageIndex - 1, isFlipping: false });
-    }, 950);
+    }, 1700);
   },
   setMode(mode) {
     set({ mode });

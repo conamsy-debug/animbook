@@ -790,7 +790,7 @@ button.link:hover { color: var(--accent-2); text-decoration-style: solid; }
   background: linear-gradient(to right, rgba(255,255,255,0.18), transparent);
   pointer-events: none;
   opacity: 0;
-  animation: home-flip-edge 0.9s ease-out both;
+  animation: home-flip-edge 1.6s ease-out both;
 }
 .reader-stage .flip-pane.from-next::before { left: 0; }
 .reader-stage .flip-pane.from-prev::before {

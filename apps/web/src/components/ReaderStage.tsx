@@ -264,12 +264,17 @@ export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false,
               }}
               animate={{
                 rotateY: flippingDirection === "next" ? -180 : 0,
-                translateZ: [0, 24, 0] // lift off the surface briefly mid-flip
+                // Hold the lift off the surface across the middle of the
+                // flip so the user actually sees the page hovering before
+                // it lands — the underlay, spine highlight, and shadow
+                // all read better when the lift is sustained, not a
+                // brief blip.
+                translateZ: [0, 22, 22, 0]
               }}
               transition={{
-                duration: 0.9,
-                ease: [0.45, 0.05, 0.25, 1],
-                times: [0, 0.5, 1]
+                duration: 1.6,
+                ease: [0.4, 0, 0.2, 1],
+                times: [0, 0.35, 0.7, 1]
               }}
               style={{
                 backgroundImage: current.posterUrl
@@ -286,8 +291,15 @@ export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false,
               className="flip-shadow"
               aria-hidden
               initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 0.7, 0] }}
-              transition={{ duration: 0.9, ease: "easeInOut" }}
+              // Same held-peak strategy as the lift: shadow rises, holds
+              // across the middle, then falls — so the cast shadow is
+              // actually visible while the page is mid-rotation.
+              animate={{ opacity: [0, 0.7, 0.7, 0] }}
+              transition={{
+                duration: 1.6,
+                ease: [0.4, 0, 0.2, 1],
+                times: [0, 0.35, 0.7, 1]
+              }}
               style={{
                 background: flippingDirection === "next"
                   ? "linear-gradient(to left, rgba(0,0,0,0.85) 0%, transparent 55%)"
