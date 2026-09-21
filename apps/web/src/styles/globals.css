@@ -4206,3 +4206,69 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   gap: 28px 14px;
   padding: 24px var(--lib-gutter);
 }
+/* ==== Library redesign: responsive (S8) ==== */
+
+/* Phones (<700px): tighter gutter, smaller hero, no Listen/Details icons,
+   smaller rows, 2-col grid, skipped Ken Burns animation. */
+@media (max-width: 699px) {
+  .lib-page {
+    --lib-gutter: 20px;
+    --lib-card-w: 132px;
+    --lib-card-h: 198px;
+    --lib-card-gap: 10px;
+  }
+  .lib-page .lib-nav { height: 64px; margin-bottom: -64px; }
+  .lib-page .lib-nav-inner { padding: 0 var(--lib-gutter); gap: 12px; }
+  .lib-page .lib-brand-word { display: none; }
+  .lib-page .lib-navlinks { display: none; }
+
+  .lib-page .lib-hero {
+    height: 650px;
+    min-height: 0;
+  }
+  .lib-page .lib-hposter {
+    width: 232px;
+    right: auto;
+    left: 50%;
+    margin-left: -116px;
+    top: 60px;
+  }
+  .lib-page .lib-bgwrap { filter: blur(20px); }
+  .lib-page .lib-bg {
+    animation: none; /* Skip Ken Burns on low-end Android */
+    filter: blur(20px) saturate(1.2) brightness(.55);
+  }
+  .lib-page .lib-hcopy {
+    left: 0; right: 0; bottom: 80px;
+    width: auto;
+    text-align: center;
+    padding: 0 var(--lib-gutter);
+  }
+  .lib-page .lib-hser { font-size: 15px; }
+  .lib-page .lib-htitle { font-size: 56px; line-height: .95; }
+  .lib-page .lib-hmeta { font-size: 14px; justify-content: center; }
+  .lib-page .lib-hdesc { font-size: 16px; }
+  .lib-page .lib-hcta { justify-content: center; gap: 10px; }
+  .lib-page .lib-hcta .lib-ib-lg { display: none; }
+  .lib-page .lib-btn { height: 52px; font-size: 16px; padding: 0 18px; }
+
+  .lib-page .lib-chips { padding: 0 var(--lib-gutter); margin-top: -64px; }
+  .lib-page .lib-chips.over-hero { margin-top: -56px; }
+  .lib-page .lib-chip { height: 44px; font-size: 15px; padding: 0 16px; }
+
+  .lib-page .lib-rhead { padding: 0 var(--lib-gutter); }
+  .lib-page .lib-rtitle { font-size: 28px; }
+  .lib-page .lib-track { padding: 24px var(--lib-gutter); margin: -24px 0; gap: 10px; }
+  .lib-page .lib-row { margin-top: 28px; }
+
+  .lib-page .lib-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 20px 10px;
+    padding: 20px var(--lib-gutter);
+  }
+}
+
+/* 700-899px (small tablets): gutter shrinks to 40px */
+@media (min-width: 700px) and (max-width: 899px) {
+  .lib-page { --lib-gutter: 40px; }
+}
