@@ -292,55 +292,72 @@ router.post("/classroom/projection", async (req: AuthedRequest, res: Response) =
     pageNum: z.number().int().min(1),
     sessionToken: z.string().min(8).optional()
   });
-  const parsed = schema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Invalid projection request", details: parsed.error.flatten() });
-    return;
-  }
-  // Projection is teacher-gated. Any user with the 'teacher' role on
-  // their account can drive a Live classroom session — no institution
-  // required. The institution was originally the gate, but that
-  // blocked solo teachers who hadn't set up their school yet.
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { roles: true, name: true } });
-  if (!user?.roles?.includes("teacher") && !user?.roles?.includes("platform_admin")) {
-    res.status(403).json({ error: "Only teachers can drive classroom projection." });
-    return;
-  }
-  const institution = await prisma.institution.findFirst({ where: { adminUserId: userId } });
-  // Classroom projection rides on the Live bus — start a LiveSession for
-  // this book and return the session id. The UI opens /live/[sessionId]
-  // which is the attendee surface the projection room already knows.
-  const book = await prisma.book.findFirst({ where: { OR: [{ id: parsed.data.bookSlug }, { slug: parsed.data.bookSlug }] } });
-  if (!book) {
-    res.status(404).json({ error: "Book not found" });
-    return;
-  }
-  const session = await prisma.liveSession.create({
-    data: {
-      bookId: book.id,
-      hostId: userId,
-      title: institution ? `Classroom projection · ${institution.name}` : `Live reading · ${user.name ?? "teacher"}`,
-      status: "LIVE"
+  try {
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid projection request", details: parsed.error.flatten() });
+      return;
     }
-  });
-  // Seed the initial page-flipped event so attendees open on the right page.
-  await prisma.liveEvent.create({
-    data: {
+    // Projection is teacher-gated. Any user with the 'teacher' role on
+    // their account can drive a Live classroom session — no institution
+    // required. The institution was originally the gate, but that
+    // blocked solo teachers who hadn't set up their school yet.
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { roles: true, name: true } });
+    if (!user?.roles?.includes("teacher") && !user?.roles?.includes("platform_admin")) {
+      res.status(403).json({ error: "Only teachers can drive classroom projection." });
+      return;
+    }
+    const institution = await prisma.institution.findFirst({ where: { adminUserId: userId } });
+    // Classroom projection rides on the Live bus — start a LiveSession for
+    // this book and return the session id. The UI opens /live?[sessionId]
+    // which is the host surface the projection room drives from.
+    const book = await prisma.book.findFirst({ where: { OR: [{ id: parsed.data.bookSlug }, { slug: parsed.data.bookSlug }] } });
+    if (!book) {
+      res.status(404).json({ error: "Book not found" });
+      return;
+    }
+    const session = await prisma.liveSession.create({
+      data: {
+        bookId: book.id,
+        hostId: userId,
+        title: institution ? `Classroom projection · ${institution.name}` : `Live reading · ${user.name ?? "teacher"}`,
+        status: "LIVE"
+      }
+    });
+    // Seed the initial page-flipped event so attendees open on the right page.
+    await prisma.liveEvent.create({
+      data: {
+        sessionId: session.id,
+        type: "page.flipped",
+        payload: { pageNum: parsed.data.pageNum }
+      }
+    });
+    await prisma.liveSession.update({ where: { id: session.id }, data: { currentPage: parsed.data.pageNum } });
+    res.status(201).json({
       sessionId: session.id,
-      type: "page.flipped",
-      payload: { pageNum: parsed.data.pageNum }
+      bookSlug: book.slug,
+      bookId: book.id,
+      pageNum: parsed.data.pageNum,
+      // institution is optional — solo teachers without a school can still
+      // drive classroom projection. Return null (not "institution.id" on a
+      // possibly-null findFirst result) so solo teachers' projection clicks
+      // don't TypeError before the response is sent.
+      institution: institution?.id ?? null,
+      attendeeUrl: `/live/${session.id}`,
+      startedAt: session.startedAt.toISOString()
+    });
+  } catch (err) {
+    // Any uncaught error here becomes a "Failed to fetch" on the client
+    // (no JSON body ever reaches the browser). Wrap so the user sees a
+    // toast with the real reason instead of a silent network failure.
+    console.error("[EDU] projection failed:", err);
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: "Could not start projection",
+        message: err instanceof Error ? err.message : String(err)
+      });
     }
-  });
-  await prisma.liveSession.update({ where: { id: session.id }, data: { currentPage: parsed.data.pageNum } });
-  res.status(201).json({
-    sessionId: session.id,
-    bookSlug: book.slug,
-    bookId: book.id,
-    pageNum: parsed.data.pageNum,
-    institution: institution.id,
-    attendeeUrl: `/live/${session.id}`,
-    startedAt: session.startedAt.toISOString()
-  });
+  }
 });
 
 export default router;

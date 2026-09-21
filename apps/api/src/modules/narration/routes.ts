@@ -16,7 +16,7 @@ import { Router } from "express";
 import { authMiddleware, requireUserId, type AuthedRequest } from "../../auth/middleware.js";
 import { incrementCounter } from "../../cache/index.js";
 import { isFeatureEnabled } from "../../config/env.js";
-import { defaultVoiceIdFor, findVoice, narratorVoices } from "../../config/voices.js";
+import { defaultVoiceIdFor, findVoice, narratorVoices, voicesForReader } from "../../config/voices.js";
 import { prisma } from "../../db.js";
 import { cdnUrl } from "../../services/cloudflare.js";
 import { generateNarration } from "../../services/elevenlabs.js";
@@ -96,8 +96,7 @@ router.get("/voices", async (req: Request, res: Response) => {
       authorName = book.creator.name;
     }
   }
-  const voices = require("../../config/voices.js") as typeof import("../../config/voices.js");
-  const merged = voices.voicesForReader({ authorVoiceId, authorName });
+  const merged = voicesForReader({ authorVoiceId, authorName });
   res.set("Cache-Control", "private, max-age=60");
   res.json({
     voices: merged.map((v) => ({ id: v.id, label: v.label, description: v.description })),
