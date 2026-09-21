@@ -4609,3 +4609,159 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   .home-page .home-pbtn { width: 48px; height: 48px; }
   .home-page .home-quote { font-size: 20px; }
 }
+/* ==== Homepage redesign: Before / After section ==== */
+.home-page .home-cmpsec {
+  position: relative;
+  padding: 150px var(--home-gutter) 0;
+}
+.home-page .home-cwrap {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+}
+.home-page .home-ch {
+  font-family: var(--home-display);
+  font-weight: 500;
+  font-size: 52px;
+  line-height: 1.02;
+  letter-spacing: -.01em;
+  color: var(--home-text);
+  margin-bottom: 16px;
+}
+.home-page .home-cp {
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--home-muted);
+  max-width: 54ch;
+  margin-bottom: 36px;
+}
+.home-page .home-cmp {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1120 / 448;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--home-surface);
+  box-shadow: 0 0 0 1px rgba(242, 238, 230, 0.1);
+}
+.home-page .home-man {
+  position: absolute; inset: 0;
+  background: var(--home-paper);
+  color: var(--home-paper-text);
+}
+.home-page .home-mlab {
+  position: absolute;
+  top: 22px; left: 28px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--home-paper-label);
+}
+.home-page .home-mtxt {
+  position: absolute;
+  left: 56px; top: 96px;
+  width: 470px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 25px;
+  line-height: 1.65;
+  color: var(--home-paper-text);
+  margin: 0;
+}
+.home-page .home-ani {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.home-page .home-ani video,
+.home-page .home-ani-img {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.home-page .home-ani-placeholder {
+  background: linear-gradient(135deg, #1B2B4A, #070B12);
+}
+.home-page .home-ascrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(7, 11, 18, 0.88), rgba(7, 11, 18, 0) 58%);
+}
+.home-page .home-alab {
+  position: absolute;
+  top: 22px; right: 28px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--home-text);
+  background: rgba(7, 11, 18, 0.6);
+  padding: 7px 12px;
+  border-radius: 999px;
+}
+.home-page .home-acap {
+  position: absolute;
+  right: 40px; bottom: 34px;
+  width: 470px;
+  font-family: var(--home-display);
+  font-weight: 500;
+  font-size: 29px;
+  line-height: 1.28;
+  color: var(--home-text);
+  margin: 0;
+}
+.home-page .home-slider {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: ew-resize;
+}
+.home-page .home-grip {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 2px;
+  background: var(--home-text);
+  transform: translateX(-1px);
+  pointer-events: none;
+}
+.home-page .home-knob {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 48px; height: 48px;
+  margin: -24px 0 0 -24px;
+  border-radius: 50%;
+  background: var(--home-text);
+  color: var(--home-on-gold);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  animation: home-knob-pulse 2.6s ease-in-out infinite;
+}
+@keyframes home-knob-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.09); }
+}
+.home-page .home-slider:focus-visible ~ .home-grip .home-knob {
+  outline: 2px solid var(--home-gold-bright);
+  outline-offset: 3px;
+}
+
+/* Reduced-motion: kill knob pulse + drift. Word highlight still works. */
+@media (prefers-reduced-motion: reduce) {
+  .home-page .home-knob { animation: none; }
+  .home-page .home-pan-drift,
+  .home-page .home-hbg { animation: none; }
+}
+
+/* Phone */
+@media (max-width: 699px) {
+  .home-page .home-cmpsec { padding: 80px 20px 0; }
+  .home-page .home-ch { font-size: 36px; }
+  .home-page .home-cp { font-size: 16px; }
+  .home-page .home-cmp { aspect-ratio: 1 / 0.55; }
+  .home-page .home-mlab,
+  .home-page .home-alab { font-size: 12.5px; }
+  .home-page .home-mtxt { font-size: 18px; left: 24px; top: 64px; width: calc(100% - 48px); }
+  .home-page .home-acap { font-size: 18px; right: 24px; bottom: 24px; width: calc(100% - 48px); }
+}
