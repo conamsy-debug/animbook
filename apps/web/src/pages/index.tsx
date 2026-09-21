@@ -7,6 +7,8 @@ import { HomeHero } from "@/components/homepage/HomeHero";
 import { LivingCard } from "@/components/homepage/LivingCard";
 import { BeforeAfter } from "@/components/homepage/BeforeAfter";
 import { VerticalSection } from "@/components/homepage/VerticalSection";
+import { OracleMarquee } from "@/components/nextgen/OracleMarquee";
+import { ConstellationStrip } from "@/components/nextgen/ConstellationStrip";
 import { apiFetch, type BookSummary, type PageRecord } from "@/lib/api";
 import { loadVoices } from "@/lib/voices";
 import { useResilientFetch } from "@/lib/useResilientFetch";
@@ -92,6 +94,10 @@ export default function HomePage() {
           <BeforeAfter page={featuredPage} />
 
           <VerticalSection books={books} loading={loading} />
+
+          <OracleMarquee books={books} />
+
+          <ConstellationStrip />
 
           <footer className="home-app-footer container">
             <span>AnimBook · Built in Africa for readers everywhere</span>
