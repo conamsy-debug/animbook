@@ -9,6 +9,7 @@ import {
   INITIAL_STATE,
   type PlayerState
 } from "@/lib/homepage/narrationPlayer";
+import { shouldAutoplayVideo } from "@/lib/homepage/motionGuard";
 
 interface Props {
   /** Featured page. The card renders the page's still (or clip) in the
@@ -46,6 +47,7 @@ export function LivingCard({ page, defaultVoiceId, signedIn }: Props) {
 
   const text = page?.textExcerpt ?? "";
   const words = useMemo<TimedWord[]>(() => weightWords(text), [text]);
+  const autoplayAllowed = useMemo(() => shouldAutoplayVideo(), [page?.id]);
 
   // Reset highlight whenever the page changes.
   useEffect(() => {
@@ -143,8 +145,8 @@ export function LivingCard({ page, defaultVoiceId, signedIn }: Props) {
             muted
             loop
             playsInline
-            autoPlay
-            preload="metadata"
+            autoPlay={autoplayAllowed}
+            preload={autoplayAllowed ? "metadata" : "none"}
             aria-label={`Scene from ${FEATURED_TITLE}`}
           />
         ) : (

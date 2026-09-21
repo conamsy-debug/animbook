@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PageRecord } from "@/lib/api";
+import { shouldAutoplayVideo } from "@/lib/homepage/motionGuard";
 
 interface Props {
   page: PageRecord | null;
@@ -18,6 +19,7 @@ export function BeforeAfter({ page }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [position, setPosition] = useState(50);
   const [videoActive, setVideoActive] = useState(false);
+  const autoplayAllowed = useMemo(() => shouldAutoplayVideo(), [page?.videoUrl]);
 
   // IntersectionObserver — autoplay video only when near the viewport.
   useEffect(() => {
@@ -28,8 +30,10 @@ export function BeforeAfter({ page }: Props) {
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            video.play().catch(() => undefined);
-            setVideoActive(true);
+            if (autoplayAllowed) {
+              video.play().catch(() => undefined);
+              setVideoActive(true);
+            }
           } else {
             video.pause();
           }
@@ -39,7 +43,7 @@ export function BeforeAfter({ page }: Props) {
     );
     io.observe(section);
     return () => io.disconnect();
-  }, [page?.videoUrl]);
+  }, [page?.videoUrl, autoplayAllowed]);
 
   const quote = (page?.textExcerpt ?? "").slice(0, 220);
   const hasQuote = quote.length > 0;
