@@ -360,6 +360,20 @@ h1 {
 .btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
 .card .btn + .btn, .card p + .btn { margin-top: 10px; }
 
+/* Inline text-link button (no border, looks like an <a> but stays a button
+   so it can be reused as a quick-pick chip on Signal and other pages). */
+button.link {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted rgba(196, 154, 28, 0.45);
+  text-underline-offset: 3px;
+}
+button.link:hover { color: var(--accent-2); text-decoration-style: solid; }
+
 /* ==== Misc ==== */
 
 /* Memory page swatches + selected preset ring */
