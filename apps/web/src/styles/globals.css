@@ -726,11 +726,9 @@ button.link:hover { color: var(--accent-2); text-decoration-style: solid; }
   inset: 0;
   border-radius: 20px;
   pointer-events: none;
-  /* 3D context for the page curl — perspective lets the back of the
-   * pane shrink as it rotates away from the viewer, like a real
-   * book page. */
-  perspective: 1800px;
-  perspective-origin: 50% 50%;
+  /* 3D context lives on the parent (.reader-stage already has
+   * perspective: 1800px). The pane itself just rotates — its
+   * back shrinks as the rotateY animation runs. */
   transform-style: preserve-3d;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
