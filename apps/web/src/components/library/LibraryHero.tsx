@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import type { BookSummary } from "@/lib/api";
-import { splitTitle } from "@/lib/library/series.js";
+import { splitTitle } from "@/lib/library/series";
 import { PlayIcon, ReadIcon, ListenIcon, DetailsIcon } from "./icons";
 import { subcategoryLabel, verticalById } from "@/lib/verticals";
 

@@ -1,9 +1,9 @@
 // Pure-logic helpers for deriving the cinematic row layout from a flat
 // list of books. No React, no DOM — easy to unit-test.
 
-import type { BookSummary } from "../api.js";
-import { splitTitle, isOriginals } from "./series.js";
-import { verticalById } from "../verticals.js";
+import type { BookSummary } from "@/lib/api";
+import { splitTitle, isOriginals } from "@/lib/library/series";
+import { verticalById } from "@/lib/verticals";
 
 export type RowKind = "originals" | "series" | "vertical";
 
