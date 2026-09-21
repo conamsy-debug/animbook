@@ -65,8 +65,19 @@ export default function LivePage() {
       }
     }
     load();
+    // 8s ceiling — if Studio's hung, drop the spinner so the user can
+    // try /live as an attendee (sessions list is separate, public, and
+    // already loaded in the next effect).
+    const timeout = window.setTimeout(() => {
+      if (!cancelled) {
+        console.warn("[LIVE] studio/projects timeout at 8s");
+        setLoadingBooks(false);
+        toast("Studio feed is slow — start a session anyway? (You'll need to pick a book later.)");
+      }
+    }, 8_000);
     return () => {
       cancelled = true;
+      window.clearTimeout(timeout);
     };
   }, [toast]);
 

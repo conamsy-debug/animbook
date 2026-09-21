@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Topbar } from "@/components/Topbar";
 import { apiFetch } from "@/lib/api";
+import { useResilientFetch } from "@/lib/useResilientFetch";
 import { useToastStore } from "@/lib/store";
 
 interface MemoryProfile {
@@ -104,21 +105,17 @@ export default function MemoryPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const toast = useToastStore((s) => s.push);
 
+  // 8s timeout + 4s stuck hint so a slow API never traps the user on
+  // "Loading your AnimBook memory…" forever. The toast below handles
+  // the error message; the hook handles the timeouts.
+  const { data, loading, stuck, retry } = useResilientFetch<{ profile: MemoryProfile }>(
+    "/api/memory/settings",
+    { tag: "[MEMORY]", toastOnError: false }
+  );
+
   useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const res = await apiFetch<{ profile: MemoryProfile }>("/api/memory/settings");
-        if (!cancelled) setProfile(res.profile);
-      } catch (err) {
-        if (!cancelled) toast(`Could not load memory: ${(err as Error).message}`);
-      }
-    }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [toast]);
+    if (data) setProfile(data.profile);
+  }, [data]);
 
   // Reset "saved" pill to idle after 1.6s so it doesn't linger.
   useEffect(() => {
@@ -162,7 +159,29 @@ export default function MemoryPage() {
       <div className="app-shell">
         <Topbar />
         <main className="container">
-          <div className="empty-state">Loading your AnimBook memory…</div>
+          <div className="empty-state">
+            {loading ? "Loading your AnimBook memory…" : "Memory offline."}
+            {stuck && loading && (
+              <div style={{ marginTop: 12 }}>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    if (typeof window !== "undefined") window.location.reload();
+                  }}
+                >
+                  Still loading? Tap to retry.
+                </button>
+              </div>
+            )}
+            {!loading && (
+              <div style={{ marginTop: 12 }}>
+                <button type="button" className="btn primary" onClick={retry}>
+                  Retry
+                </button>
+              </div>
+            )}
+          </div>
         </main>
       </div>
     );
