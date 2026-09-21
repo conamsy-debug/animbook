@@ -313,11 +313,9 @@ export function ReaderControls({
         </div>
 
         <div className="player-center">
-          {/* Prev/Next live as floating .stage-arrow buttons at the
-           *  page edges (ReaderStage.tsx). Keeping them out of the
-           *  player bar avoids overlap with the auto-turn / loop-fade
-           *  chips on the right side and gives the reader an iBooks-
-           *  style "drag the page edge" affordance. */}
+          <button type="button" className="icon-btn" onClick={prev} disabled={pageIndex === 0} aria-label="Previous page" title="Previous page (←)">
+            {Icon.prev}
+          </button>
           <button
             type="button"
             className={`play-btn${preparing ? " preparing" : ""}`}
@@ -326,6 +324,9 @@ export function ReaderControls({
             title={preparing ? "Preparing this voice…" : speaking ? "Pause (space)" : "Play (space)"}
           >
             {preparing ? Icon.spinner : speaking ? Icon.pause : Icon.play}
+          </button>
+          <button type="button" className="icon-btn" onClick={next} disabled={pageIndex >= total - 1} aria-label="Next page" title="Next page (→)">
+            {Icon.next}
           </button>
         </div>
 

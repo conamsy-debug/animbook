@@ -733,9 +733,74 @@ button.link:hover { color: var(--accent-2); text-decoration-style: solid; }
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   box-shadow:
-    inset 0 0 60px rgba(0, 0, 0, 0.5),
-    0 18px 40px rgba(0, 0, 0, 0.4);
+    inset 0 0 80px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 24px 50px rgba(0, 0, 0, 0.55);
   z-index: 4;
+}
+/* Revealed page that sits underneath the rotating pane. Becomes
+ * visible as the pane curls away from one edge. Carries the next
+ * page's poster so the user sees a real book-opening beat — old page
+ * turns over, new page emerges. */
+.reader-stage .flip-underlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  pointer-events: none;
+  overflow: hidden;
+  background: #050709;
+  z-index: 3;
+}
+.reader-stage .flip-underlay-poster {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  /* Subtle ambient drift on the underlay so it doesn't feel
+   * frozen while the page lifts off it. */
+  animation: home-underlay-breath 0.9s ease-out both;
+}
+@keyframes home-underlay-breath {
+  from { opacity: 0.6; transform: scale(1.04); }
+  to   { opacity: 1;   transform: scale(1.0); }
+}
+.reader-stage .flip-underlay-blank {
+  /* Blank underlay (no poster for the revealed page) — a subtle
+   * accent-tinted fallback so the flip never reveals pure black. */
+  background-blend-mode: screen;
+}
+.reader-stage .flip-underlay-text {
+  position: absolute;
+  bottom: 18px;
+  right: 22px;
+  font-family: var(--home-display);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: rgba(242, 238, 230, 0.55);
+  pointer-events: none;
+}
+/* Lighter "spine" highlight along the rotating edge so the pane
+ * reads as paper, not a colored card. */
+.reader-stage .flip-pane::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  background: linear-gradient(to right, rgba(255,255,255,0.18), transparent);
+  pointer-events: none;
+  opacity: 0;
+  animation: home-flip-edge 0.9s ease-out both;
+}
+.reader-stage .flip-pane.from-next::before { left: 0; }
+.reader-stage .flip-pane.from-prev::before {
+  right: 0;
+  background: linear-gradient(to left, rgba(255,255,255,0.18), transparent);
+}
+@keyframes home-flip-edge {
+  0%   { opacity: 0; }
+  35%  { opacity: 0.85; }
+  100% { opacity: 0; }
 }
 /* Direction-specific hinge. "next" rotates around the left edge
  * (spine on the left, page turns right-to-left). "prev" mirrors. */
@@ -859,7 +924,7 @@ button.link:hover { color: var(--accent-2); text-decoration-style: solid; }
 .player-side { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .player-left { grid-area: left; }
 .player-right { grid-area: right; justify-content: flex-end; }
-.player-center { grid-area: center; display: flex; align-items: center; gap: 14px; }
+.player-center { grid-area: center; display: flex; align-items: center; gap: 14px; padding: 0 24px; }
 
 .icon-btn {
   width: 44px;

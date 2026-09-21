@@ -45,12 +45,13 @@ export const useReaderStore = create<ReaderState>((set, get) => ({
     const { pages, pageIndex, isFlipping } = get();
     if (isFlipping || pageIndex >= pages.length - 1) return;
     set({ isFlipping: true, flippingDirection: "next" });
-    // Keep isFlipping true for the full animation duration (700ms)
-    // plus a small buffer so the framer-motion rotateY + flip-shadow
-    // opacity transitions can complete before we swap pageIndex.
+    // Keep isFlipping true for the full animation (900ms) plus a small
+    // buffer so the underlay reveal, pane rotateY, lift, and
+    // flip-shadow opacity transitions all complete before we swap
+    // pageIndex.
     setTimeout(() => {
       set({ pageIndex: pageIndex + 1, isFlipping: false });
-    }, 720);
+    }, 950);
   },
   flipPrev() {
     const { pageIndex, isFlipping } = get();
@@ -58,7 +59,7 @@ export const useReaderStore = create<ReaderState>((set, get) => ({
     set({ isFlipping: true, flippingDirection: "prev" });
     setTimeout(() => {
       set({ pageIndex: pageIndex - 1, isFlipping: false });
-    }, 720);
+    }, 950);
   },
   setMode(mode) {
     set({ mode });

@@ -207,40 +207,96 @@ export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false,
         )}
       </div>
 
-      {isFlipping && (
-        <>
-          {/* Book page flip. The pane hinges from the spine on the
-           * leading edge (left for "next", right for "prev") and
-           * rotates 180° around the Y axis to simulate a finger
-           * turning the page. A second darker layer rides on top to
-           * give the page a subtle underside shadow mid-flip. */}
-          <motion.div
-            className={`flip-pane flipping ${flippingDirection === "prev" ? "from-prev" : "from-next"}`}
-            aria-hidden
-            initial={{ rotateY: flippingDirection === "next" ? 0 : -180 }}
-            animate={{ rotateY: flippingDirection === "next" ? -180 : 0 }}
-            transition={{ duration: 0.7, ease: [0.45, 0.05, 0.25, 1] }}
-            style={{
-              background: `linear-gradient(135deg, ${accent} 0%, #0D1420 50%, #050709 100%)`
-            }}
-          />
-          {/* Underside shadow that peaks at 50% rotation — sells the
-           * 3D curl illusion. Keyframed separately so the shadow
-           * doesn't move with the pane. */}
-          <motion.div
-            className="flip-shadow"
-            aria-hidden
-            initial={{ opacity: 0 }}
-            animate={{ opacity: [0, 0.55, 0] }}
-            transition={{ duration: 0.7, ease: "easeInOut" }}
-            style={{
-              background: flippingDirection === "next"
-                ? "linear-gradient(to left, rgba(0,0,0,0.7) 0%, transparent 60%)"
-                : "linear-gradient(to right, rgba(0,0,0,0.7) 0%, transparent 60%)"
-            }}
-          />
-        </>
-      )}
+      {isFlipping && (() => {
+        // Pick the page that will be revealed when the current page
+        // flips off it. For "next" that's pages[pageIndex + 1], for
+        // "prev" it's pages[pageIndex - 1].
+        const revealed =
+          flippingDirection === "next" ? pages[pageIndex + 1] : pages[pageIndex - 1];
+        return (
+          <>
+            {/* Book page flip.
+             *
+             * 1. Underlay: the page that gets revealed when the current
+             *    page turns over. Its poster sits beneath the rotating
+             *    pane so the user sees the new page emerge as the old
+             *    one curls away — the classic "book opening" beat.
+             * 2. Flip-pane: the OLD page, hinged from the spine on the
+             *    leading edge (left for "next", right for "prev").
+             *    It carries the CURRENT page's poster so the visual
+             *    reads as the page itself turning, not a colored card.
+             *    A page-curl highlight + edge shadow sells the 3D.
+             * 3. Drop-shadow: the cast shadow on the revealed page,
+             *    tracked independently so it follows the page, not
+             *    the pane's rotation.
+             */}
+            {revealed && (
+              <div
+                className={`flip-underlay ${flippingDirection === "prev" ? "from-prev" : "from-next"}`}
+                aria-hidden
+              >
+                {revealed.posterUrl && !/placehold\.co/i.test(revealed.posterUrl) ? (
+                  <div
+                    className="flip-underlay-poster"
+                    style={{ backgroundImage: `url(${revealed.posterUrl})` }}
+                  />
+                ) : (
+                  <div
+                    className="flip-underlay-poster flip-underlay-blank"
+                    style={{ background: `linear-gradient(135deg, ${accent}22, #050709)` }}
+                  />
+                )}
+                {revealed.textExcerpt && (
+                  <div className="flip-underlay-text">
+                    <span className="flip-underlay-page">
+                      Page {revealed.pageNum}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+            <motion.div
+              className={`flip-pane flipping ${flippingDirection === "prev" ? "from-prev" : "from-next"}`}
+              aria-hidden
+              initial={{
+                rotateY: flippingDirection === "next" ? 0 : -180,
+                translateZ: 0
+              }}
+              animate={{
+                rotateY: flippingDirection === "next" ? -180 : 0,
+                translateZ: [0, 24, 0] // lift off the surface briefly mid-flip
+              }}
+              transition={{
+                duration: 0.9,
+                ease: [0.45, 0.05, 0.25, 1],
+                times: [0, 0.5, 1]
+              }}
+              style={{
+                backgroundImage: current.posterUrl
+                  ? `url(${current.posterUrl})`
+                  : undefined,
+                backgroundColor: current.posterUrl
+                  ? undefined
+                  : `linear-gradient(135deg, ${accent} 0%, #0D1420 50%, #050709 100%)`,
+                backgroundSize: "cover",
+                backgroundPosition: "center"
+              }}
+            />
+            <motion.div
+              className="flip-shadow"
+              aria-hidden
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0, 0.7, 0] }}
+              transition={{ duration: 0.9, ease: "easeInOut" }}
+              style={{
+                background: flippingDirection === "next"
+                  ? "linear-gradient(to left, rgba(0,0,0,0.85) 0%, transparent 55%)"
+                  : "linear-gradient(to right, rgba(0,0,0,0.85) 0%, transparent 55%)"
+              }}
+            />
+          </>
+        );
+      })()}
 
       <button
         type="button"
