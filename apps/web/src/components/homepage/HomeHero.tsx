@@ -69,7 +69,7 @@ export function HomeHero({ featuredPage, totalBooks, loading, children }: Props)
         <h1 className="home-hh">Open a page. Watch a world come alive.</h1>
         <p className="home-hp">
           Every AnimBook pairs the original text with its own animation and a narrator you can choose.
-          Read it, watch it, or listen. Built in Africa for readers everywhere.
+          Read it, watch it, or listen.
         </p>
         <div className="home-hcta">
           {isSignedIn ? (

@@ -100,7 +100,7 @@ export default function HomePage() {
           <ConstellationStrip />
 
           <footer className="home-app-footer container">
-            <span>AnimBook · Built in Africa for readers everywhere</span>
+            <span>AnimBook</span>
             <span className="home-footer-links">
               <Link href="/pricing">Pricing</Link>
               <Link href="/legal/privacy">Privacy</Link>
