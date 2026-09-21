@@ -20,21 +20,34 @@ function makeResilient(opts = {}) {
   const state = { data: null, loading: true, error: null, stuck: false, toasts: [] };
   const fakeApiFetch = opts.fetch ?? (async () => ({ ok: 1 }));
 
-  const timers = [];
-  const clear = () => timers.forEach((t) => clearTimeout(t));
-  timers.push(setTimeout(() => { state.stuck = true; }, stuckMs));
-  timers.push(setTimeout(() => {
+  // Track timers by handle so we can clear individual ones from the
+  // success branch — the real hook now clears the stuck + timeout
+  // timers when the fetch resolves.
+  const timerHandles = new Map();
+  const setTracked = (fn, ms) => {
+    const handle = setTimeout(() => {
+      timerHandles.delete(handle);
+      fn();
+    }, ms);
+    timerHandles.set(handle, ms);
+  };
+  setTracked(() => { state.stuck = true; }, stuckMs);
+  setTracked(() => {
     state.error = `${tag} timeout at ${timeoutMs}ms`;
     state.loading = false;
-  }, timeoutMs));
+  }, timeoutMs);
   (async () => {
     try {
       const res = await fakeApiFetch();
-      clear();
+      // Clear pending timers — successful fetch must not leave the
+      // error state set when the timeout fires later.
+      for (const h of timerHandles.keys()) clearTimeout(h);
+      timerHandles.clear();
       state.data = res;
       state.loading = false;
     } catch (err) {
-      clear();
+      for (const h of timerHandles.keys()) clearTimeout(h);
+      timerHandles.clear();
       state.error = `${tag} failed: ${err?.message ?? String(err)}`;
       state.loading = false;
     }
@@ -84,4 +97,24 @@ test("error message includes the supplied tag for debuggability", async () => {
   });
   await new Promise((r) => setTimeout(r, 30));
   assert.match(s.error, /^\[WORLDS\] failed: Failed to fetch/);
+});
+
+test("successful fetch within the timeout window leaves error as null (regression: /library used to show both hero AND 'library offline')", async () => {
+  // Fast fetch (50ms) inside the 4s stuck window and the 8s timeout.
+  // After both timers would have fired, error must still be null.
+  const s = makeResilient({
+    tag: "[LIBRARY]",
+    stuckMs: 4_000,
+    timeoutMs: 8_000,
+    fetch: async () => {
+      await new Promise((r) => setTimeout(r, 50));
+      return { items: [{ id: "a" }, { id: "b" }] };
+    }
+  });
+  // Wait long enough that the success path has resolved AND the
+  // hard-timeout would have fired if the timers weren't cleared.
+  await new Promise((r) => setTimeout(r, 9_000));
+  assert.equal(s.error, null, `expected error to be cleared, got ${s.error}`);
+  assert.deepEqual(s.data, { items: [{ id: "a" }, { id: "b" }] });
+  assert.equal(s.loading, false);
 });

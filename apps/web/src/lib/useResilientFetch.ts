@@ -67,6 +67,8 @@ export function useResilientFetch<T>(
   useEffect(() => {
     if (!path || !enabled) return;
     let cancelled = false;
+    let stuckTimer: number | undefined;
+    let timeout: number | undefined;
     setLoading(true);
     setError(null);
     setStuck(false);
@@ -74,6 +76,11 @@ export function useResilientFetch<T>(
       try {
         const res = await apiFetch<T>(path);
         if (cancelled) return;
+        // Success — kill the pending timers so a slow-but-eventually-
+        // successful fetch doesn't end up with both data AND the
+        // "API may be down" error state at the same time.
+        if (stuckTimer !== undefined) window.clearTimeout(stuckTimer);
+        if (timeout !== undefined) window.clearTimeout(timeout);
         setData(res);
         setLoading(false);
       } catch (err) {
@@ -85,21 +92,20 @@ export function useResilientFetch<T>(
         if (toastOnError) toast(`Couldn't load (${tag ?? path}): ${msg}`);
       }
     }
-    const stuckTimer = window.setTimeout(() => {
+    stuckTimer = window.setTimeout(() => {
       if (!cancelled) setStuck(true);
     }, stuckMs);
-    const timeout = window.setTimeout(() => {
-      if (!cancelled) {
-        console.warn(tag ?? `[fetch ${path}]`, "timeout at", timeoutMs, "ms");
-        setError("Request is taking longer than expected. The API may be down — try again in a moment.");
-        setLoading(false);
-      }
+    timeout = window.setTimeout(() => {
+      if (cancelled) return;
+      console.warn(tag ?? `[fetch ${path}]`, "timeout at", timeoutMs, "ms");
+      setError("Request is taking longer than expected. The API may be down — try again in a moment.");
+      setLoading(false);
     }, timeoutMs);
     load();
     return () => {
       cancelled = true;
-      window.clearTimeout(stuckTimer);
-      window.clearTimeout(timeout);
+      if (stuckTimer !== undefined) window.clearTimeout(stuckTimer);
+      if (timeout !== undefined) window.clearTimeout(timeout);
     };
   }, [path, enabled, retryKey, tag, toastOnError, stuckMs, timeoutMs, toast]);
 
