@@ -4272,3 +4272,71 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 @media (min-width: 700px) and (max-width: 899px) {
   .lib-page { --lib-gutter: 40px; }
 }
+/* ==== Homepage redesign: tokens + reset (S2) ====
+   Mirrors the library brief's tokens under a `.home-page` scope so
+   neither page bleeds into the other. Values are kept in sync with
+   .lib-page intentionally; if you change one, change the other. */
+.home-page {
+  --home-ink: #070B12;
+  --home-surface: #0D1420;
+  --home-line: rgba(242, 238, 230, 0.10);
+  --home-ring: rgba(242, 238, 230, 0.55);
+  --home-line-soft: rgba(242, 238, 230, 0.07);
+
+  --home-text: #F2EEE6;
+  --home-text-soft: #D7D9DE;
+  --home-muted: #B9C1CD;
+  --home-muted-2: #9DA7B5;
+  --home-placeholder: #8F99A8;
+  --home-link: #AEB7C4;
+  --home-dim-word: #7E8896;
+
+  --home-gold: #C9A03C;
+  --home-gold-bright: #E3BF5A;
+  --home-on-gold: #0A0F18;
+
+  --home-paper: #ECE6D6;
+  --home-paper-text: #25231F;
+  --home-paper-label: #6B6558;
+
+  --home-display: 'Cormorant Garamond', Georgia, serif;
+  --home-sans: 'Figtree', 'Inter', system-ui, sans-serif;
+
+  --home-gutter: 64px;
+
+  background: var(--home-ink);
+  color: var(--home-text);
+  font-family: var(--home-sans);
+  font-size: 16px;
+  line-height: 1.55;
+}
+.home-page *,
+.home-page *::before,
+.home-page *::after { box-sizing: border-box; }
+:where(.home-page a) { color: inherit; text-decoration: none; }
+:where(.home-page button) {
+  font: inherit; color: inherit; background: none; border: 0;
+  padding: 0; cursor: pointer;
+}
+:where(.home-page h1, .home-page h2, .home-page h3, .home-page p) { margin: 0; }
+.home-page :focus-visible {
+  outline: 2px solid var(--home-gold-bright);
+  outline-offset: 3px;
+}
+.home-page img { display: block; }
+.home-page svg { display: block; }
+.home-page .sr {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-page *,
+  .home-page *::before,
+  .home-page *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
