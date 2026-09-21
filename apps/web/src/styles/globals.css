@@ -726,8 +726,52 @@ button.link:hover { color: var(--accent-2); text-decoration-style: solid; }
   inset: 0;
   border-radius: 20px;
   pointer-events: none;
-  transform-origin: left center;
-  opacity: 0.35;
+  /* 3D context for the page curl — perspective lets the back of the
+   * pane shrink as it rotates away from the viewer, like a real
+   * book page. */
+  perspective: 1800px;
+  perspective-origin: 50% 50%;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  box-shadow:
+    inset 0 0 60px rgba(0, 0, 0, 0.5),
+    0 18px 40px rgba(0, 0, 0, 0.4);
+  z-index: 4;
+}
+/* Direction-specific hinge. "next" rotates around the left edge
+ * (spine on the left, page turns right-to-left). "prev" mirrors. */
+.reader-stage .flip-pane.from-next {
+  transform-origin: 0% 50%;
+}
+.reader-stage .flip-pane.from-prev {
+  transform-origin: 100% 50%;
+}
+/* Subtle inner shadow on the leading edge — sells the page curl by
+ * darkening the edge as it lifts off the surface. */
+.reader-stage .flip-pane::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0.45) 0%,
+    transparent 12%,
+    transparent 88%,
+    rgba(0, 0, 0, 0.45) 100%
+  );
+  pointer-events: none;
+}
+/* Underside shadow that lives on top of the page content and fades
+ * through the flip. Stays anchored to the viewport edges (not the
+ * pane) so it doesn't flip with the page. */
+.reader-stage .flip-shadow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  border-radius: 20px;
 }
 .stage-arrow {
   position: absolute;

@@ -208,14 +208,38 @@ export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false,
       </div>
 
       {isFlipping && (
-        <motion.div
-          className="flip-pane flipping"
-          aria-hidden
-          initial={{ rotateY: flippingDirection === "next" ? 0 : -180 }}
-          animate={{ rotateY: flippingDirection === "next" ? -180 : 0 }}
-          transition={{ duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
-          style={{ background: `linear-gradient(135deg, ${accent}, #080C14)` }}
-        />
+        <>
+          {/* Book page flip. The pane hinges from the spine on the
+           * leading edge (left for "next", right for "prev") and
+           * rotates 180° around the Y axis to simulate a finger
+           * turning the page. A second darker layer rides on top to
+           * give the page a subtle underside shadow mid-flip. */}
+          <motion.div
+            className={`flip-pane flipping ${flippingDirection === "prev" ? "from-prev" : "from-next"}`}
+            aria-hidden
+            initial={{ rotateY: flippingDirection === "next" ? 0 : -180 }}
+            animate={{ rotateY: flippingDirection === "next" ? -180 : 0 }}
+            transition={{ duration: 0.7, ease: [0.45, 0.05, 0.25, 1] }}
+            style={{
+              background: `linear-gradient(135deg, ${accent} 0%, #0D1420 50%, #050709 100%)`
+            }}
+          />
+          {/* Underside shadow that peaks at 50% rotation — sells the
+           * 3D curl illusion. Keyframed separately so the shadow
+           * doesn't move with the pane. */}
+          <motion.div
+            className="flip-shadow"
+            aria-hidden
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0, 0.55, 0] }}
+            transition={{ duration: 0.7, ease: "easeInOut" }}
+            style={{
+              background: flippingDirection === "next"
+                ? "linear-gradient(to left, rgba(0,0,0,0.7) 0%, transparent 60%)"
+                : "linear-gradient(to right, rgba(0,0,0,0.7) 0%, transparent 60%)"
+            }}
+          />
+        </>
       )}
 
       <button
