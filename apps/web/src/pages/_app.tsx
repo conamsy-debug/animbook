@@ -75,7 +75,24 @@ export default function App({ Component, pageProps }: AppProps) {
           colorInputText: "#F4E9D8"
         },
         elements: {
-          card: { background: "#0F1422", border: "1px solid rgba(196, 154, 28, 0.3)" }
+          card: { background: "#0F1422", border: "1px solid rgba(196, 154, 28, 0.3)" },
+          // Social buttons (Google, GitHub, etc.) need an explicit
+          // background because Clerk's default falls back to a
+          // transparent outline on dark themes, which blends with the
+          // modal card and makes the button invisible.
+          socialButtonsBlockButton: {
+            background: "#1A2030",
+            border: "1px solid rgba(242, 238, 230, 0.18)",
+            color: "#F4E9D8",
+            "&:hover": {
+              background: "#222A3D",
+              borderColor: "rgba(242, 238, 230, 0.30)"
+            }
+          },
+          socialButtonsBlockButtonText: {
+            color: "#F4E9D8",
+            fontWeight: 500
+          }
         }
       }}
     >
