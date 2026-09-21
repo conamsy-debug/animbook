@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,500&family=DM+Mono:wght@400;500&family=Figtree:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap");
 
 /* ==== AnimBook design tokens ==== */
 :root {
@@ -3498,3 +3498,89 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 }
 .narrator-picker .panel-actions { justify-content: flex-end; }
 .message.mine { align-self: flex-end; border-color: var(--gold); }
+
+/* ==== Library redesign tokens (scoped to .lib-page) ====
+   These tokens only exist inside the new /library layout. Other pages
+   keep their existing tokens (--bg, --accent, --muted, etc.) and their
+   existing look untouched. */
+.lib-page {
+  /* Backgrounds + lines */
+  --lib-ink: #070B12;
+  --lib-surface: #0D1420;
+  --lib-line: rgba(242, 238, 230, 0.10);
+  --lib-ring: rgba(242, 238, 230, 0.55);
+  --lib-line-soft: rgba(242, 238, 230, 0.07);
+
+  /* Text */
+  --lib-text: #F2EEE6;
+  --lib-text-soft: #D7D9DE;
+  --lib-muted: #B9C1CD;
+  --lib-muted-2: #9DA7B5;
+  --lib-placeholder: #8F99A8;
+  --lib-link: #AEB7C4;
+
+  /* Brand */
+  --lib-gold: #C9A03C;
+  --lib-gold-bright: #E3BF5A;
+  --lib-on-gold: #0A0F18;
+
+  /* Type */
+  --lib-display: 'Cormorant Garamond', Georgia, serif;
+  --lib-sans: 'Figtree', 'Inter', system-ui, sans-serif;
+
+  /* Layout */
+  --lib-gutter: 64px;
+  --lib-card-w: 200px;
+  --lib-card-h: 300px;
+  --lib-card-radius: 8px;
+  --lib-card-gap: 14px;
+
+  /* Generated cover palettes (background / foreground).
+     Index is the result of a stable hash of the vertical name; verticals
+     without an explicit mapping fall back to index 0. */
+  --lib-palette-0-bg: #12363A; --lib-palette-0-fg: #A9D9CB;
+  --lib-palette-1-bg: #1B2B4A; --lib-palette-1-fg: #B7C8EA;
+  --lib-palette-2-bg: #4A1C36; --lib-palette-2-fg: #F0B7CF;
+  --lib-palette-3-bg: #0F3B40; --lib-palette-3-fg: #BFE3E3;
+  --lib-palette-4-bg: #4A3712; --lib-palette-4-fg: #F0D08A;
+  --lib-palette-5-bg: #16341F; --lib-palette-5-fg: #B6DDB8;
+  --lib-palette-6-bg: #2A2350; --lib-palette-6-fg: #CFC7F2;
+  --lib-palette-7-bg: #4A2016; --lib-palette-7-fg: #F2BBA6;
+
+  /* Reset + base inside the new layout only. */
+  background: var(--lib-ink);
+  color: var(--lib-text);
+  font-family: var(--lib-sans);
+  font-size: 16px;
+  line-height: 1.55;
+}
+.lib-page *,
+.lib-page *::before,
+.lib-page *::after { box-sizing: border-box; }
+.lib-page a { color: inherit; text-decoration: none; }
+.lib-page button {
+  font: inherit; color: inherit; background: none; border: 0;
+  padding: 0; cursor: pointer;
+}
+.lib-page h1, .lib-page h2, .lib-page h3, .lib-page p { margin: 0; }
+.lib-page :focus-visible {
+  outline: 2px solid var(--lib-gold-bright);
+  outline-offset: 3px;
+}
+.lib-page img { display: block; }
+.lib-page .sr {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+/* Reduced-motion: kill the load sequence, parallax and Ken Burns drift. */
+@media (prefers-reduced-motion: reduce) {
+  .lib-page *,
+  .lib-page *::before,
+  .lib-page *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
