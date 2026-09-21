@@ -3761,3 +3761,87 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   .lib-page .lib-card:hover .lib-poster { animation: none; }
   .lib-page .lib-track:hover .lib-card:not(:hover):not(:focus-within) { opacity: 1; }
 }
+
+/* ==== Library redesign: rows ==== */
+.lib-page .lib-row {
+  margin-top: 44px;
+  /* Below-the-fold rows render only when in view. Browsers that don't
+     understand content-visibility ignore it harmlessly. */
+  content-visibility: auto;
+  contain-intrinsic-size: 0 360px;
+}
+.lib-page .lib-rhead {
+  position: relative;
+  z-index: 9;
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  padding: 0 var(--lib-gutter);
+  margin-bottom: 14px;
+}
+.lib-page .lib-rtitle {
+  font-family: var(--lib-display);
+  font-weight: 500;
+  font-size: 32px;
+  line-height: 1.1;
+  color: var(--lib-text);
+}
+.lib-page .lib-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lib-gold);
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: opacity .25s, transform .25s;
+}
+.lib-page .lib-row:hover .lib-all,
+.lib-page .lib-all:focus-visible {
+  opacity: 1;
+  transform: none;
+}
+.lib-page .lib-rbody { position: relative; }
+.lib-page .lib-track {
+  display: flex;
+  gap: var(--lib-card-gap);
+  overflow-x: auto;
+  padding: 30px var(--lib-gutter);
+  margin: -30px 0;
+  scroll-snap-type: x proximity;
+  scroll-padding: 0 var(--lib-gutter);
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.lib-page .lib-track::-webkit-scrollbar { display: none; }
+
+/* Scroll arrows */
+.lib-page .lib-arrow {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 64px;
+  z-index: 8;
+  display: grid;
+  place-items: center;
+  color: var(--lib-text);
+  opacity: 0;
+  transition: opacity .2s;
+}
+.lib-page .lib-arrow.left {
+  left: 0;
+  background: linear-gradient(90deg, rgba(7, 11, 18, 0.94), rgba(7, 11, 18, 0));
+}
+.lib-page .lib-arrow.right {
+  right: 0;
+  background: linear-gradient(270deg, rgba(7, 11, 18, 0.94), rgba(7, 11, 18, 0));
+}
+.lib-page .lib-row:hover .lib-arrow,
+.lib-page .lib-arrow:focus-visible { opacity: 1; }
+.lib-page .lib-arrow svg { transition: transform .2s; }
+.lib-page .lib-arrow:hover svg { transform: scale(1.25); }
+
+/* Touch devices: no arrows, just native swipe. */
+@media (hover: none) {
+  .lib-page .lib-arrow { display: none; }
+}
