@@ -15,13 +15,16 @@ interface Props {
   /** Featured page. The card renders the page's still (or clip) in the
    *  scene area, and uses textExcerpt as the narration script. */
   page: PageRecord | null;
+  /** Display title shown above the narration panel. Falls back to the
+   *  legacy constant when the rotator hasn't picked a book yet. */
+  bookTitle?: string | null;
   /** The book's own narrator voice id (from /api/narration/voices). */
   defaultVoiceId: string | null;
   /** True when the user is signed in — narration endpoint is auth-gated. */
   signedIn: boolean;
 }
 
-const FEATURED_TITLE = "Lagos Nights · The Lagoon";
+const FEATURED_TITLE_FALLBACK = "Lagos Nights · The Lagoon";
 
 /**
  * LivingCard — clip / still + narration panel with word highlight.
@@ -34,7 +37,7 @@ const FEATURED_TITLE = "Lagos Nights · The Lagoon";
  *    the audio URL on click.
  *  - When signed out, the play button is hidden — narration is auth-gated.
  */
-export function LivingCard({ page, defaultVoiceId, signedIn }: Props) {
+export function LivingCard({ page, bookTitle, defaultVoiceId, signedIn }: Props) {
   const sceneRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playerState, setPlayerState] = useState<PlayerState>(INITIAL_STATE);
@@ -46,6 +49,10 @@ export function LivingCard({ page, defaultVoiceId, signedIn }: Props) {
   const [loading, setLoading] = useState(false);
 
   const text = page?.textExcerpt ?? "";
+  /** Title shown to viewers — comes from the rotator (so the title
+   *  updates with the book rotation) and falls back to the original
+   *  hand-typed constant while the first fetch is in flight. */
+  const featuredTitle = (bookTitle && bookTitle.trim()) || FEATURED_TITLE_FALLBACK;
   const words = useMemo<TimedWord[]>(() => weightWords(text), [text]);
   const autoplayAllowed = useMemo(() => shouldAutoplayVideo(), [page?.id]);
 
@@ -147,7 +154,7 @@ export function LivingCard({ page, defaultVoiceId, signedIn }: Props) {
             playsInline
             autoPlay={autoplayAllowed}
             preload={autoplayAllowed ? "metadata" : "none"}
-            aria-label={`Scene from ${FEATURED_TITLE}`}
+            aria-label={`Scene from ${featuredTitle}`}
           />
         ) : (
           page?.posterUrl ? (
@@ -155,7 +162,7 @@ export function LivingCard({ page, defaultVoiceId, signedIn }: Props) {
               className="home-pan"
               style={{ backgroundImage: `url(${page.posterUrl})` }}
               role="img"
-              aria-label={`Scene from ${FEATURED_TITLE}`}
+              aria-label={`Scene from ${featuredTitle}`}
             />
           ) : (
             <div className="home-pan home-pan-placeholder" role="img" aria-hidden />
@@ -176,7 +183,7 @@ export function LivingCard({ page, defaultVoiceId, signedIn }: Props) {
           </button>
         ) : null}
         <div className="home-ntext">
-          <div className="home-ntitle">{FEATURED_TITLE}</div>
+          <div className="home-ntitle">{featuredTitle}</div>
           <div className="home-quote">{quoteContent}</div>
         </div>
         {/* Hidden audio element — driven by audioSrc state. */}

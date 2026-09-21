@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@clerk/nextjs";
 import { Topbar } from "@/components/Topbar";
@@ -12,50 +12,45 @@ import { ConstellationStrip } from "@/components/nextgen/ConstellationStrip";
 import { apiFetch, type BookSummary, type PageRecord } from "@/lib/api";
 import { loadVoices } from "@/lib/voices";
 import { useResilientFetch } from "@/lib/useResilientFetch";
+import { useFeaturedRotator } from "@/lib/homepage/useFeaturedRotator";
 
 /**
  * AnimBook homepage — redesigned.
  *
- * Reads the same two endpoints the old homepage did (no new backend
- * work):
+ * Reads the same catalog endpoint the rest of the page uses:
  *  - GET /api/books?status=PUBLISHED&limit=100   → book list
- *  - GET /api/books/lagos-nights-2-the-lagoon/pages → featured page
+ *  - GET /api/books/{slug}/pages (per candidate) → featured pages
  *
  * Plus a public narration voices fetch (signed-out users get the
  * narration endpoint's 401, but `loadVoices` already caches the result
  * and the player gracefully hides the play button when there's no
  * signed-in user).
+ *
+ * The LivingCard + BeforeAfter now rotate through a curated pool of
+ * books every 60s. The rotator prefetches all candidate pages so the
+ * crossfade has no blank-flash. Rotation skips when the user has
+ * prefers-reduced-motion on or the tab is hidden, and is no-op when
+ * the pool has fewer than two members.
  */
 export default function HomePage() {
   const { isSignedIn } = useAuth();
-  const [featuredPage, setFeaturedPage] = useState<PageRecord | null>(null);
 
-  const { data: booksData, loading, error } = useResilientFetch<{ items: BookSummary[] }>(
+  const { data: booksData, loading } = useResilientFetch<{ items: BookSummary[] }>(
     "/api/books?status=PUBLISHED&limit=100",
     { tag: "[HOME]" }
   );
   const books = booksData?.items ?? [];
 
-  // Featured page — picks the first page with a real video.
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch<{ pages: PageRecord[] }>("/api/books/lagos-nights-2-the-lagoon/pages")
-      .then(({ pages }) => {
-        if (cancelled) return;
-        const withVideo = pages.filter(
-          (p) =>
-            Boolean(p.videoUrl) &&
-            /^https?:\/\//.test(p.videoUrl ?? "") &&
-            !String(p.videoUrl ?? "").includes("placehold.co")
-        );
-        const pick = withVideo.find((p) => p.pageNum === 2) ?? withVideo[0] ?? null;
-        setFeaturedPage(pick);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
+  // Stable fetcher so the rotator's effect doesn't re-run every render.
+  const fetchPagesForBook = useCallback(async (slug: string): Promise<PageRecord[]> => {
+    const { pages } = await apiFetch<{ pages: PageRecord[] }>(`/api/books/${slug}/pages`);
+    return Array.isArray(pages) ? pages : [];
   }, []);
+
+  const { book: featuredBook, page: featuredPage } = useFeaturedRotator({
+    books,
+    pageFetcher: fetchPagesForBook
+  });
 
   // Default narrator voice id — used by LivingCard on play.
   const [defaultVoiceId, setDefaultVoiceId] = useState<string | null>(null);
@@ -86,6 +81,7 @@ export default function HomePage() {
           >
             <LivingCard
               page={featuredPage}
+              bookTitle={featuredBook?.title ?? null}
               defaultVoiceId={defaultVoiceId}
               signedIn={Boolean(isSignedIn)}
             />

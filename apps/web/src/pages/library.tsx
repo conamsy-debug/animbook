@@ -8,7 +8,7 @@ import { LibraryRow } from "@/components/library/LibraryRow";
 import { LibraryPosterCard } from "@/components/library/LibraryPosterCard";
 import { apiFetch, type BookSummary } from "@/lib/api";
 import { VERTICALS, verticalById } from "@/lib/verticals";
-import { pickFeaturedBook } from "@/lib/library/heroSelection";
+import { useFeaturedRotator } from "@/lib/homepage/useFeaturedRotator";
 import { deriveRows } from "@/lib/library/rowDerivation";
 import { useResilientFetch } from "@/lib/useResilientFetch";
 
@@ -102,8 +102,11 @@ export default function LibraryPage() {
     navigate(next);
   }, []);
 
-  const featured = useMemo(() => pickFeaturedBook(books), [books]);
   const rows = useMemo(() => deriveRows({ books }), [books]);
+  // Hero cycles through the strongest books every minute. No page
+  // fetcher — the hero only needs cover/title/synopsis, all already on
+  // the book record.
+  const { book: featured } = useFeaturedRotator({ books, intervalMs: 60_000 });
   const current = verticalById(vertical);
   const isFiltered = vertical !== "ALL" || query.trim().length > 0;
 
@@ -131,9 +134,13 @@ export default function LibraryPage() {
         )}
       >
         <main className="lib-main">
-          {/* Hero: shown in default view only, behind the chips. */}
+          {/* Hero: shown in default view only, behind the chips. The
+           *  `key={featured.id}` forces the hero to remount every time
+           *  the rotator advances — the parallax/load animation then
+           *  re-runs for the new book, so each rotation gets its own
+           *  cinematic entrance instead of an abrupt prop swap. */}
           {!isFiltered && featured && (
-            <LibraryHero book={featured} />
+            <LibraryHero key={featured.id} book={featured} />
           )}
 
           {/* Chips overlap the hero by 64px in default view; sit normally in filtered view. */}
