@@ -3845,3 +3845,151 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 @media (hover: none) {
   .lib-page .lib-arrow { display: none; }
 }
+/* ==== Library redesign: hero ==== */
+.lib-page .lib-hero {
+  position: relative;
+  height: 760px;
+  min-height: 640px;
+  overflow: hidden;
+  isolation: isolate;
+}
+.lib-page .lib-bgwrap {
+  position: absolute;
+  inset: -8%;
+  z-index: -3;
+  transition: transform .6s cubic-bezier(.2, .7, .2, 1);
+}
+.lib-page .lib-bg {
+  position: absolute; inset: 0;
+  background-size: cover;
+  background-position: center 28%;
+  filter: blur(30px) saturate(1.2) brightness(.55);
+  animation: lib-kb 32s ease-in-out infinite alternate;
+}
+.lib-page .lib-bg:not([style*="background-image"]) {
+  background: linear-gradient(135deg, #1A6B3C, #070B12);
+}
+@keyframes lib-kb {
+  from { transform: scale(1.08) translate3d(0, 0, 0); }
+  to   { transform: scale(1.22) translate3d(-2.5%, -1.5%, 0); }
+}
+.lib-page .lib-hero::before {
+  content: "";
+  position: absolute; inset: 0; z-index: -2;
+  background: linear-gradient(90deg, rgba(7, 11, 18, 0.92) 0%, rgba(7, 11, 18, 0.55) 46%, rgba(7, 11, 18, 0.10) 100%);
+}
+.lib-page .lib-hero::after {
+  content: "";
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: 260px; z-index: -1;
+  background: linear-gradient(to bottom, rgba(7, 11, 18, 0), #070B12);
+}
+.lib-page .lib-hposter {
+  position: absolute;
+  right: 150px;
+  top: 128px;
+  width: 400px;
+  z-index: 1;
+  transition: transform .35s ease-out;
+  animation: lib-posterin 1.3s .25s cubic-bezier(.2, .7, .2, 1) both;
+}
+.lib-page .lib-pimg {
+  display: block;
+  width: 100%; height: auto;
+  border-radius: 10px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(242, 238, 230, 0.1);
+}
+.lib-page .lib-pimg-placeholder {
+  aspect-ratio: 2 / 3;
+  background: linear-gradient(135deg, #1B2B4A, #070B12);
+}
+.lib-page .lib-hcopy {
+  position: absolute;
+  left: 64px; bottom: 130px;
+  width: 600px;
+}
+.lib-page .lib-hser {
+  font-size: 16px; font-weight: 500;
+  color: var(--lib-gold-bright);
+  margin-bottom: 10px;
+  animation: lib-rise .7s .15s both;
+}
+.lib-page .lib-htitle {
+  font-family: var(--lib-display);
+  font-weight: 500;
+  font-size: 108px;
+  line-height: .92;
+  letter-spacing: -.015em;
+  margin-bottom: 24px;
+  color: var(--lib-text);
+  animation: lib-wipe 1.1s .3s cubic-bezier(.2, .7, .2, 1) both;
+}
+.lib-page .lib-hmeta {
+  display: flex; gap: 14px;
+  font-size: 15px; color: var(--lib-muted);
+  margin-bottom: 14px;
+  animation: lib-rise .7s .7s both;
+}
+.lib-page .lib-hmeta span + span {
+  padding-left: 14px;
+  border-left: 1px solid rgba(242, 238, 230, 0.25);
+}
+.lib-page .lib-hdesc {
+  font-size: 18px; line-height: 1.55;
+  color: var(--lib-text-soft);
+  max-width: 46ch;
+  margin-bottom: 30px;
+  animation: lib-rise .7s .8s both;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.lib-page .lib-hcta {
+  display: flex; gap: 12px; align-items: center;
+  animation: lib-rise .7s .95s both;
+}
+.lib-page .lib-btn {
+  height: 52px;
+  border-radius: 8px;
+  padding: 0 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 17px;
+  font-weight: 600;
+  transition: transform .2s, background .2s;
+}
+.lib-page .lib-btn:active { transform: scale(.97); }
+.lib-page .lib-btn-gold {
+  background: var(--lib-gold);
+  color: var(--lib-on-gold);
+}
+.lib-page .lib-btn-gold:hover { background: var(--lib-gold-bright); }
+.lib-page .lib-btn-glass {
+  background: rgba(242, 238, 230, 0.16);
+  color: var(--lib-text);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.lib-page .lib-btn-glass:hover { background: rgba(242, 238, 230, 0.26); }
+.lib-page .lib-ib-lg { width: 52px; height: 52px; }
+
+@keyframes lib-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes lib-wipe {
+  from { clip-path: inset(0 100% 0 0); opacity: 0; transform: translateX(-14px); }
+  to   { clip-path: inset(0 0 0 0); opacity: 1; transform: none; }
+}
+@keyframes lib-posterin {
+  from { opacity: 0; transform: translateY(26px) scale(.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (max-width: 1099px) {
+  .lib-page .lib-hposter { right: 48px; width: 280px; top: 100px; }
+  .lib-page .lib-htitle { font-size: 76px; }
+  .lib-page .lib-hcopy { width: 480px; left: 40px; }
+}
