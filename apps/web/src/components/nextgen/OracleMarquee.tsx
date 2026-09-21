@@ -92,8 +92,39 @@ export function OracleMarquee({ books }: Props) {
           </article>
         )}
 
-        {/* (S4 will add the three continuation cards here.) */}
+        {/* Three continuation cards. Static visual — no /api/oracle/...
+            call. Hover or focus of the marquee briefly highlights the
+            unselected cards. */}
+        <div className="home-oracle-choices" aria-hidden={loading}>
+          {CONTINUATION_CHOICES.map((c, i) => (
+            <article
+              key={c.label}
+              className={`home-oracle-choice ${c.selected ? "is-selected" : ""}`}
+              style={{ animationDelay: `${120 + i * 90}ms` }}
+            >
+              <span className="home-oracle-choice-tag">Choice {String.fromCharCode(65 + i)}</span>
+              <p className="home-oracle-choice-text">{c.label}</p>
+              <span className="home-oracle-choice-arrow" aria-hidden>
+                →
+              </span>
+            </article>
+          ))}
+        </div>
+        <p className="home-oracle-foot">Pick one. AnimBook writes the next page from that branch — voice, scene, narrator and all.</p>
       </div>
     </section>
   );
 }
+
+interface Choice {
+  label: string;
+  selected?: boolean;
+}
+
+/** Hard-coded mock continuation choices. Hand-written in the S1 brief.
+ *  Middle (B) is the "selected" default for visual focus. */
+const CONTINUATION_CHOICES: Choice[] = [
+  { label: "The lantern-lighter turns, and sees you." },
+  { label: "You step through the doorway. The market roars.", selected: true },
+  { label: "You write a letter. It goes unanswered." }
+];
