@@ -4484,3 +4484,128 @@ a.vertical-tile .vertical-count { color: var(--accent); }
     padding: 168px var(--home-gutter) 0;
   }
 }
+/* ==== Homepage redesign: LivingCard ==== */
+.home-page .home-living {
+  position: absolute;
+  right: 64px;
+  top: 150px;
+  width: 680px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--home-surface);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(242, 238, 230, 0.12);
+  animation: home-posterin 1.3s .25s cubic-bezier(.2, .7, .2, 1) both;
+  z-index: 2;
+}
+.home-page .home-scene {
+  position: relative;
+  height: 272px;
+  overflow: hidden;
+}
+.home-page .home-pan {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  transform-origin: 70% 45%;
+  animation: home-pan-drift 26s ease-in-out infinite alternate;
+}
+.home-page .home-pan video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.home-page .home-pan-placeholder {
+  background: linear-gradient(135deg, #1B2B4A, #070B12);
+}
+@keyframes home-pan-drift {
+  from { transform: scale(1.02) translate3d(0, 0, 0); }
+  to   { transform: scale(1.14) translate3d(-2.5%, -1.5%, 0); }
+}
+@keyframes home-posterin {
+  from { opacity: 0; transform: translateY(26px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+.home-page .home-narr {
+  position: relative;
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  padding: 22px 26px 28px;
+  background: rgba(13, 20, 32, 0.97);
+}
+.home-page .home-pbtn {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--home-gold);
+  color: var(--home-on-gold);
+  display: grid;
+  place-items: center;
+  transition: transform .2s, background .2s, opacity .2s;
+  cursor: pointer;
+}
+.home-page .home-pbtn:hover { background: var(--home-gold-bright); transform: scale(1.06); }
+.home-page .home-pbtn:active { transform: scale(.96); }
+.home-page .home-pbtn:disabled { opacity: .55; cursor: progress; }
+.home-page .home-ntext {
+  flex: 1;
+  min-width: 0;
+}
+.home-page .home-ntitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--home-gold-bright);
+  margin-bottom: 8px;
+}
+.home-page .home-quote {
+  font-family: var(--home-display);
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 1.32;
+  color: var(--home-text);
+}
+.home-page .home-w {
+  display: inline-block;
+  margin-right: .28em;
+  color: #E8E4DA;
+  transition: color .25s ease;
+}
+.home-page .home-w.done { color: var(--home-text); }
+.home-page .home-w.now  { color: var(--home-gold-bright); }
+.home-page .home-w.dim  { color: var(--home-dim-word); }
+
+.home-page .home-bar {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 3px;
+  background: rgba(242, 238, 230, 0.12);
+}
+.home-page .home-bar i {
+  display: block;
+  height: 100%;
+  background: var(--home-gold);
+  transition: width .38s linear;
+}
+
+/* Tablet: card below the copy, full width up to 680px, centered. */
+@media (max-width: 1099px) {
+  .home-page .home-living {
+    position: relative;
+    right: auto; top: auto;
+    width: min(680px, calc(100% - 80px));
+    margin: 24px auto 0;
+  }
+}
+@media (max-width: 699px) {
+  .home-page .home-living {
+    width: calc(100% - 40px);
+    margin-top: 20px;
+  }
+  .home-page .home-scene { height: 200px; }
+  .home-page .home-pbtn { width: 48px; height: 48px; }
+  .home-page .home-quote { font-size: 20px; }
+}
