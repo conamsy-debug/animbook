@@ -111,7 +111,15 @@ export default function LibraryPage() {
   const { book: featured } = useFeaturedRotator({
     books,
     intervalMs: 60_000,
-    pauseOnHoverRef: heroRef
+    pauseOnHoverRef: heroRef,
+    // Rotation is currently paused while we tune the showcase — we
+    // want the library hero to lock on a single book with a real
+    // cover so visitors always see something finished. Remove this
+    // flag (or set it to false) to re-enable the 60s rotation pool.
+    // The hook still picks the highest-tier candidate from
+    // pickFeaturedCandidates (cover+synopsis first, then cover-only)
+    // so the locked-in book has a picture cover.
+    paused: true
   });
   const current = verticalById(vertical);
   const isFiltered = vertical !== "ALL" || query.trim().length > 0;

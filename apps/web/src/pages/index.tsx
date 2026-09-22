@@ -55,7 +55,15 @@ export default function HomePage() {
   const { book: featuredBook, page: featuredPage } = useFeaturedRotator({
     books,
     pageFetcher: fetchPagesForBook,
-    pauseOnHoverRef: showcaseRef
+    pauseOnHoverRef: showcaseRef,
+    // Rotation is currently paused while we tune the showcase — we
+    // want the homepage LivingCard + BeforeAfter to lock on a single
+    // book with a real cover so visitors always see something
+    // finished. Remove this flag (or set it to false) to re-enable
+    // the 60s rotation pool. The hook still picks the highest-tier
+    // candidate from `pickFeaturedCandidates` (cover+synopsis first,
+    // then cover-only) so the locked-in book has a picture cover.
+    paused: true
   });
 
   // Default narrator voice id — used by LivingCard on play.
