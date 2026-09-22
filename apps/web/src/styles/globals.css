@@ -4284,7 +4284,12 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   display: flex;
   gap: 10px;
   padding: 0 var(--lib-gutter);
-  margin-top: 12px;
+  /* Sit clearly below the cinematic topbar (76px tall, with a -76px
+   * margin-bottom that pulls content up under it for the hero). In
+   * the filtered view there's no hero to overlap, so we need real
+   * top spacing here, otherwise the chips hide behind the topbar and
+   * the grid below them touches the topbar's bottom edge. */
+  margin-top: 92px;
   overflow-x: auto;
   scrollbar-width: none;
 }
