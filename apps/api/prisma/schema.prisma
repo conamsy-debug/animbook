@@ -280,6 +280,15 @@ model User {
   usageEvents              UsageEvent[]
   liveSessions             LiveSession[]        @relation("LiveHost")
 
+  // AnimBook Languages (Phase 1) — Patch 02.
+  langEnrollments          Enrollment[]
+  langStoryProgress        StoryProgress[]
+  langExerciseAttempts     ExerciseAttempt[]
+  langPronunciationAttempts PronunciationAttempt[]
+  langUserVocab            UserVocab[]
+  langReviewLogs           ReviewLog[]
+  learnerStats             LearnerStats?
+
   @@map("users")
 }
 
@@ -1284,4 +1293,483 @@ model ShareClick {
 
   @@index([shareId, at])
   @@map("share_clicks")
+}
+
+
+/* ============================================================================
+ * AnimBook Languages (Phase 1) � Patch 02
+ *
+ * Schema for the interactive language-learning section. Spec lives in
+ * docs/languages-phase1.md � 4. Every model here is additive � no FK
+ * touches a pre-existing table, so the migration applies cleanly
+ * without ALTERs to anything outside this section.
+ *
+ * Content tables: courses, master_stories, master_scenes, stories,
+ *   scenes, lines, lexemes, line_tokens, exercises.
+ * Learner tables: enrollments, story_progress, exercise_attempts,
+ *   pronunciation_attempts, user_vocab, review_logs, learner_stats.
+ * ============================================================================
+*/
+
+/// Phase 1: one row per target language. The seed inserts 7 rows (en, fr,
+/// es, zh-Hans, de, it, he). Phase 2+ can grow the catalog without a
+/// migration (every spec field lives in this row, not in a separate
+/// language_variants table).
+model Language {
+  id        String   @id @default(cuid())
+  /// IETF BCP-47 code. Phase 1 keys: en, fr, es, zh-Hans, de, it, he.
+  code      String   @unique
+  /// Display name in English.
+  nameEn    String   @map("name_en")
+  /// Display name in French.
+  nameFr    String   @map("name_fr")
+  /// Display name in the language itself ("Deutsch", "??", "?????").
+  nameNative String   @map("name_native")
+  /// Layout direction � Hebrew is RTL, the rest are LTR.
+  direction String   @default("ltr")
+  /// Script family � Latin / Han (Simplified) / Hebrew.
+  script    String   @default("Latin")
+  /// Reading aid layered on top of 	ext when the learner toggles it:
+  /// none | pinyin (zh) | niqqud (he).
+  readingAid String  @default("none") @map("reading_aid")
+  /// BCP-47 short code we hand to the STT engine. zh-Hans ? "zh".
+  sttCode   String   @map("stt_code")
+  /// Whether learners may pick this as a target language.
+  isTarget  Boolean  @default(true) @map("is_target")
+  /// Whether learners may pick this as their base/instruction language.
+  isBase    Boolean  @default(false) @map("is_base")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  /// Outgoing edges
+  coursesAsTarget   Course[]      @relation("CourseTargetLang")
+  coursesAsBase     Course[]      @relation("CourseBaseLang")
+  masterStories     MasterStory[]
+  lexemes           Lexeme[]
+
+  @@map("languages")
+}
+
+/// One course per (target, base) pair. Phase 1: 7 targets × 2 bases minus
+/// the two self-pairs (en-en, fr-fr) = 12 courses seeded. The unique
+/// index on (target, base) keeps the math honest. Stories are linked
+/// implicitly via `Story.target_lang` — the API joins on target_lang
+/// rather than carrying an FK column, so the same Story can serve many
+/// Courses (one per base language that reads it).
+model Course {
+  id          String   @id @default(cuid())
+  targetLang  String   @map("target_lang")
+  baseLang    String   @map("base_lang")
+  title       String
+  description String   @db.Text
+  /// Patch 03+ flips this true after the content pipeline publishes the
+  /// first story. Until then, the course shell shows up on the dashboard
+  /// but the course home reads "no stories yet".
+  isPublished Boolean  @default(false) @map("is_published")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  targetLanguage  Language      @relation("CourseTargetLang", fields: [targetLang], references: [code])
+  baseLanguage    Language      @relation("CourseBaseLang",   fields: [baseLang],   references: [code])
+  enrollments     Enrollment[]
+
+  @@unique([targetLang, baseLang])
+  @@index([targetLang])
+  @@index([baseLang])
+  @@map("courses")
+}
+
+/// A language-neutral story source. Animation is generated once, then
+/// every per-language Story reuses the same MasterScene stills +
+/// clips. The master_script field carries the line list in English
+/// with character + visual notes � the per-language translators copy
+/// from this and produce the per-language lines rows.
+model MasterStory {
+  id                     String   @id @default(cuid())
+  /// Stable URL key. e.g. "the-lion-and-the-mouse".
+  slug                   String   @unique
+  titleEn                String   @map("title_en")
+  /// CEFR level the story is authored at. Phase 1 ships A1 only.
+  cefrLevel              String   @map("cefr_level")
+  synopsis               String   @db.Text
+  /// JSON: ordered scenes ? ordered lines, with character + visual notes
+  /// in English. The shape matches docs/languages-phase1.md � 5.
+  masterScript           Json     @map("master_script")
+  /// JSON array of concept strings ("greetings", "numbers 1�10").
+  targetVocabConcepts    Json     @map("target_vocab_concepts")
+  /// Pipeline status of the still+clip generation. Pending ? Ready once
+  /// every scene has a usable clip.
+  animationStatus        String   @default("pending") @map("animation_status")
+  targetLang             String   @map("target_lang")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  targetLanguage  Language      @relation(fields: [targetLang], references: [code])
+  masterScenes    MasterScene[]
+  stories         Story[]
+
+  @@index([targetLang])
+  @@index([animationStatus])
+  @@map("master_stories")
+}
+
+/// One scene's shared visual. Generated once per MasterStory. Crucially
+/// the still + clip contain NO written text so every per-language
+/// Story can reuse them without re-rendering.
+model MasterScene {
+  id            String   @id @default(cuid())
+  masterStoryId String   @map("master_story_id")
+  order         Int
+  visualPrompt  String   @db.Text @map("visual_prompt")
+  stillUrl      String?  @map("still_url")
+  clipUrl       String?  @map("clip_url")
+  durationMs    Int?     @map("duration_ms")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  masterStory MasterStory @relation(fields: [masterStoryId], references: [id], onDelete: Cascade)
+  scenes      Scene[]
+
+  @@unique([masterStoryId, order])
+  @@index([masterStoryId])
+  @@map("master_scenes")
+}
+
+/// One language version of a master story. The translator (Patch 11
+/// pipeline) produces one row per (master_story, target_lang) and
+/// writes the per-language lines underneath. review_status is the
+/// admin approval gate from Patch 12.
+model Story {
+  id                String   @id @default(cuid())
+  masterStoryId     String   @map("master_story_id")
+  targetLang        String   @map("target_lang")
+  /// Localised title (e.g. "Le lion et la souris" for fr target).
+  title             String
+  /// JSON: per-base-language title. {en: "...", fr: "..."}.
+  titleTranslations Json     @map("title_translations")
+  cefrLevel         String   @map("cefr_level")
+  /// draft | in_review | approved | rejected. Patch 12 admin screen.
+  reviewStatus      String   @default("draft") @map("review_status")
+  reviewerId        String?  @map("reviewer_id")
+  reviewerNotes     String?  @db.Text @map("reviewer_notes")
+  isPublished       Boolean  @default(false) @map("is_published")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  masterStory    MasterStory @relation(fields: [masterStoryId], references: [id], onDelete: Cascade)
+  scenes         Scene[]
+  progressRows   StoryProgress[]
+
+  @@unique([masterStoryId, targetLang])
+  @@index([targetLang])
+  @@index([reviewStatus])
+  @@index([isPublished])
+  @@map("stories")
+}
+
+/// Per-language scene row. Mirrors MasterScene.order but allows a
+/// per-language re-ordering if the translator inserts/removes a beat.
+model Scene {
+  id            String   @id @default(cuid())
+  storyId       String   @map("story_id")
+  masterSceneId String   @map("master_scene_id")
+  order         Int
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  story         Story         @relation(fields: [storyId],       references: [id], onDelete: Cascade)
+  masterScene   MasterScene   @relation(fields: [masterSceneId], references: [id])
+  lines         Line[]
+  exercises     Exercise[]
+
+  @@unique([storyId, order])
+  @@index([storyId])
+  @@index([masterSceneId])
+  @@map("scenes")
+}
+
+/// One spoken subtitle line. 	ext is the target-language string as
+/// the learner sees it. 	ext_reading carries the reading aid (pinyin
+/// for zh, fully-pointed Hebrew for he, null otherwise). word_timings
+/// is the TTS alignment from ElevenLabs � the player uses it to
+/// highlight the current token.
+model Line {
+  id           String   @id @default(cuid())
+  sceneId      String   @map("scene_id")
+  order        Int
+  /// Character key (e.g. "lion", "mouse") or "narrator".
+  speaker      String
+  text         String   @db.Text
+  textReading  String?  @db.Text @map("text_reading")
+  /// JSON: {en: "...", fr: "..."} per-base translations.
+  translations Json
+  audioUrl     String?  @map("audio_url")
+  startMs      Int?     @map("start_ms")
+  endMs        Int?     @map("end_ms")
+  /// JSON: [{tokenId, startMs, endMs}] aligned to line_tokens.
+  wordTimings  Json?    @map("word_timings")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  scene    Scene           @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  tokens   LineToken[]
+  attempts PronunciationAttempt[]
+
+  @@unique([sceneId, order])
+  @@index([sceneId])
+  @@map("lines")
+}
+
+/// Dictionary entry per target language. The unique constraint on
+/// (target_lang, lemma, part_of_speech) keeps homonyms separate (verb
+/// vs noun "book"). glosses is the per-base-language meanings the
+/// word popup surfaces.
+model Lexeme {
+  id             String   @id @default(cuid())
+  targetLang     String   @map("target_lang")
+  lemma          String
+  /// Pinyin for zh, pointed Hebrew for he, null otherwise.
+  reading        String?
+  partOfSpeech   String   @map("part_of_speech")
+  /// m | f | n | null. Languages without grammatical gender stay null.
+  gender         String?
+  /// JSON: {en: ["..."], fr: ["..."]} � multiple glosses per base lang.
+  glosses        Json
+  audioUrl       String?  @map("audio_url")
+  /// Higher rank = more frequent. Used to sort the deck by priority.
+  frequencyRank  Int?     @map("frequency_rank")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  targetLanguage Language    @relation(fields: [targetLang], references: [code])
+  tokens         LineToken[]
+  userCards      UserVocab[]
+
+  @@unique([targetLang, lemma, partOfSpeech])
+  @@index([targetLang])
+  @@index([targetLang, frequencyRank])
+  @@map("lexemes")
+}
+
+/// One tappable token within a line. lexeme_id is null for
+/// punctuation tokens so we can render them but not surface a popup.
+/// is_new_in_story lets the player highlight newly-introduced vocab.
+model LineToken {
+  id            String   @id @default(cuid())
+  lineId        String   @map("line_id")
+  order         Int
+  surface       String
+  reading       String?
+  lexemeId      String?  @map("lexeme_id")
+  isNewInStory  Boolean  @default(false) @map("is_new_in_story")
+  startChar     Int      @map("start_char")
+  endChar       Int      @map("end_char")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  line   Line    @relation(fields: [lineId],   references: [id], onDelete: Cascade)
+  lexeme Lexeme? @relation(fields: [lexemeId], references: [id], onDelete: SetNull)
+
+  @@unique([lineId, order])
+  @@index([lineId])
+  @@index([lexemeId])
+  @@map("line_tokens")
+}
+
+/// One exercise attached to a scene. 	ype is the discriminator
+/// (comprehension_mc, word_meaning_mc, sentence_builder, listen_select,
+/// speak_line). payload and nswer shapes per type live in
+/// docs/languages-phase1.md � 8.
+model Exercise {
+  id        String   @id @default(cuid())
+  sceneId   String   @map("scene_id")
+  order     Int
+  /// comprehension_mc | word_meaning_mc | sentence_builder | listen_select | speak_line
+  type      String
+  payload   Json
+  answer    Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  scene    Scene             @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  attempts ExerciseAttempt[]
+
+  @@unique([sceneId, order])
+  @@index([sceneId])
+  @@index([type])
+  @@map("exercises")
+}
+
+/// Learner is studying a course. current_story_id is the spotlight
+/// "continue where I left off" pointer. Soft FK (no Prisma relation)
+/// because Story can be deleted by the admin and we want enrollments
+/// to survive a story takedown with current_story_id = null.
+model Enrollment {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  courseId        String   @map("course_id")
+  startedAt       DateTime @default(now()) @map("started_at")
+  lastActiveAt    DateTime @default(now()) @map("last_active_at")
+  currentStoryId  String?  @map("current_story_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user   User   @relation(fields: [userId],   references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+  @@index([lastActiveAt])
+  @@map("enrollments")
+}
+
+/// Per-user progress against a story. last_scene_order is what the
+/// player pre-seeks on open. score_pct is the rolling average across
+/// the scene's exercises, recomputed on each ExerciseAttempt.
+model StoryProgress {
+  id              String    @id @default(cuid())
+  userId          String    @map("user_id")
+  storyId         String    @map("story_id")
+  /// not_started | in_progress | completed
+  status          String    @default("not_started")
+  lastSceneOrder  Int       @default(1) @map("last_scene_order")
+  scorePct        Int       @default(0) @map("score_pct")
+  completedAt     DateTime? @map("completed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  user  User   @relation(fields: [userId],  references: [id], onDelete: Cascade)
+  story Story  @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, storyId])
+  @@index([userId])
+  @@index([storyId])
+  @@index([status])
+  @@map("story_progress")
+}
+
+/// One learner attempt at an exercise. is_correct is the boolean
+/// answer; score is the partial-credit score for speak_line only
+/// (0�100; null for the other four exercise types).
+model ExerciseAttempt {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  exerciseId String   @map("exercise_id")
+  /// JSON: the learner's response (selected option, built sentence,
+  /// recording id, etc.) � shape per Exercise.type.
+  response   Json
+  isCorrect  Boolean  @map("is_correct")
+  /// 0�100 for speak_line, null for the other types.
+  score      Int?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user     User     @relation(fields: [userId],     references: [id], onDelete: Cascade)
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([exerciseId])
+  @@map("exercise_attempts")
+}
+
+/// One learner attempt at speaking a line. 	ranscript is what Whisper
+/// heard; score is the comparison score 0�100; details carries
+/// per-word colouring + (for zh) tone results. Patch 08 owns the
+/// scoring logic.
+model PronunciationAttempt {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  lineId     String   @map("line_id")
+  audioUrl   String   @map("audio_url")
+  transcript String   @db.Text
+  /// 0�100 comparison score (100 = perfect).
+  score      Int
+  /// JSON: {perWord: [...], tones?: [...]} � per-word correctness +
+  /// tone breakdown for zh.
+  details    Json
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  line Line @relation(fields: [lineId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([lineId])
+  @@map("pronunciation_attempts")
+}
+
+/// One FSRS card per (user, lexeme). Patch 06 writes the first row when
+/// the learner taps "save" on a word popup. The FSRS fields track the
+/// spaced-repetition state machine. source_line_id is the line the
+/// learner was watching when they saved � we surface it as the example
+/// sentence in the deck.
+model UserVocab {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  lexemeId        String   @map("lexeme_id")
+  sourceLineId    String?  @map("source_line_id")
+  /// FSRS state machine.
+  due             DateTime
+  stability       Float    @default(0)
+  difficulty      Float    @default(0)
+  elapsedDays     Int      @default(0) @map("elapsed_days")
+  scheduledDays   Int      @default(0) @map("scheduled_days")
+  reps            Int      @default(0)
+  lapses          Int      @default(0)
+  /// new | learning | review | relearning
+  state           String   @default("new")
+  lastReview      DateTime? @map("last_review")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user   User        @relation(fields: [userId],   references: [id], onDelete: Cascade)
+  lexeme Lexeme      @relation(fields: [lexemeId], references: [id], onDelete: Cascade)
+  logs   ReviewLog[]
+
+  @@unique([userId, lexemeId])
+  @@index([userId, due])
+  @@index([lexemeId])
+  @@map("user_vocab")
+}
+
+/// One FSRS review log row per learner rating. Spec calls for the
+/// standard FSRS-5 log fields; we keep them as JSON in meta so the
+/// schema doesn't drift when the FSRS algorithm version bumps.
+model ReviewLog {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  userVocabId String   @map("user_vocab_id")
+  /// 1=Again 2=Hard 3=Good 4=Easy (FSRS convention).
+  rating      Int
+  reviewAt    DateTime @map("review_at")
+  /// JSON snapshot of the FSRS log fields per review (stability,
+  /// difficulty, scheduled_days, elapsed_days).
+  meta        Json
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user      User      @relation(fields: [userId],      references: [id], onDelete: Cascade)
+  userVocab UserVocab @relation(fields: [userVocabId], references: [id], onDelete: Cascade)
+
+  @@index([userId, reviewAt])
+  @@index([userVocabId])
+  @@map("review_logs")
+}
+
+/// Per-user aggregate for streaks + XP. userId IS the primary key
+/// (the spec calls this out) � there is exactly one stats row per
+/// learner, ever. lastActivityDate is a calendar date (not a
+/// timestamp) so streak math doesn't depend on timezone drift.
+model LearnerStats {
+  userId              String   @id @map("user_id")
+  xpTotal             Int      @default(0) @map("xp_total")
+  currentStreakDays   Int      @default(0) @map("current_streak_days")
+  longestStreakDays   Int      @default(0) @map("longest_streak_days")
+  lastActivityDate    DateTime? @map("last_activity_date") @db.Date
+  /// IANA tz string (e.g. "Africa/Lagos") � used so streak rollovers
+  /// honour the learner's wall clock, not the server's.
+  timezone            String   @default("UTC")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("learner_stats")
 }
