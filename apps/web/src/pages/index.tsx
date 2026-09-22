@@ -90,7 +90,7 @@ export default function HomePage() {
   return (
     <div className="app-shell home-page">
       {splashVisible && (
-        <SplashScreen durationMs={1000} onComplete={() => setSplashVisible(false)} />
+        <SplashScreen onComplete={() => setSplashVisible(false)} />
       )}
       <Topbar variant="cinematic" />
 

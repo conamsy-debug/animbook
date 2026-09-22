@@ -4540,13 +4540,21 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 /* ==== Splash screen ====
    First thing the user sees on the homepage. Full-viewport fixed
    overlay covering the cinematic topbar so nothing peeks from
-   underneath during the 1-second intro. The animation timing is:
-     0-350ms   fade + scale-in on the mark
-     350-700ms hold
-     700-1000ms fade-out
+   underneath during the intro. The mark grows from a tiny seed to
+   almost half the viewport height, the gold glow intensifies while
+   it grows, and the wordmark rides up into place just before the
+   mark lands. Then a 180ms fade-out and the homepage paints
+   (it's been SSR-rendered the whole time, so no extra fetch).
+
+   Timeline (total ~1100ms):
+     0-720ms    mark grows 0.18 -> 1.0 + opacity 0 -> 1
+                glow grows 0 -> full
+     480-820ms  wordmark fades + slides up (rides in as the mark lands)
+     88% keyframe (633ms) brief 5% bloom: scale 1.0 -> 1.05 -> 1.0
+     820-1000ms overlay fades to 0 + visibility:hidden
    Reduced-motion users skip the scale + skip the fade-out
-   (existing global rule reduces animation-duration to ~0; we just
-   shorten the visible time inside the React timer instead). */
+   (existing global rule reduces animation-duration to ~0; we
+   also shorten the visible time inside the React timer to 200ms). */
 .home-page .ab-splash {
   position: fixed;
   inset: 0;
@@ -4555,45 +4563,73 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   display: grid;
   place-items: center;
   cursor: pointer;
-  animation: ab-splash-out 300ms cubic-bezier(0.4, 0, 1, 1) 700ms both;
+  animation: ab-splash-out 180ms cubic-bezier(0.4, 0, 1, 1) 820ms both;
 }
 .home-page .ab-splash-mark {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
-  animation: ab-splash-in 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  gap: 22px;
+  /* expo-out: very fast start, gentle stop, no overshoot - keeps the
+     landing cinematic instead of cartoonish. */
+  animation: ab-splash-in 720ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* Make the rightmost pixel of the rendered logo roughly center on
+     the screen even as it grows - keeps the visual focal point stable
+     through the animation. */
+  will-change: transform, opacity;
 }
 .home-page .ab-splash-mark svg {
-  filter: drop-shadow(0 0 28px rgba(196, 154, 28, 0.45));
+  /* Glow rises with the mark - same easing so the bloom feels coupled. */
+  filter: drop-shadow(0 0 0 rgba(196, 154, 28, 0));
+  animation: ab-splash-glow 720ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .home-page .ab-splash-word {
   font-family: var(--home-display);
-  font-size: 46px;
+  font-size: clamp(72px, 9vw, 128px);
   font-weight: 500;
   letter-spacing: 0.01em;
-  color: #F2EEE6;
   background: linear-gradient(135deg, #F6DC86 0%, #C49A1C 70%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
+  /* Wordmark rides up into place as the mark lands (~480ms in).
+     Uses the same easing for consistency. */
+  animation: ab-splash-word-in 340ms cubic-bezier(0.16, 1, 0.3, 1) 480ms both;
 }
 @keyframes ab-splash-in {
-  from { opacity: 0; transform: scale(0.9) translateY(6px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
+  0%   { opacity: 0; transform: scale(0.18); }
+  78%  { opacity: 1; transform: scale(1); }
+  88%  { transform: scale(1.05); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes ab-splash-glow {
+  0%   { filter: drop-shadow(0 0 0 rgba(196, 154, 28, 0)); }
+  78%  { filter: drop-shadow(0 0 64px rgba(196, 154, 28, 0.55)); }
+  88%  { filter: drop-shadow(0 0 88px rgba(196, 154, 28, 0.7)); }
+  100% { filter: drop-shadow(0 0 64px rgba(196, 154, 28, 0.55)); }
+}
+@keyframes ab-splash-word-in {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes ab-splash-out {
   from { opacity: 1; visibility: visible; }
   to   { opacity: 0; visibility: hidden; }
 }
 @media (prefers-reduced-motion: reduce) {
-  /* The user prefers stillness — kill the scale-in and the fade-out,
-     keep the splash on screen for a static 200ms instead of 1s. */
+  /* The user prefers stillness - kill the grow/bloom/fade animations
+     and let the splash hold a static frame for ~200ms instead. */
   .home-page .ab-splash,
-  .home-page .ab-splash-mark {
+  .home-page .ab-splash-mark,
+  .home-page .ab-splash-mark svg,
+  .home-page .ab-splash-word {
     animation: none !important;
   }
+  /* Show the wordmark on the static frame too - otherwise reduced-
+     motion users would see the gold mark with no label. */
+  .home-page .ab-splash-word { opacity: 1; transform: none; }
+  .home-page .ab-splash-mark svg { filter: drop-shadow(0 0 64px rgba(196, 154, 28, 0.55)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

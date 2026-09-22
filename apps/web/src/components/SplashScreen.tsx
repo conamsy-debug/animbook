@@ -22,7 +22,7 @@ interface Props {
  * Clicking or pressing Escape dismisses early so the user is never
  * trapped behind the splash on a slow device or a JS error.
  */
-export function SplashScreen({ durationMs = 1000, onComplete }: Props) {
+export function SplashScreen({ durationMs = 1100, onComplete }: Props) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -55,7 +55,7 @@ export function SplashScreen({ durationMs = 1000, onComplete }: Props) {
       data-testid="ab-splash"
     >
       <div className="ab-splash-mark">
-        <LogoMark size={92} title="AnimBook" />
+        <LogoMark size={320} title="AnimBook" />
         <span className="ab-splash-word">AnimBook</span>
       </div>
     </div>
