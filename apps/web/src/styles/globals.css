@@ -2283,19 +2283,66 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 .project-item {
   width: 100%;
   display: flex;
-  gap: 10px;
-  align-items: center;
-  padding: 8px;
+  gap: 4px;
+  align-items: stretch;
   border-radius: 12px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--text);
+  position: relative;
+}
+.project-item:hover { background: rgba(255, 255, 255, 0.04); }
+.project-item.active { border-color: rgba(196, 154, 28, 0.5); background: rgba(196, 154, 28, 0.08); }
+.project-item.deleting { opacity: .55; pointer-events: none; }
+
+/* The inner clickable area (formerly the whole project-item button).
+   Now a real <button> so it gets focus ring + keyboard semantics
+   for free; sibling .project-delete button stops propagation. */
+.project-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
   text-align: left;
   font: inherit;
   cursor: pointer;
 }
-.project-item:hover { background: rgba(255, 255, 255, 0.04); }
-.project-item.active { border-color: rgba(196, 154, 28, 0.5); background: rgba(196, 154, 28, 0.08); }
+.project-main:focus-visible {
+  outline: 2px solid rgba(196, 154, 28, 0.6);
+  outline-offset: 1px;
+}
+.project-main:disabled { cursor: progress; }
+
+/* Trash-style delete affordance. Visible only on hover/focus of the
+   row to keep the projects list calm; always rendered for keyboard
+   users who tab into it. */
+.project-delete {
+  flex: 0 0 auto;
+  width: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s ease, background .15s ease, color .15s ease;
+}
+.project-item:hover .project-delete,
+.project-delete:focus-visible { opacity: 1; }
+.project-delete:hover { background: rgba(201, 75, 50, 0.18); color: #f2a08e; }
+.project-delete:focus-visible { outline: 2px solid rgba(201, 75, 50, 0.5); outline-offset: 1px; opacity: 1; }
+.project-delete:disabled { cursor: progress; }
 .project-cover {
   width: 40px;
   height: 54px;

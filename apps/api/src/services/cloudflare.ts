@@ -114,3 +114,30 @@ export const cloudflareStatus = {
   live: isFeatureEnabled("CLOUDFLARE"),
   cdnBase: appEnv.CLOUDFLARE_CDN_BASE ?? null
 };
+
+/**
+ * Best-effort delete of a single R2 object by key.
+ *
+ * Returns true if the object was deleted (or already absent) and
+ * false when R2 is misconfigured, unreachable, or returned an error.
+ * Callers should treat R2 cleanup as best-effort: a failed delete
+ * here must not block the rest of a "delete everything" operation
+ * (the DB cleanup is what users notice).
+ */
+export async function deleteAsset(key: string | null | undefined): Promise<boolean> {
+  if (!key) return false;
+  if (!isFeatureEnabled("CLOUDFLARE")) return false;
+  if (/^https?:\/\//i.test(key)) return false;
+  try {
+    const response = await r2().fetch(objectUrl(key), { method: "DELETE" });
+    // R2 returns 204 No Content on success; 404 means already gone,
+    // which we also treat as success.
+    if (response.ok || response.status === 404) return true;
+    const detail = await response.text().catch(() => "");
+    console.warn(`[r2] delete failed (${response.status}) for ${key}: ${detail.slice(0, 200)}`);
+    return false;
+  } catch (err) {
+    console.warn(`[r2] delete threw for ${key}: ${(err as Error).message}`);
+    return false;
+  }
+}

@@ -494,6 +494,45 @@ export default function StudioPage() {
     }
   }
 
+  /**
+   * Permanently delete a studio project (and its book, pages, brain,
+   * narration, generation jobs — everything the API cascades). The
+   * DELETE route does the DB cleanup server-side; this client just
+   * confirms intent, fires the call, and refreshes the list.
+   *
+   * If the project we're deleting is the one currently open, we
+   * close it too so the right pane returns to "new project" state
+   * instead of showing a stale detail for a record that no longer
+   * exists.
+   */
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function deleteProject(p: ProjectListItem) {
+    const label = p.book?.title ?? p.name;
+    const pages = p.book?.pageCount ?? 0;
+    const detail = pages > 0
+      ? `This will permanently delete "${label}" — every page, narration, generation job, and the manuscript in storage. This cannot be undone.`
+      : `This will permanently delete "${label}". This cannot be undone.`;
+    if (!window.confirm(detail)) return;
+    setDeletingId(p.id);
+    try {
+      await apiFetch(`/api/studio/projects/${encodeURIComponent(p.id)}`, { method: "DELETE" });
+      if (projectId === p.id) {
+        eventSourceRef.current?.close();
+        eventSourceRef.current = null;
+        setProject(null);
+        setEvents([]);
+        setView("SETUP");
+      }
+      await loadProjects();
+      toast(`Deleted "${label}"`);
+    } catch (err) {
+      toast(`Could not delete project: ${(err as Error).message}`);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   // Release schedule state (Studio-side draft, saved on Save / Publish).
   const [scheduleMode, setScheduleMode] = useState<"IMMEDIATE" | "TIME" | "TASK">("IMMEDIATE");
   const [scheduleCadence, setScheduleCadence] = useState<"DAILY" | "WEEKLY" | "MONTHLY">("WEEKLY");
@@ -650,20 +689,44 @@ export default function StudioPage() {
             {projects === null && <p className="muted small">Loading…</p>}
             {projects?.length === 0 && <p className="muted small">No projects yet. Start one on the right.</p>}
             <ul>
-              {projects?.map((p) => (
-                <li key={p.id}>
-                  <button type="button" className={`project-item${p.id === projectId ? " active" : ""}`} onClick={() => void openProject(p.id)}>
-                    <span className="project-cover" style={{ backgroundImage: p.book?.coverUrl ? `url(${p.book.coverUrl})` : undefined }} />
-                    <span className="project-text">
-                      <strong>{p.book?.title ?? p.name}</strong>
-                      <small>
-                        {verticalById(p.vertical)?.label ?? p.vertical} · {p.book?.pageCount ?? 0} pages
-                      </small>
-                      <span className={`status-chip s-${p.status.toLowerCase()}`}>{STATUS_TEXT[p.status] ?? p.status}</span>
-                    </span>
-                  </button>
-                </li>
-              ))}
+              {projects?.map((p) => {
+                const title = p.book?.title ?? p.name;
+                const isDeleting = deletingId === p.id;
+                return (
+                  <li key={p.id}>
+                    <div className={`project-item${p.id === projectId ? " active" : ""}${isDeleting ? " deleting" : ""}`}>
+                      <button
+                        type="button"
+                        className="project-main"
+                        onClick={() => void openProject(p.id)}
+                        disabled={isDeleting}
+                      >
+                        <span className="project-cover" style={{ backgroundImage: p.book?.coverUrl ? `url(${p.book.coverUrl})` : undefined }} />
+                        <span className="project-text">
+                          <strong>{title}</strong>
+                          <small>
+                            {verticalById(p.vertical)?.label ?? p.vertical} · {p.book?.pageCount ?? 0} pages
+                          </small>
+                          <span className={`status-chip s-${p.status.toLowerCase()}`}>{STATUS_TEXT[p.status] ?? p.status}</span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="project-delete"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void deleteProject(p);
+                        }}
+                        disabled={isDeleting}
+                        aria-label={`Delete "${title}"`}
+                        title={isDeleting ? "Deleting…" : "Delete project"}
+                      >
+                        {isDeleting ? "…" : "\u00D7"}
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </aside>
 

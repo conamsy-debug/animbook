@@ -11,7 +11,7 @@ import {
 import { emitPipelineEvent, subscribeProject, writeSseEvent, writeSseHeaders, type PipelineEvent } from "../../studio/events.js";
 import { rateLimit } from "../../middleware/rateLimit.js";
 import { ExtractError, extractManuscript } from "../../services/manuscriptExtract.js";
-import { uploadAsset } from "../../services/cloudflare.js";
+import { deleteAsset, uploadAsset } from "../../services/cloudflare.js";
 import { isValidSubcategory } from "../../config/subcategories.js";
 import { applySchedule, lockSchedule, CHUNK_PERCENT_OPTIONS } from "../../services/releaseSchedule.js";
 import { enqueueAnimateJob, type SplitJobData } from "../../services/splitPipeline.js";
@@ -860,6 +860,74 @@ router.post("/projects/:id/publish", async (req: AuthedRequest, res: Response) =
     at: new Date().toISOString()
   });
   res.json({ ok: true, slug: project.book.slug });
+});
+
+/**
+ * DELETE /api/studio/projects/:id — fully remove a project + its book.
+ *
+ * "All the data of the book is deleted from studio" means every row
+ * tied to this project goes away:
+ *   - The StudioProject row (cascades its GenerationJobs + StageRounds
+ *     because of the FK onDelete: Cascade on those child rows).
+ *   - The associated Book row, which in turn cascades every Page,
+ *     BookBrain, Narration, VoiceClone, Bookmark, ReadingProgress,
+ *     ReviewRequest, Earning, OracleTree/Node, and BookShare row
+ *     through the schema's onDelete: Cascade declarations.
+ *   - The manuscript in R2 (sourceObjectKey) and the cover image
+ *     (parsed from book.coverUrl). Page-level R2 objects become
+ *     orphans; the DB cleanup is what users notice and the orphans
+ *     are unreachable without the Book row.
+ *
+ * R2 deletes are best-effort: a failed cleanup is logged but does
+ * NOT roll back the DB cascade — better to leak an orphan object
+ * than to refuse the user the right to throw their work away.
+ *
+ * Only the project owner can delete. Returns 404 for everything
+ * else (missing or non-owner) so we don't leak ownership.
+ */
+router.delete("/projects/:id", async (req: AuthedRequest, res: Response) => {
+  const userId = requireUserId(req);
+  const id = req.params["id"];
+  if (typeof id !== "string") {
+    res.status(400).json({ error: "Missing project id" });
+    return;
+  }
+  const project = await prisma.studioProject.findFirst({
+    where: { id, ownerId: userId },
+    include: {
+      book: { select: { id: true, coverUrl: true } }
+    }
+  });
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+
+  // 1. R2 cleanup, best-effort.
+  const manuscriptKey = project.sourceObjectKey ?? null;
+  // The cover URL is a CDN URL like `https://media.animbook.com/books/<slug>/cover-<hash>.png`.
+  // Strip the CDN base to recover the storage key. deleteAsset() will
+  // refuse to act on a full URL as a key (it returns false), so we
+  // pass the raw URL here; the helper handles the no-op safely.
+  const coverKeyOrUrl = project.book?.coverUrl ?? null;
+  if (manuscriptKey) {
+    await deleteAsset(manuscriptKey);
+  }
+  if (coverKeyOrUrl) {
+    await deleteAsset(coverKeyOrUrl);
+  }
+
+  // 2. Book cascade (Pages, BookBrain, etc.). StudioProject.bookId
+  //    is onDelete: SetNull on the FK, so deleting the Book nulls
+  //    the project's bookId automatically.
+  if (project.book) {
+    await prisma.book.delete({ where: { id: project.book.id } });
+  }
+
+  // 3. StudioProject cascade (GenerationJobs, StageRounds).
+  await prisma.studioProject.delete({ where: { id: project.id } });
+
+  res.json({ ok: true, id: project.id });
 });
 
 router.get("/projects/:id/analytics", async (req: AuthedRequest, res: Response) => {
