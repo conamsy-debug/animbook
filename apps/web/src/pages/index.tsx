@@ -9,6 +9,7 @@ import { BeforeAfter } from "@/components/homepage/BeforeAfter";
 import { VerticalSection } from "@/components/homepage/VerticalSection";
 import { OracleMarquee } from "@/components/nextgen/OracleMarquee";
 import { ConstellationStrip } from "@/components/nextgen/ConstellationStrip";
+import { SplashScreen } from "@/components/SplashScreen";
 import { apiFetch, type BookSummary, type PageRecord } from "@/lib/api";
 import { loadVoices } from "@/lib/voices";
 import { useResilientFetch } from "@/lib/useResilientFetch";
@@ -34,6 +35,12 @@ import { useFeaturedRotator } from "@/lib/homepage/useFeaturedRotator";
  */
 export default function HomePage() {
   const { isSignedIn } = useAuth();
+  // Splash overlay — the brief asks for a 1-second logo intro
+  // before the homepage opens. We render the splash as the very
+  // first child of the page so it sits on top of the (covered)
+  // topbar; after 1s we unmount it. The component itself reads
+  // prefers-reduced-motion and shortens its own timer.
+  const [splashVisible, setSplashVisible] = useState(true);
 
   const { data: booksData, loading } = useResilientFetch<{ items: BookSummary[] }>(
     "/api/books?status=PUBLISHED&limit=100",
@@ -82,6 +89,9 @@ export default function HomePage() {
 
   return (
     <div className="app-shell home-page">
+      {splashVisible && (
+        <SplashScreen durationMs={1000} onComplete={() => setSplashVisible(false)} />
+      )}
       <Topbar variant="cinematic" />
 
       <ErrorBoundary
