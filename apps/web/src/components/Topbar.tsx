@@ -23,6 +23,21 @@ const links = [
   { href: "/network", label: "Network" }
 ];
 
+// AnimBook Languages (Phase 1). Hidden from the topbar until the LANGUAGES
+// feature flag is on. NEXT_PUBLIC_* is inlined at build time by Next.js, so
+// this evaluates once on the server during prerender and ships dead code
+// (the languages.tsx page renders <NotAvailable />) when the flag is off.
+const LANGUAGES_ENABLED = process.env.NEXT_PUBLIC_LANGUAGES_ENABLED === "true";
+if (LANGUAGES_ENABLED) {
+  // Insert directly after "EDU" so Languages sits with the other learning
+  // surfaces (Library, Worlds, Studio, EDU) rather than in the experimental
+  // section at the end. The matching `links.findIndex` keeps this stable
+  // if the surrounding nav order shifts.
+  const eduIdx = links.findIndex((l) => l.href === "/edu");
+  const insertAt = eduIdx >= 0 ? eduIdx + 1 : links.length;
+  links.splice(insertAt, 0, { href: "/languages", label: "Languages" });
+}
+
 const HAS_CLERK = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
 interface TopbarProps {

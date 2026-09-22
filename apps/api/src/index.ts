@@ -13,7 +13,7 @@
 import express, { type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
-import { appEnv, featureStatus } from "./config/env.js";
+import { appEnv, featureStatus, isFeatureEnabled } from "./config/env.js";
 import { isOriginAllowed } from "./config/origins.js";
 import { initSentry, captureException } from "./observability/sentry.js";
 import books from "./modules/books/routes.js";
@@ -51,6 +51,7 @@ import messages from "./modules/messages/routes.js";
 import share, { sharePublicRouter } from "./modules/share/routes.js";
 import accountVoice from "./modules/account-voice/routes.js";
 import docs from "./modules/docs/routes.js";
+import languages from "./modules/languages/routes.js";
 import { startPipelineWorker, startPipelineEvents } from "./services/pipeline.js";
 import { startSplitWorkers, shutdownSplitPipeline } from "./services/splitPipeline.js";
 
@@ -123,6 +124,13 @@ app.use("/api/studio-pro", studioProPublicRouter);
 app.use("/api", legal);
 app.use("/api/docs", docs);
 app.use("/api", networkPublicRouter);
+
+// AnimBook Languages (Phase 1) — mounted only when LANGUAGES_ENABLED=true
+// so the feature ships dark by default. The full router catalogue is in
+// src/appRoutes.ts; this is the single mount point.
+if (isFeatureEnabled("LANGUAGES")) {
+  app.use("/api/lang", languages);
+}
 
 app.use((req: Request, res: Response) => {
   res.status(404).json({ error: "Not found", path: req.path });

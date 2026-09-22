@@ -8,7 +8,7 @@
  */
 import "dotenv/config";
 
-type Feature = "CLERK" | "BOOK_BRAIN" | "RUNWAY" | "ELEVENLABS" | "OPENAI" | "STRIPE" | "CLOUDFLARE";
+type Feature = "CLERK" | "BOOK_BRAIN" | "RUNWAY" | "ELEVENLABS" | "OPENAI" | "STRIPE" | "CLOUDFLARE" | "LANGUAGES";
 
 const env = process.env;
 
@@ -55,6 +55,7 @@ export interface AppEnv {
   CLOUDFLARE_CDN_BASE: string | undefined;
   SENTRY_DSN: string | undefined;
   SENTRY_TRACES_SAMPLE_RATE: number;
+  LANGUAGES_ENABLED: boolean;
   RELEASE: string;
 }
 
@@ -95,6 +96,9 @@ export const appEnv: AppEnv = {
   CLOUDFLARE_CDN_BASE: optional("CLOUDFLARE_CDN_BASE"),
   SENTRY_DSN: optional("SENTRY_DSN"),
   SENTRY_TRACES_SAMPLE_RATE: Number(env.SENTRY_TRACES_SAMPLE_RATE ?? "0.1"),
+  // AnimBook Languages (Phase 1). Phase 1 default off so the scaffold ships
+  // dark until we flip the flag and ship the rest of the patches.
+  LANGUAGES_ENABLED: (env.LANGUAGES_ENABLED ?? "false").toLowerCase() === "true",
   RELEASE: env.RELEASE ?? "animbook-api@0.11.0-local"
 };
 
@@ -116,6 +120,8 @@ export function isFeatureEnabled(feature: Feature): boolean {
       return Boolean(
         appEnv.CLOUDFLARE_ACCOUNT_ID && appEnv.CLOUDFLARE_R2_ACCESS_KEY_ID && appEnv.CLOUDFLARE_R2_SECRET_ACCESS_KEY
       );
+    case "LANGUAGES":
+      return appEnv.LANGUAGES_ENABLED;
     default:
       return false;
   }
@@ -128,5 +134,6 @@ export const featureStatus = {
   elevenlabs: isFeatureEnabled("ELEVENLABS"),
   openai: isFeatureEnabled("OPENAI"),
   stripe: isFeatureEnabled("STRIPE"),
-  cloudflare: isFeatureEnabled("CLOUDFLARE")
+  cloudflare: isFeatureEnabled("CLOUDFLARE"),
+  languages: isFeatureEnabled("LANGUAGES")
 } as const;

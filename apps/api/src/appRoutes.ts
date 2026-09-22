@@ -315,6 +315,21 @@ export const APP_ROUTES: Module[] = [
     ]
   },
   {
+    id: "languages",
+    title: "AnimBook Languages",
+    description:
+      "Interactive language-learning: animated stories, tappable subtitles, vocabulary deck with FSRS, 5 exercise types, pronunciation scoring. Phase 1 ships English/French UI and 7 target languages (en, fr, es, zh-Hans, de, it, he). Routes mount only when LANGUAGES_ENABLED=true.",
+    routes: [
+      {
+        method: "GET",
+        path: "/api/lang/health",
+        auth: "public",
+        summary: "Health probe for the Languages module.",
+        notes: "Returns { ok, feature, patch, status }. Mounted only when LANGUAGES_ENABLED=true."
+      }
+    ]
+  },
+  {
     id: "dream",
     title: "AnimBook DREAM",
     description: "Sleep-mode for WELLNESS AnimBooks. Auto-applies a slower palette + gentle narration when a WELLNESS book opens.",

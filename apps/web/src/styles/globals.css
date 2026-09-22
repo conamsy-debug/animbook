@@ -5775,3 +5775,251 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   }
   .home-page .home-constellation-preview { flex-basis: 110px; }
 }
+
+
+/* ==== AnimBook Languages (Phase 1) — landing + not-available surface ====
+   Scaffold only. Lives under its own .lang-page scope so the design system
+   can grow without colliding with homepage / library / dream rules.
+   Mobile-first 375px, cinematic feel, gold accent to match the rest of
+   the AnimBook shell. */
+
+.lang-page {
+  --lang-accent: #c49a1c;
+  --lang-accent-glow: rgba(196, 154, 28, 0.35);
+  --lang-ink: #f5ecd2;
+  --lang-ink-dim: rgba(245, 236, 210, 0.7);
+  --lang-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+  --lang-card-border: rgba(196, 154, 28, 0.18);
+}
+
+.lang-page .lang-landing {
+  min-height: calc(100vh - 80px);
+  display: grid;
+  place-items: center;
+  padding: 64px 16px 48px;
+  position: relative;
+  isolation: isolate;
+}
+
+.lang-page .lang-landing::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 0%, rgba(196, 154, 28, 0.08) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 20% at 50% 100%, rgba(196, 154, 28, 0.04) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.lang-page .lang-landing-inner {
+  max-width: 880px;
+  width: 100%;
+  text-align: center;
+}
+
+.lang-page .lang-eyebrow {
+  font-family: var(--font-mono, 'DM Mono', ui-monospace, monospace);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--lang-accent);
+  margin: 0 0 18px;
+}
+
+.lang-page .lang-title {
+  font-family: var(--font-serif, 'Cormorant Garamond', Georgia, serif);
+  font-weight: 500;
+  font-size: clamp(38px, 6vw, 64px);
+  line-height: 1.05;
+  margin: 0 0 14px;
+  color: var(--lang-ink);
+}
+
+.lang-page .lang-subtitle {
+  font-size: clamp(15px, 2vw, 18px);
+  line-height: 1.55;
+  color: var(--lang-ink-dim);
+  max-width: 640px;
+  margin: 0 auto 36px;
+}
+
+.lang-page .lang-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+  text-align: left;
+}
+
+.lang-page .lang-card {
+  border: 1px solid var(--lang-card-border);
+  border-radius: 14px;
+  padding: 22px 20px;
+  background: var(--lang-card-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color 220ms ease, transform 220ms ease;
+}
+
+.lang-page .lang-card:hover {
+  border-color: rgba(196, 154, 28, 0.45);
+  transform: translateY(-2px);
+}
+
+.lang-page .lang-card-flag {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.lang-page .lang-card-native {
+  font-family: var(--font-serif, 'Cormorant Garamond', Georgia, serif);
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--lang-ink);
+}
+
+.lang-page .lang-card-en {
+  font-size: 13px;
+  color: var(--lang-ink-dim);
+  margin: 0;
+}
+
+.lang-page .lang-card-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+.lang-page .lang-pill {
+  font-family: var(--font-mono, 'DM Mono', ui-monospace, monospace);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(196, 154, 28, 0.35);
+  color: var(--lang-accent);
+  background: rgba(196, 154, 28, 0.06);
+}
+
+.lang-page .lang-pill.script {
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--lang-ink-dim);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.lang-page .lang-pill.rtl {
+  border-color: rgba(220, 100, 100, 0.45);
+  color: #e7a8a8;
+  background: rgba(220, 100, 100, 0.08);
+}
+
+.lang-page .lang-card[dir='rtl'] {
+  text-align: right;
+}
+
+.lang-page .lang-cta-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 40px;
+}
+
+.lang-page .lang-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
+  text-decoration: none;
+}
+
+.lang-page .lang-btn.primary {
+  background: var(--lang-accent);
+  color: #161310;
+  border-color: var(--lang-accent);
+}
+
+.lang-page .lang-btn.primary:hover {
+  background: #d8b13a;
+  border-color: #d8b13a;
+}
+
+.lang-page .lang-btn.ghost {
+  background: transparent;
+  color: var(--lang-ink);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.lang-page .lang-btn.ghost:hover {
+  border-color: var(--lang-accent);
+  color: var(--lang-accent);
+}
+
+.lang-page .lang-footnote {
+  font-size: 12px;
+  color: var(--lang-ink-dim);
+  margin-top: 18px;
+  text-align: center;
+  opacity: 0.7;
+}
+
+/* Not-available page (when LANGUAGES_ENABLED is false) */
+
+.lang-page .lang-not {
+  min-height: calc(100vh - 80px);
+  display: grid;
+  place-items: center;
+  padding: 64px 16px;
+  text-align: center;
+}
+
+.lang-page .lang-not-card {
+  max-width: 480px;
+  padding: 36px 28px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.lang-page .lang-not-emoji {
+  font-size: 44px;
+  margin: 0 0 14px;
+  line-height: 1;
+}
+
+.lang-page .lang-not-title {
+  font-family: var(--font-serif, 'Cormorant Garamond', Georgia, serif);
+  font-size: 28px;
+  font-weight: 500;
+  margin: 0 0 10px;
+  color: var(--lang-ink);
+}
+
+.lang-page .lang-not-body {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--lang-ink-dim);
+  margin: 0 0 22px;
+}
+
+/* Phone */
+
+@media (max-width: 699px) {
+  .lang-page .lang-landing { padding: 48px 14px 36px; }
+  .lang-page .lang-grid { grid-template-columns: 1fr; gap: 14px; }
+  .lang-page .lang-card { padding: 18px 16px; }
+  .lang-page .lang-cta-row { flex-direction: column; align-items: stretch; }
+  .lang-page .lang-btn { justify-content: center; }
+}
