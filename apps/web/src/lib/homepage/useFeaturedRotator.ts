@@ -176,18 +176,28 @@ export function useFeaturedRotator({
   // is set we still prefetch the entire pool (cheap, bounded) so the
   // page cache stays consistent — and if the caller later drops the
   // force, rotation can resume without a cold start.
+  //
+  // CRITICAL: also prefetch the forced book's slug if it's set. The
+  // pool is curated by tier (cover+synopsis first) and the forced
+  // book might not rank in the top N. Without this, `featuredPage`
+  // stays null and the LivingCard + BeforeAfter render placeholders
+  // even though `featuredBook` resolves correctly.
   const [pagesBySlug, setPagesBySlug] = useState<Record<string, PageRecord[]>>({});
   const fetchedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     const fetcher = fetcherRef.current;
-    if (!fetcher || pool.length === 0) return;
-    for (const book of pool) {
-      if (fetchedRef.current.has(book.slug)) continue;
+    if (!fetcher) return;
+    const slugsToFetch = new Set<string>();
+    for (const book of pool) slugsToFetch.add(book.slug);
+    const forcedSlug = forceSlugRef.current;
+    if (forcedSlug) slugsToFetch.add(forcedSlug);
+    if (slugsToFetch.size === 0) return;
+    for (const slug of slugsToFetch) {
+      if (fetchedRef.current.has(slug)) continue;
       // We optimistically claim the slug so a race with the
       // pagesBySlug snapshot below can't double-fetch, and so re-runs
       // while the fetch is in flight won't re-trigger it.
-      fetchedRef.current.add(book.slug);
-      const slug = book.slug;
+      fetchedRef.current.add(slug);
       fetcher(slug)
         .then((pages) => {
           if (!Array.isArray(pages)) return;
@@ -199,7 +209,7 @@ export function useFeaturedRotator({
           fetchedRef.current.delete(slug);
         });
     }
-  }, [pool]);
+  }, [pool, forceSlug]);
 
   const pages = resolvedBook ? pagesBySlug[resolvedBook.slug] ?? null : null;
   const page = pages ? pickBestPage(pages) : null;
