@@ -100,3 +100,20 @@ export function shouldAdvance(opts: {
   if (opts.hovering) return false;
   return true;
 }
+
+/**
+ * Resolve a `forceSlug` against the books list.
+ *
+ * Returns the book whose `slug` matches `forceSlug`, or `null` if
+ * no `forceSlug` was supplied OR the slug isn't in the catalog.
+ * The rotator hook calls this and uses the result as the visible
+ * book (overriding the rotation index) when non-null.
+ */
+export function resolveForcedBook(
+  books: BookSummary[],
+  forceSlug: string | null | undefined
+): BookSummary | null {
+  if (!forceSlug) return null;
+  if (!Array.isArray(books) || books.length === 0) return null;
+  return books.find((b) => b.slug === forceSlug) ?? null;
+}

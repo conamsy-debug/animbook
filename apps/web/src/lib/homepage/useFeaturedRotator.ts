@@ -24,7 +24,8 @@ import {
   DEFAULT_POOL_SIZE,
   nextIndex,
   pickBestPage,
-  pickFeaturedCandidates
+  pickFeaturedCandidates,
+  resolveForcedBook
 } from "./featuredRotator";
 
 export interface UseFeaturedRotatorOpts {
@@ -49,6 +50,13 @@ export interface UseFeaturedRotatorOpts {
    *  tests, storybook, or callers that want their own pause logic
    *  (e.g. video open, modal visible). */
   paused?: boolean;
+  /** Pin the rotator to a specific book slug. When set, the hook
+   *  resolves `book` and `page` from this slug regardless of the
+   *  rotation index. Falls back to the rotator's natural pick if
+   *  the slug isn't found in `books`. Useful for "feature this
+   *  specific title right now" without rewriting the picker.
+   *  Re-resolves whenever `forceSlug` changes. */
+  forceSlug?: string | null;
 }
 
 export interface RotatorResult {
@@ -59,7 +67,8 @@ export interface RotatorResult {
    *  fetcher was supplied. */
   page: PageRecord | null;
   /** Current rotation index. Useful for showing a tiny "1 of 6"
-   *  progress dot if desired. */
+   *  progress dot if desired. When `forceSlug` is set, this stays
+   *  at the index the forced book naturally occupies (or 0). */
   index: number;
   /** True only while the current book's pages are still being
    *  fetched. False when no fetcher was passed or pages have arrived. */
@@ -72,7 +81,8 @@ export function useFeaturedRotator({
   poolSize = DEFAULT_POOL_SIZE,
   pageFetcher,
   pauseOnHoverRef,
-  paused
+  paused,
+  forceSlug
 }: UseFeaturedRotatorOpts): RotatorResult {
   const pool = useMemo(() => pickFeaturedCandidates(books, poolSize), [books, poolSize]);
 
@@ -104,6 +114,15 @@ export function useFeaturedRotator({
   useEffect(() => {
     pausedRef.current = paused;
   }, [paused]);
+
+  // Read the latest `forceSlug` through a ref so the resolved book
+  // can be picked at any render without re-running the pool/timer
+  // effects. (Changing forceSlug should swap the visible book, not
+  // restart the rotation timer.)
+  const forceSlugRef = useRef(forceSlug);
+  useEffect(() => {
+    forceSlugRef.current = forceSlug;
+  }, [forceSlug]);
 
   // Reset the rotation cursor if the pool shrinks or empties.
   useEffect(() => {
@@ -137,9 +156,26 @@ export function useFeaturedRotator({
 
   const currentBook = pool[index] ?? null;
 
+  // Resolve the book + page:
+  //   - If `forceSlug` is set and the slug exists in `books`, that
+  //     book wins (and its cached page is returned).
+  //   - Otherwise, fall through to the rotator's natural pick.
+  // `forceSlug` lookup goes through `books` (not `pool`) so it works
+  // even when the slug isn't in the curated pool — useful if the
+  // caller wants to pin a title that wouldn't otherwise surface.
+  const forcedBook = useMemo(
+    () => resolveForcedBook(books, forceSlugRef.current),
+    [books, forceSlug]
+  );
+
+  const resolvedBook = forcedBook ?? currentBook;
+
   // Page cache + prefetch. We keep a ref of slugs we've already kicked
   // off (or completed) so the effect can be safely re-run when the
-  // pool changes without spawning duplicate fetchers.
+  // pool changes without spawning duplicate fetchers. When `forceSlug`
+  // is set we still prefetch the entire pool (cheap, bounded) so the
+  // page cache stays consistent — and if the caller later drops the
+  // force, rotation can resume without a cold start.
   const [pagesBySlug, setPagesBySlug] = useState<Record<string, PageRecord[]>>({});
   const fetchedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -165,9 +201,9 @@ export function useFeaturedRotator({
     }
   }, [pool]);
 
-  const pages = currentBook ? pagesBySlug[currentBook.slug] ?? null : null;
+  const pages = resolvedBook ? pagesBySlug[resolvedBook.slug] ?? null : null;
   const page = pages ? pickBestPage(pages) : null;
-  const loading = Boolean(currentBook && !pages && fetcherRef.current);
+  const loading = Boolean(resolvedBook && !pages && fetcherRef.current);
 
-  return { book: currentBook, page, index, loading };
+  return { book: resolvedBook, page, index, loading };
 }

@@ -119,7 +119,11 @@ export default function LibraryPage() {
     // The hook still picks the highest-tier candidate from
     // pickFeaturedCandidates (cover+synopsis first, then cover-only)
     // so the locked-in book has a picture cover.
-    paused: true
+    paused: true,
+    // Pin to "A Poem for Lagos" specifically until we re-enable the
+    // pool. Falls back to the natural pick if the slug ever goes
+    // missing from the catalog.
+    forceSlug: "a-poem-for-lagos"
   });
   const current = verticalById(vertical);
   const isFiltered = vertical !== "ALL" || query.trim().length > 0;

@@ -59,6 +59,12 @@ function shouldAdvance(opts) {
   return true;
 }
 
+function resolveForcedBook(books, forceSlug) {
+  if (!forceSlug) return null;
+  if (!Array.isArray(books) || books.length === 0) return null;
+  return books.find((b) => b.slug === forceSlug) ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // pickFeaturedCandidates
 // ---------------------------------------------------------------------------
@@ -168,4 +174,43 @@ test("shouldAdvance: hovering defaults to false when omitted", () => {
 test("defaults: pool size and interval match spec", () => {
   assert.equal(DEFAULT_POOL_SIZE, 6);
   assert.equal(DEFAULT_INTERVAL_MS, 60_000);
+});
+
+// ---------------------------------------------------------------------------
+// resolveForcedBook
+// ---------------------------------------------------------------------------
+
+test("resolveForcedBook: returns the matching book when slug exists", () => {
+  const books = [
+    { id: "a", slug: "a-poem-for-lagos" },
+    { id: "b", slug: "lagos-nights-1-the-last-train" },
+    { id: "c", slug: "lagos-nights-2-the-lagoon" }
+  ];
+  const pick = resolveForcedBook(books, "a-poem-for-lagos");
+  assert.equal(pick && pick.id, "a");
+});
+
+test("resolveForcedBook: returns null when forceSlug is missing", () => {
+  const books = [{ id: "a", slug: "x" }];
+  assert.equal(resolveForcedBook(books, null), null);
+  assert.equal(resolveForcedBook(books, undefined), null);
+  assert.equal(resolveForcedBook(books, ""), null);
+});
+
+test("resolveForcedBook: returns null when the slug isn't in the list", () => {
+  const books = [{ id: "a", slug: "x" }];
+  assert.equal(resolveForcedBook(books, "missing-slug"), null);
+});
+
+test("resolveForcedBook: returns null on empty books list", () => {
+  assert.equal(resolveForcedBook([], "anything"), null);
+  assert.equal(resolveForcedBook(null, "anything"), null);
+});
+
+test("resolveForcedBook: first match wins when slugs collide (shouldn't but defensive)", () => {
+  const books = [
+    { id: "a", slug: "dup" },
+    { id: "b", slug: "dup" }
+  ];
+  assert.equal(resolveForcedBook(books, "dup").id, "a");
 });
