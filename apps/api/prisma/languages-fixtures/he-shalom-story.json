@@ -1,0 +1,122 @@
+{
+  "master_story_slug": "shalom-first-words",
+  "target_lang": "he",
+  "cefr_level": "A1",
+  "title": "שלום — מילים ראשונות",
+  "title_translations": {
+    "en": "Shalom — First Words",
+    "fr": "Shalom — Premiers mots"
+  },
+  "synopsis": "Noa greets her neighbour and introduces herself in five short sentences, with full niqqud on the reading line.",
+  "target_vocab_concepts": ["greetings", "introductions", "family"],
+  "scenes": [
+    {
+      "master_scene_order": 1,
+      "lines": [
+        {
+          "speaker": "noa",
+          "text": "שלום! שמי נועה.",
+          "text_reading": "שָׁלוֹם! שְׁמִי נֹעָה.",
+          "translations": {
+            "en": "Hello! My name is Noa.",
+            "fr": "Bonjour ! Je m'appelle Noa."
+          },
+          "tokens": [
+            { "surface": "שלום", "lemma": "שלום", "pos": "interjection", "glosses": { "en": ["hello", "peace"], "fr": ["bonjour", "paix"] }, "reading": "שָׁלוֹם", "is_new": true },
+            { "surface": "!", "lemma": null },
+            { "surface": "שמי", "lemma": "שם", "pos": "noun", "gender": "m", "glosses": { "en": ["my name"], "fr": ["mon nom"] }, "reading": "שְׁמִי", "is_new": true },
+            { "surface": "נועה", "lemma": null, "reading": "נֹעָה" },
+            { "surface": ".", "lemma": null }
+          ]
+        },
+        {
+          "speaker": "neighbour",
+          "text": "שלום נועה. אני דנה.",
+          "text_reading": "שָׁלוֹם נֹעָה. אֲנִי דָּנָה.",
+          "translations": {
+            "en": "Hello Noa. I am Dana.",
+            "fr": "Bonjour Noa. Je suis Dana."
+          },
+          "tokens": [
+            { "surface": "שלום", "lemma": "שלום", "pos": "interjection", "glosses": { "en": ["hello"], "fr": ["bonjour"] }, "reading": "שָׁלוֹם", "is_new": false },
+            { "surface": "נועה", "lemma": null, "reading": "נֹעָה" },
+            { "surface": ".", "lemma": null },
+            { "surface": "אני", "lemma": "אני", "pos": "pronoun", "glosses": { "en": ["I"], "fr": ["je"] }, "reading": "אֲנִי", "is_new": true },
+            { "surface": "דנה", "lemma": null, "reading": "דָּנָה" },
+            { "surface": ".", "lemma": null }
+          ]
+        }
+      ],
+      "exercises": [
+        {
+          "type": "comprehension_mc",
+          "payload": {
+            "question": {
+              "en": "What is Noa's name?",
+              "fr": "Quel est le prénom de Noa ?"
+            },
+            "options": ["נועה", "דנה", "שלום", "אני"]
+          },
+          "answer": { "index": 0 }
+        },
+        {
+          "type": "word_meaning_mc",
+          "payload": {
+            "lexeme_id": "<placeholder-shalom-id>",
+            "options": {
+              "en": ["hello", "thank you", "goodbye", "please"],
+              "fr": ["bonjour", "merci", "au revoir", "s'il vous plaît"]
+            }
+          },
+          "answer": { "index": 0 }
+        }
+      ]
+    },
+    {
+      "master_scene_order": 2,
+      "lines": [
+        {
+          "speaker": "noa",
+          "text": "מה שלומך?",
+          "text_reading": "מַה שְׁלוֹמֶךָ?",
+          "translations": {
+            "en": "How are you?",
+            "fr": "Comment ça va ?"
+          },
+          "tokens": [
+            { "surface": "מה", "lemma": "מה", "pos": "interrogative", "glosses": { "en": ["what"], "fr": ["quoi", "que"] }, "reading": "מַה", "is_new": true },
+            { "surface": "שלומך", "lemma": "שלום", "pos": "noun", "gender": "m", "glosses": { "en": ["your peace / how you are"], "fr": ["ta paix / comment tu vas"] }, "reading": "שְׁלוֹמֶךָ", "is_new": true },
+            { "surface": "?", "lemma": null }
+          ]
+        },
+        {
+          "speaker": "neighbour",
+          "text": "טוב, תודה. ואת?",
+          "text_reading": "טוֹב, תּוֹדָה. וְאַתְּ?",
+          "translations": {
+            "en": "Good, thank you. And you?",
+            "fr": "Bien, merci. Et toi ?"
+          },
+          "tokens": [
+            { "surface": "טוב", "lemma": "טוב", "pos": "adjective", "glosses": { "en": ["good"], "fr": ["bien", "bon"] }, "reading": "טוֹב", "is_new": true },
+            { "surface": ",", "lemma": null },
+            { "surface": "תודה", "lemma": "תודה", "pos": "noun", "gender": "f", "glosses": { "en": ["thank you", "thanks"], "fr": ["merci"] }, "reading": "תּוֹדָה", "is_new": true },
+            { "surface": ".", "lemma": null },
+            { "surface": "ואת", "lemma": "את", "pos": "pronoun", "glosses": { "en": ["and you (f.)"], "fr": ["et toi (f.)"] }, "reading": "וְאַתְּ", "is_new": true },
+            { "surface": "?", "lemma": null }
+          ]
+        }
+      ],
+      "exercises": [
+        {
+          "type": "listen_select",
+          "payload": {
+            "audio_url": "placeholder://shalom-first-words/scene-2/listen",
+            "options": ["מה שלומך?", "שלום.", "אני נועה.", "תודה רבה."]
+          },
+          "answer": { "index": 0 }
+        }
+      ]
+    }
+  ]
+}

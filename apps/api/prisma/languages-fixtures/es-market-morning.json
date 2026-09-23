@@ -1,0 +1,145 @@
+{
+  "master_story_slug": "market-morning",
+  "target_lang": "es",
+  "cefr_level": "A1",
+  "title": "Una mañana en el mercado",
+  "title_translations": {
+    "en": "A Morning at the Market",
+    "fr": "Un matin au marché"
+  },
+  "synopsis": "Ana goes to the market for fruit and meets a friendly vendor who teaches numbers and greetings.",
+  "target_vocab_concepts": ["greetings", "numbers 1-10", "fruits", "polite requests"],
+  "scenes": [
+    {
+      "master_scene_order": 1,
+      "lines": [
+        {
+          "speaker": "ana",
+          "text": "¡Hola! Quiero tres mangos, por favor.",
+          "text_reading": null,
+          "translations": {
+            "en": "Hello! I want three mangoes, please.",
+            "fr": "Bonjour ! Je voudrais trois mangues, s'il vous plaît."
+          },
+          "tokens": [
+            { "surface": "¡", "lemma": null },
+            { "surface": "Hola", "lemma": "hola", "pos": "interjection", "glosses": { "en": ["hello"], "fr": ["bonjour", "salut"] }, "is_new": true },
+            { "surface": "!", "lemma": null },
+            { "surface": "Quiero", "lemma": "querer", "pos": "verb", "glosses": { "en": ["to want"], "fr": ["vouloir"] }, "is_new": true },
+            { "surface": "tres", "lemma": "tres", "pos": "numeral", "glosses": { "en": ["three"], "fr": ["trois"] }, "is_new": true },
+            { "surface": "mangos", "lemma": "mango", "pos": "noun", "gender": "m", "glosses": { "en": ["mango"], "fr": ["mangue"] }, "is_new": true },
+            { "surface": ",", "lemma": null },
+            { "surface": "por favor", "lemma": "por favor", "pos": "phrase", "glosses": { "en": ["please"], "fr": ["s'il vous plaît"] }, "is_new": true },
+            { "surface": ".", "lemma": null }
+          ]
+        },
+        {
+          "speaker": "vendor",
+          "text": "Buenos días. Son doce pesos.",
+          "text_reading": null,
+          "translations": {
+            "en": "Good morning. That's twelve pesos.",
+            "fr": "Bonjour. Ça fait douze pesos."
+          },
+          "tokens": [
+            { "surface": "Buenos", "lemma": "bueno", "pos": "adjective", "gender": "m", "glosses": { "en": ["good"], "fr": ["bon"] }, "is_new": true },
+            { "surface": "días", "lemma": "día", "pos": "noun", "gender": "m", "glosses": { "en": ["day", "morning"], "fr": ["jour", "matin"] }, "is_new": true },
+            { "surface": ".", "lemma": null },
+            { "surface": "Son", "lemma": "ser", "pos": "verb", "glosses": { "en": ["to be (they are)"], "fr": ["être"] }, "is_new": true },
+            { "surface": "doce", "lemma": "doce", "pos": "numeral", "glosses": { "en": ["twelve"], "fr": ["douze"] }, "is_new": true },
+            { "surface": "pesos", "lemma": "peso", "pos": "noun", "gender": "m", "glosses": { "en": ["peso (currency)"], "fr": ["peso (monnaie)"] }, "is_new": true },
+            { "surface": ".", "lemma": null }
+          ]
+        },
+        {
+          "speaker": "ana",
+          "text": "Gracias. Hasta luego.",
+          "text_reading": null,
+          "translations": {
+            "en": "Thank you. See you later.",
+            "fr": "Merci. À plus tard."
+          },
+          "tokens": [
+            { "surface": "Gracias", "lemma": "gracias", "pos": "interjection", "glosses": { "en": ["thank you", "thanks"], "fr": ["merci"] }, "is_new": true },
+            { "surface": ".", "lemma": null },
+            { "surface": "Hasta", "lemma": "hasta", "pos": "preposition", "glosses": { "en": ["until"], "fr": ["jusqu'à"] }, "is_new": true },
+            { "surface": "luego", "lemma": "luego", "pos": "adverb", "glosses": { "en": ["later", "afterwards"], "fr": ["plus tard", "ensuite"] }, "is_new": true },
+            { "surface": ".", "lemma": null }
+          ]
+        }
+      ],
+      "exercises": [
+        {
+          "type": "comprehension_mc",
+          "payload": {
+            "question": {
+              "en": "How many mangoes does Ana want?",
+              "fr": "Combien de mangues Ana veut-elle ?"
+            },
+            "options": ["1", "3", "5", "10"]
+          },
+          "answer": { "index": 1 }
+        },
+        {
+          "type": "word_meaning_mc",
+          "payload": {
+            "lexeme_id": "<placeholder-mango-id>",
+            "options": {
+              "en": ["mango", "apple", "banana", "orange"],
+              "fr": ["mangue", "pomme", "banane", "orange"]
+            }
+          },
+          "answer": { "index": 0 }
+        }
+      ]
+    },
+    {
+      "master_scene_order": 2,
+      "lines": [
+        {
+          "speaker": "vendor",
+          "text": "¿Quiere algo más?",
+          "text_reading": null,
+          "translations": {
+            "en": "Would you like something else?",
+            "fr": "Voulez-vous autre chose ?"
+          },
+          "tokens": [
+            { "surface": "¿", "lemma": null },
+            { "surface": "Quiere", "lemma": "querer", "pos": "verb", "glosses": { "en": ["(you) want"], "fr": ["voulez"] }, "is_new": false },
+            { "surface": "algo", "lemma": "algo", "pos": "pronoun", "glosses": { "en": ["something"], "fr": ["quelque chose"] }, "is_new": true },
+            { "surface": "más", "lemma": "más", "pos": "adverb", "glosses": { "en": ["more", "else"], "fr": ["plus", "davantage"] }, "is_new": true },
+            { "surface": "?", "lemma": null }
+          ]
+        },
+        {
+          "speaker": "ana",
+          "text": "No, gracias. Adiós.",
+          "text_reading": null,
+          "translations": {
+            "en": "No, thank you. Goodbye.",
+            "fr": "Non, merci. Au revoir."
+          },
+          "tokens": [
+            { "surface": "No", "lemma": "no", "pos": "adverb", "glosses": { "en": ["no"], "fr": ["non"] }, "is_new": true },
+            { "surface": ",", "lemma": null },
+            { "surface": "gracias", "lemma": "gracias", "pos": "interjection", "glosses": { "en": ["thank you"], "fr": ["merci"] }, "is_new": false },
+            { "surface": ".", "lemma": null },
+            { "surface": "Adiós", "lemma": "adiós", "pos": "interjection", "glosses": { "en": ["goodbye"], "fr": ["au revoir"] }, "is_new": true },
+            { "surface": ".", "lemma": null }
+          ]
+        }
+      ],
+      "exercises": [
+        {
+          "type": "listen_select",
+          "payload": {
+            "audio_url": "placeholder://market-morning/scene-2/listen",
+            "options": ["¿Quiere algo más?", "Buenos días.", "Hasta luego.", "Adiós."]
+          },
+          "answer": { "index": 0 }
+        }
+      ]
+    }
+  ]
+}
