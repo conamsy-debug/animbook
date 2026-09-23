@@ -1315,31 +1315,49 @@ model ShareClick {
 /// es, zh-Hans, de, it, he). Phase 2+ can grow the catalog without a
 /// migration (every spec field lives in this row, not in a separate
 /// language_variants table).
+///
+/// Fields mirror spec § 3 verbatim. `code` IS the primary key — BCP-47
+/// codes are globally unique, so we save a row + index by collapsing
+/// the PK with the unique code. The `id` column from the first patch
+/// was dropped in the second migration (`20260923030000_languages_extra_fields`)
+/// because no other table has an FK on it; all FKs reference `code`.
 model Language {
-  id        String   @id @default(cuid())
-  /// IETF BCP-47 code. Phase 1 keys: en, fr, es, zh-Hans, de, it, he.
-  code      String   @unique
+  /// IETF BCP-47 code — Phase 1 keys: en, fr, es, zh-Hans, de, it, he.
+  /// IS the primary key.
+  code          String   @id
   /// Display name in English.
-  nameEn    String   @map("name_en")
+  nameEn        String   @map("name_en")
   /// Display name in French.
-  nameFr    String   @map("name_fr")
-  /// Display name in the language itself ("Deutsch", "??", "?????").
-  nameNative String   @map("name_native")
-  /// Layout direction � Hebrew is RTL, the rest are LTR.
-  direction String   @default("ltr")
-  /// Script family � Latin / Han (Simplified) / Hebrew.
-  script    String   @default("Latin")
-  /// Reading aid layered on top of 	ext when the learner toggles it:
+  nameFr        String   @map("name_fr")
+  /// Display name in the language itself ("Deutsch", "中文", "עברית").
+  nameNative    String   @map("name_native")
+  /// Layout direction — Hebrew is RTL, the rest are LTR.
+  direction     String   @default("ltr")
+  /// Script family — Latin / Han (Simplified) / Hebrew.
+  script        String   @default("Latin")
+  /// Reading aid layered on top of `text` when the learner toggles it:
   /// none | pinyin (zh) | niqqud (he).
-  readingAid String  @default("none") @map("reading_aid")
-  /// BCP-47 short code we hand to the STT engine. zh-Hans ? "zh".
-  sttCode   String   @map("stt_code")
+  readingAid    String   @default("none") @map("reading_aid")
+  /// BCP-47 short code we hand to the STT engine. zh-Hans → "zh".
+  sttCode       String   @map("stt_code")
+  /// JSON array of voice IDs for ElevenLabs: { narrator, characters: [] }.
+  /// Empty by default; Patch 11's content pipeline writes the real values
+  /// when it boots a language's first story.
+  ttsVoiceIds   Json     @default("{}") @map("tts_voice_ids")
+  /// Web font CSS family for this language's native text. Defaults to
+  /// the AnimBook shell font; zh-Hans uses Noto Sans SC; he uses Noto
+  /// Sans Hebrew. Spec § 7 mandates these for the story player + word
+  /// popup.
+  fontFamily    String?  @map("font_family")
   /// Whether learners may pick this as a target language.
-  isTarget  Boolean  @default(true) @map("is_target")
+  isTarget      Boolean  @default(true) @map("is_target")
   /// Whether learners may pick this as their base/instruction language.
-  isBase    Boolean  @default(false) @map("is_base")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  isBase        Boolean  @default(false) @map("is_base")
+  /// Operator kill-switch. Patch 12's admin screen sets this false to
+  /// hide a language from the picker without deleting its seeded data.
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   /// Outgoing edges
   coursesAsTarget   Course[]      @relation("CourseTargetLang")

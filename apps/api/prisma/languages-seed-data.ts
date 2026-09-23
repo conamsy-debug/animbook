@@ -25,10 +25,20 @@ export const LANG_CODE_IT = "it";
 export const LANG_CODE_HE = "he";
 
 /**
- * Every Phase 1 language row. `direction`, `script`, `readingAid` and
- * `sttCode` mirror the frontend `LanguageConfig` in
- * `apps/web/src/features/languages/config.ts`; the seed must agree
- * with the client or the landing page will disagree with the API.
+ * Every Phase 1 language row. Mirrors spec § 3 (language configuration).
+ *
+ * `fontFamily` is the web font CSS family the player + word popup
+ * must use for the language's native text (spec § 7). Noto Sans SC
+ * is mandated for zh-Hans; Noto Sans Hebrew for he; the rest fall
+ * back to the AnimBook shell's default Inter.
+ *
+ * `ttsVoiceIds` is empty for Phase 1. Patch 11's content pipeline
+ * writes the real ElevenLabs narrator + character voice IDs once a
+ * language's first story is processed.
+ *
+ * `isActive` defaults to true; an operator can flip it false from
+ * the admin screen (Patch 12) to retire a language without losing
+ * its seeded data.
  */
 export const LANGUAGE_SEED = [
   {
@@ -40,8 +50,11 @@ export const LANGUAGE_SEED = [
     script: "Latin",
     readingAid: "none",
     sttCode: "en",
+    ttsVoiceIds: {} as Record<string, never>,
+    fontFamily: null,
     isTarget: true,
-    isBase: true
+    isBase: true,
+    isActive: true
   },
   {
     code: LANG_CODE_FR,
@@ -52,8 +65,11 @@ export const LANGUAGE_SEED = [
     script: "Latin",
     readingAid: "none",
     sttCode: "fr",
+    ttsVoiceIds: {} as Record<string, never>,
+    fontFamily: null,
     isTarget: true,
-    isBase: true
+    isBase: true,
+    isActive: true
   },
   {
     code: LANG_CODE_ES,
@@ -64,8 +80,11 @@ export const LANGUAGE_SEED = [
     script: "Latin",
     readingAid: "none",
     sttCode: "es",
+    ttsVoiceIds: {} as Record<string, never>,
+    fontFamily: null,
     isTarget: true,
-    isBase: false
+    isBase: false,
+    isActive: true
   },
   {
     code: LANG_CODE_ZH_HANS,
@@ -76,8 +95,12 @@ export const LANGUAGE_SEED = [
     script: "Han (Simplified)",
     readingAid: "pinyin",
     sttCode: "zh",
+    ttsVoiceIds: {} as Record<string, never>,
+    // Spec § 7 — Noto Sans SC for Chinese.
+    fontFamily: "Noto Sans SC, system-ui, sans-serif",
     isTarget: true,
-    isBase: false
+    isBase: false,
+    isActive: true
   },
   {
     code: LANG_CODE_DE,
@@ -88,8 +111,11 @@ export const LANGUAGE_SEED = [
     script: "Latin",
     readingAid: "none",
     sttCode: "de",
+    ttsVoiceIds: {} as Record<string, never>,
+    fontFamily: null,
     isTarget: true,
-    isBase: false
+    isBase: false,
+    isActive: true
   },
   {
     code: LANG_CODE_IT,
@@ -100,8 +126,11 @@ export const LANGUAGE_SEED = [
     script: "Latin",
     readingAid: "none",
     sttCode: "it",
+    ttsVoiceIds: {} as Record<string, never>,
+    fontFamily: null,
     isTarget: true,
-    isBase: false
+    isBase: false,
+    isActive: true
   },
   {
     code: LANG_CODE_HE,
@@ -112,8 +141,12 @@ export const LANGUAGE_SEED = [
     script: "Hebrew",
     readingAid: "niqqud",
     sttCode: "he",
+    ttsVoiceIds: {} as Record<string, never>,
+    // Spec § 7 — Noto Sans Hebrew for Hebrew.
+    fontFamily: "Noto Sans Hebrew, system-ui, sans-serif",
     isTarget: true,
-    isBase: false
+    isBase: false,
+    isActive: true
   }
 ] as const;
 

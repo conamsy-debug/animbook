@@ -19,7 +19,7 @@
  * post-launch content seeding, and we don't want every `db:seed`
  * run to also re-upsert languages.
  */
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import {
   LANGUAGE_SEED,
   COURSE_SEED,
@@ -33,7 +33,10 @@ const prisma = new PrismaClient();
 async function main() {
   console.log(`[languages-seed] starting — ${LANGUAGE_COUNT} languages, ${COURSE_COUNT} courses`);
 
-  // Phase 1: languages. Upserted by `code` (unique).
+  // Phase 1: languages. Upserted by `code` (the PK after the second
+  // migration). The new fields tts_voice_ids / font_family / is_active
+  // (spec § 3) are written here; re-running the script refreshes them
+  // so a font swap or voice-id bump propagates without a fresh seed.
   for (const row of LANGUAGE_SEED) {
     await prisma.language.upsert({
       where: { code: row.code },
@@ -45,8 +48,11 @@ async function main() {
         script: row.script,
         readingAid: row.readingAid,
         sttCode: row.sttCode,
+        ttsVoiceIds: row.ttsVoiceIds as Prisma.InputJsonValue,
+        fontFamily: row.fontFamily,
         isTarget: row.isTarget,
-        isBase: row.isBase
+        isBase: row.isBase,
+        isActive: row.isActive
       },
       create: {
         code: row.code,
@@ -57,8 +63,11 @@ async function main() {
         script: row.script,
         readingAid: row.readingAid,
         sttCode: row.sttCode,
+        ttsVoiceIds: row.ttsVoiceIds as Prisma.InputJsonValue,
+        fontFamily: row.fontFamily,
         isTarget: row.isTarget,
-        isBase: row.isBase
+        isBase: row.isBase,
+        isActive: row.isActive
       }
     });
   }

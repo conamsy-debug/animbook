@@ -26,13 +26,13 @@ import assert from "node:assert/strict";
  * */
 
 const LANGUAGES = [
-  { code: "en",      nameEn: "English",            nameFr: "Anglais",            nameNative: "English",   direction: "ltr", script: "Latin",            readingAid: "none",    sttCode: "en", isTarget: true,  isBase: true  },
-  { code: "fr",      nameEn: "French",             nameFr: "Français",           nameNative: "Français",  direction: "ltr", script: "Latin",            readingAid: "none",    sttCode: "fr", isTarget: true,  isBase: true  },
-  { code: "es",      nameEn: "Spanish",            nameFr: "Espagnol",           nameNative: "Español",   direction: "ltr", script: "Latin",            readingAid: "none",    sttCode: "es", isTarget: true,  isBase: false },
-  { code: "zh-Hans", nameEn: "Chinese (Mandarin)", nameFr: "Chinois (mandarin)", nameNative: "中文",      direction: "ltr", script: "Han (Simplified)", readingAid: "pinyin",  sttCode: "zh", isTarget: true,  isBase: false },
-  { code: "de",      nameEn: "German",             nameFr: "Allemand",           nameNative: "Deutsch",   direction: "ltr", script: "Latin",            readingAid: "none",    sttCode: "de", isTarget: true,  isBase: false },
-  { code: "it",      nameEn: "Italian",            nameFr: "Italien",            nameNative: "Italiano",  direction: "ltr", script: "Latin",            readingAid: "none",    sttCode: "it", isTarget: true,  isBase: false },
-  { code: "he",      nameEn: "Hebrew",             nameFr: "Hébreu",             nameNative: "עברית",      direction: "rtl", script: "Hebrew",           readingAid: "niqqud", sttCode: "he", isTarget: true,  isBase: false }
+  { code: "en",      nameEn: "English",            nameFr: "Anglais",            nameNative: "English",   direction: "ltr", script: "Latin",            readingAid: "none",    sttCode: "en", ttsVoiceIds: {},                       fontFamily: null,                                    isTarget: true,  isBase: true,  isActive: true },
+  { code: "fr",      nameEn: "French",             nameFr: "Français",           nameNative: "Français",  direction: "ltr", script: "Latin",            readingAid: "none",    sttCode: "fr", ttsVoiceIds: {},                       fontFamily: null,                                    isTarget: true,  isBase: true,  isActive: true },
+  { code: "es",      nameEn: "Spanish",            nameFr: "Espagnol",           nameNative: "Español",   direction: "ltr", script: "Latin",            readingAid: "none",    sttCode: "es", ttsVoiceIds: {},                       fontFamily: null,                                    isTarget: true,  isBase: false, isActive: true },
+  { code: "zh-Hans", nameEn: "Chinese (Mandarin)", nameFr: "Chinois (mandarin)", nameNative: "中文",      direction: "ltr", script: "Han (Simplified)", readingAid: "pinyin",  sttCode: "zh", ttsVoiceIds: {},                       fontFamily: "Noto Sans SC, system-ui, sans-serif",  isTarget: true,  isBase: false, isActive: true },
+  { code: "de",      nameEn: "German",             nameFr: "Allemand",           nameNative: "Deutsch",   direction: "ltr", script: "Latin",            readingAid: "none",    sttCode: "de", ttsVoiceIds: {},                       fontFamily: null,                                    isTarget: true,  isBase: false, isActive: true },
+  { code: "it",      nameEn: "Italian",            nameFr: "Italien",            nameNative: "Italiano",  direction: "ltr", script: "Latin",            readingAid: "none",    sttCode: "it", ttsVoiceIds: {},                       fontFamily: null,                                    isTarget: true,  isBase: false, isActive: true },
+  { code: "he",      nameEn: "Hebrew",             nameFr: "Hébreu",             nameNative: "עברית",      direction: "rtl", script: "Hebrew",           readingAid: "niqqud", sttCode: "he", ttsVoiceIds: {},                       fontFamily: "Noto Sans Hebrew, system-ui, sans-serif",isTarget: true,  isBase: false, isActive: true }
 ];
 
 /** Mirror of isValidCoursePair. */
@@ -191,4 +191,35 @@ test("isValidCoursePair rejects self-pairs and non-catalog codes", () => {
   assert.equal(isValidCoursePair("es", "xx"), false);
   assert.equal(isValidCoursePair("klingon", "en"), false);
   assert.equal(isValidCoursePair("en", "es"), false, "es is not a base language");
+});
+
+/* --------------------------------------------------------------------- *
+ * Spec § 3 additional fields: tts_voice_ids, font_family, is_active
+ * --------------------------------------------------------------------- */
+
+test("every language has a tts_voice_ids object (empty {} for Phase 1)", () => {
+  for (const l of LANGUAGES) {
+    assert.ok(l.ttsVoiceIds && typeof l.ttsVoiceIds === "object", `${l.code} missing ttsVoiceIds`);
+    assert.equal(Object.keys(l.ttsVoiceIds).length, 0, `${l.code} ttsVoiceIds must be empty for Phase 1`);
+  }
+});
+
+test("only zh-Hans and Hebrew carry a font_family (spec § 7 mandate)", () => {
+  // Per spec § 7: "load Noto Sans SC for Chinese and Noto Sans Hebrew
+  // for Hebrew; keep existing AnimBook fonts for Latin text."
+  for (const l of LANGUAGES) {
+    if (l.code === "zh-Hans") {
+      assert.match(l.fontFamily, /Noto Sans SC/, `${l.code} must use Noto Sans SC`);
+    } else if (l.code === "he") {
+      assert.match(l.fontFamily, /Noto Sans Hebrew/, `${l.code} must use Noto Sans Hebrew`);
+    } else {
+      assert.equal(l.fontFamily, null, `${l.code} (Latin text) must fall back to the shell font`);
+    }
+  }
+});
+
+test("every Phase 1 language is active by default", () => {
+  for (const l of LANGUAGES) {
+    assert.equal(l.isActive, true, `${l.code} must be isActive=true at seed time`);
+  }
 });
