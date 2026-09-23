@@ -29,12 +29,11 @@ export function Landing({ locale = "en" }: Props) {
         <h1 className="lang-title">{t("landing.title", locale)}</h1>
         <p className="lang-subtitle">{t("landing.subtitle", locale)}</p>
         <div className="lang-cta">
-          {/* Both CTAs are placeholders in Patch 01 — Patch 05 wires
-              onboarding to actually create an enrollment. */}
+          {/* Patch 05 — both CTAs now land on real routes. */}
           <Link href="/languages/onboarding" className="lang-btn lang-btn-primary">
             {t("landing.cta.start", locale)}
           </Link>
-          <Link href="/library" className="lang-btn lang-btn-ghost">
+          <Link href="/languages/me" className="lang-btn lang-btn-ghost">
             {t("landing.cta.continue", locale)}
           </Link>
         </div>

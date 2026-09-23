@@ -26,6 +26,56 @@ export const en = {
   "notAvailable.body":
     "We're still building this. Check back soon — or browse the rest of AnimBook in the meantime.",
 
+  // Onboarding (Section 7.2)
+  "onboarding.title": "Welcome to AnimBook Languages",
+  "onboarding.subtitle":
+    "Tell us which language you already speak and which one you'd like to learn.",
+  "onboarding.baseLabel": "I speak",
+  "onboarding.targetLabel": "I want to learn",
+  "onboarding.dailyGoalLabel": "Daily goal (optional)",
+  "onboarding.dailyGoalHint": "We'll send a gentle nudge if you fall behind.",
+  "onboarding.dailyGoal.none": "No goal",
+  "onboarding.dailyGoal.relaxed": "5 min · relaxed",
+  "onboarding.dailyGoal.regular": "10 min · regular",
+  "onboarding.dailyGoal.serious": "20 min · serious",
+  "onboarding.submit": "Start my first story",
+  "onboarding.error.sameLang": "Pick a target that's different from the language you speak.",
+  "onboarding.error.generic": "Something went wrong. Try again in a moment.",
+
+  // My enrollments (Section 7 onboarding follow-up)
+  "me.title": "My languages",
+  "me.empty": "You haven't started a language yet.",
+  "me.browseAll": "Browse languages",
+  "me.lastActive": "Last active {when}",
+  "me.startNew": "Start another language",
+
+  // Course home (Section 7.3)
+  "course.title": "{title}",
+  "course.storiesHeading": "Stories",
+  "course.statsHeading": "Your progress",
+  "course.streak": {
+    one: "1-day streak",
+    other: "{count}-day streak"
+  },
+  "course.xp": {
+    one: "1 XP",
+    other: "{count} XP"
+  },
+  "course.lastActivity": "Last active {when}",
+  "course.notEnrolled": "You're previewing this course. Start it to track your progress.",
+  "course.enroll": "Start this course",
+  "course.continueStory": "Continue",
+  "course.startStory": "Start",
+  "course.reviewStory": "Review",
+  "course.status.notStarted": "Not started",
+  "course.status.inProgress": "In progress",
+  "course.status.completed": "Completed",
+  "course.dailyGoal": "Daily goal: {minutes} min",
+
+  // Story player (existing course progress wires from Patch 04)
+  "player.savedProgress": "Progress saved",
+  "player.completeStory": "Mark story complete",
+
   // Misc shared bits
   "nav.label": "Languages",
   "common.comingSoon": "Coming soon",

@@ -18,7 +18,7 @@
  * component assumes the route is reachable and the payload is
  * well-formed.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchStoryPlayer } from "./api";
 import { Subtitle } from "./Subtitle";
 import { PlayerControls } from "./PlayerControls";
@@ -36,9 +36,18 @@ interface StoryPlayerProps {
    *  player reads it but ignores it for now (the token click still
    *  bubbles up to the line replay). */
   onTokenTap?: (lexemeId: string) => void;
+  /**
+   * Patch 05 — fires when the active scene changes. The page wires
+   * this to `saveStoryProgress()` so the learner's progress is
+   * persisted once per scene. The hook fires it on the FIRST scene
+   * too (so a "viewed but didn't progress" counts as in_progress),
+   * and again with `completed: true` when the last scene's final
+   * line ticks over.
+   */
+  onSceneChange?: (info: { sceneIndex: number; completed: boolean }) => void;
 }
 
-export function StoryPlayer({ storyId, base = "en", onTokenTap }: StoryPlayerProps) {
+export function StoryPlayer({ storyId, base = "en", onTokenTap, onSceneChange }: StoryPlayerProps) {
   const [phase, setPhase] = useState<PlayerPhase>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [payload, setPayload] = useState<PlayerPayload | null>(null);
@@ -66,6 +75,19 @@ export function StoryPlayer({ storyId, base = "en", onTokenTap }: StoryPlayerPro
   }, [storyId, base]);
 
   const player = useStoryPlayer(payload, phase, errorMessage);
+
+  // Patch 05 — fire onSceneChange whenever the active scene
+  // changes. We compare against a ref so we don't double-fire when
+  // the player state resets on payload swap.
+  const lastFiredSceneRef = useRef<number>(-1);
+  useEffect(() => {
+    if (phase !== "ready") return;
+    if (!onSceneChange) return;
+    if (player.currentSceneIndex === lastFiredSceneRef.current) return;
+    lastFiredSceneRef.current = player.currentSceneIndex;
+    const completed = player.currentSceneIndex >= payload.scenes.length - 1 && !player.playing && player.currentLineIndex >= (player.currentScene?.lines.length ?? 1) - 1;
+    onSceneChange({ sceneIndex: player.currentSceneIndex, completed });
+  }, [phase, onSceneChange, player.currentSceneIndex, player.currentLineIndex, player.playing, player.currentScene, payload]);
 
   // Loading / error states render a minimal shell so the page can
   // wrap this in the cinematic topbar without layout shift.

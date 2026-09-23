@@ -93,13 +93,20 @@ async function main() {
       },
       update: {
         title: row.title,
-        description: row.description
+        description: row.description,
+        // Patch 05 — the routes filter by isPublished so admin
+        // drafts don't leak. The seed represents the live catalog,
+        // so all 12 courses ship as published. An operator who
+        // wants to retire a course sets this flag back to false
+        // directly in the DB.
+        isPublished: true
       },
       create: {
         targetLang: row.targetLang,
         baseLang: row.baseLang,
         title: row.title,
-        description: row.description
+        description: row.description,
+        isPublished: true
       }
     });
     coursesWritten += 1;

@@ -23,6 +23,56 @@ export const fr = {
   "notAvailable.body":
     "Nous sommes encore en train de construire cette section. Reviens bientôt — en attendant, tu peux explorer le reste d'AnimBook.",
 
+  // Onboarding (Section 7.2)
+  "onboarding.title": "Bienvenue dans AnimBook Langues",
+  "onboarding.subtitle":
+    "Dis-nous quelle langue tu parles déjà et laquelle tu veux apprendre.",
+  "onboarding.baseLabel": "Je parle",
+  "onboarding.targetLabel": "Je veux apprendre",
+  "onboarding.dailyGoalLabel": "Objectif quotidien (optionnel)",
+  "onboarding.dailyGoalHint": "On t'enverra un rappel doux si tu prends du retard.",
+  "onboarding.dailyGoal.none": "Pas d'objectif",
+  "onboarding.dailyGoal.relaxed": "5 min · tranquille",
+  "onboarding.dailyGoal.regular": "10 min · régulier",
+  "onboarding.dailyGoal.serious": "20 min · sérieux",
+  "onboarding.submit": "Commencer ma première histoire",
+  "onboarding.error.sameLang": "Choisis une langue cible différente de celle que tu parles.",
+  "onboarding.error.generic": "Une erreur s'est produite. Réessaie dans un instant.",
+
+  // My enrollments (Section 7 onboarding follow-up)
+  "me.title": "Mes langues",
+  "me.empty": "Tu n'as pas encore commencé de langue.",
+  "me.browseAll": "Voir les langues",
+  "me.lastActive": "Dernière activité {when}",
+  "me.startNew": "Commencer une autre langue",
+
+  // Course home (Section 7.3)
+  "course.title": "{title}",
+  "course.storiesHeading": "Histoires",
+  "course.statsHeading": "Tes progrès",
+  "course.streak": {
+    one: "1 jour d'affilée",
+    other: "{count} jours d'affilée"
+  },
+  "course.xp": {
+    one: "1 XP",
+    other: "{count} XP"
+  },
+  "course.lastActivity": "Dernière activité {when}",
+  "course.notEnrolled": "Tu regardes un extrait de ce cours. Commence-le pour suivre tes progrès.",
+  "course.enroll": "Commencer ce cours",
+  "course.continueStory": "Continuer",
+  "course.startStory": "Commencer",
+  "course.reviewStory": "Revoir",
+  "course.status.notStarted": "Pas commencé",
+  "course.status.inProgress": "En cours",
+  "course.status.completed": "Terminé",
+  "course.dailyGoal": "Objectif quotidien : {minutes} min",
+
+  // Story player
+  "player.savedProgress": "Progression enregistrée",
+  "player.completeStory": "Marquer l'histoire comme terminée",
+
   // Misc shared bits
   "nav.label": "Langues",
   "common.comingSoon": "Bientôt disponible",

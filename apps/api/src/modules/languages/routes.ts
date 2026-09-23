@@ -2,12 +2,19 @@
  * AnimBook Languages (Phase 1) — HTTP routes.
  *
  * Mounted at `/api/lang` in src/index.ts when isFeatureEnabled("LANGUAGES")
- * is true. Patch 04 adds the first real endpoint: the story player
- * payload. Patches 05–12 add the rest per docs/languages-phase1.md § 11.
+ * is true. Patches 04 + 05 add the real endpoints:
+ *   - GET /health                        (Patch 01 placeholder)
+ *   - GET /stories/:storyId              (Patch 04 — player payload)
+ *   - GET /languages                     (Patch 05 — active catalog)
+ *   - GET /courses?base=fr               (Patch 05 — courses for a base lang)
+ *   - POST /enrollments                  (Patch 05 — create enrollment)
+ *   - GET /enrollments/me                (Patch 05 — current user's enrollments)
+ *   - GET /courses/:courseId             (Patch 05 — course home data)
+ *   - POST /stories/:storyId/progress    (Patch 05 — record scene progress)
  *
- * Every learner-facing route uses requireUserId() so unauthenticated
- * requests 401; admin routes use requireAdmin() once that helper
- * exists (Patch 12).
+ * Patches 06–12 add the rest per docs/languages-phase1.md § 11.
+ * Every learner-facing route uses authMiddleware so unauthenticated
+ * requests 401.
  */
 import type { Request, Response } from "express";
 import { Router } from "express";
@@ -286,5 +293,389 @@ const LANGUAGE_META: Record<
   it: { lang: "it", direction: "ltr", fontFamily: null, readingAid: null },
   he: { lang: "he", direction: "rtl", fontFamily: "Noto Sans Hebrew, system-ui, sans-serif", readingAid: "niqqud" }
 };
+
+/* --------------------------------------------------------------------- *
+ * GET /languages — active languages catalog (Patch 05)
+ * Spec § 11. Mirrors apps/web/src/features/languages/config.ts; both
+ * stay in sync via the `languages` table seeded in Patch 02. Returns
+ * only `is_active=true` rows so an operator can retire a language
+ * without losing its data.
+ * --------------------------------------------------------------------- */
+
+router.get("/languages", authMiddleware, async (_req: Request, res: Response) => {
+  const rows = await prisma.language.findMany({
+    where: { isActive: true },
+    orderBy: [{ isBase: "desc" }, { code: "asc" }]
+  });
+  // Map DB rows to the wire shape. Reuse the LANGUAGE_META above for
+  // fontFamily + readingAid so we don't double-maintain the
+  // font stack.
+  const payload = rows.map((row) => ({
+    code: row.code,
+    nameEn: row.nameEn,
+    nameFr: row.nameFr,
+    nameNative: row.nameNative,
+    direction: row.direction,
+    script: row.script,
+    readingAid: row.readingAid,
+    sttCode: row.sttCode,
+    fontFamily: LANGUAGE_META[row.code]?.fontFamily ?? row.fontFamily,
+    isTarget: row.isTarget,
+    isBase: row.isBase,
+    isActive: row.isActive
+  }));
+  res.json({ languages: payload });
+});
+
+/* --------------------------------------------------------------------- *
+ * GET /courses?base=fr — courses for a base language (Patch 05)
+ * Spec § 11. Returns the 5 courses for the requested base (out of
+ * the 12 total — base=en has the 6 non-en/non-fr targets, base=fr has
+ * the 6 non-en/non-fr targets too plus en-as-target and fr-as-target).
+ * Filtered by `is_published` so admin drafts don't leak.
+ * --------------------------------------------------------------------- */
+
+router.get("/courses", authMiddleware, async (req: Request, res: Response) => {
+  const baseRaw = req.query["base"];
+  const baseStr = Array.isArray(baseRaw) ? baseRaw[0] : baseRaw;
+  const base = typeof baseStr === "string" && ALLOWED_BASES.has(baseStr as "en" | "fr") ? (baseStr as "en" | "fr") : null;
+  if (!base) {
+    res.status(400).json({ error: "base must be 'en' or 'fr'", received: baseStr ?? null });
+    return;
+  }
+
+  const rows = await prisma.course.findMany({
+    where: { baseLang: base, isPublished: true },
+    orderBy: { targetLang: "asc" }
+  });
+  res.json({
+    base,
+    courses: rows.map((row) => ({
+      courseId: row.id,
+      targetLang: row.targetLang,
+      baseLang: row.baseLang,
+      title: row.title,
+      description: row.description
+    }))
+  });
+});
+
+/* --------------------------------------------------------------------- *
+ * POST /enrollments — create an enrollment (Patch 05)
+ * Spec § 11 + § 7.2. Body: { target_lang, base_lang }.
+ * Idempotent: a duplicate (user, course) returns the existing row.
+ * Spec explicitly forbids enrolling a learner into a course where
+ * target_lang === base_lang.
+ *
+ * Spec § 7.2 also lists an optional `daily_goal` field (5/10/20
+ * minutes). The current Enrollment schema doesn't carry that
+ * column — we'll add it via a future migration once the streak /
+ * goal flow lands (Patch 10). For now we accept and ignore the
+ * field so the wire shape is forward-compatible.
+ * --------------------------------------------------------------------- */
+
+interface CreateEnrollmentBody {
+  target_lang?: string;
+  base_lang?: string;
+  daily_goal?: number;
+}
+
+router.post("/enrollments", authMiddleware, async (req: Request, res: Response) => {
+  const body = (req.body ?? {}) as CreateEnrollmentBody;
+  const target = typeof body.target_lang === "string" ? body.target_lang : null;
+  const base = typeof body.base_lang === "string" ? body.base_lang : null;
+  // daily_goal is accepted but ignored for now (see comment above).
+
+  if (!target || !ALLOWED_BASES.has(base as "en" | "fr")) {
+    res.status(400).json({ error: "target_lang and base_lang are required; base_lang must be 'en' or 'fr'" });
+    return;
+  }
+  if (target === base) {
+    res.status(400).json({ error: "target_lang cannot equal base_lang" });
+    return;
+  }
+
+  const userId = requireUserId(req as Parameters<typeof requireUserId>[0]);
+
+  // Verify the course exists. We don't auto-create courses — the
+  // seed owns that — but we DO want a clean 404 if a caller asks
+  // for a course that hasn't shipped yet.
+  const course = await prisma.course.findUnique({
+    where: { targetLang_baseLang: { targetLang: target, baseLang: base as "en" | "fr" } }
+  });
+  if (!course) {
+    res.status(404).json({ error: "course not found", target_lang: target, base_lang: base });
+    return;
+  }
+
+  // Idempotent upsert keyed on (user, course). The schema's
+  // @@unique([userId, courseId]) makes this safe.
+  const enrollment = await prisma.enrollment.upsert({
+    where: { userId_courseId: { userId, courseId: course.id } },
+    update: { lastActiveAt: new Date() },
+    create: {
+      userId,
+      courseId: course.id,
+      startedAt: new Date(),
+      lastActiveAt: new Date(),
+      currentStoryId: null
+    }
+  });
+
+  // Touch the learner's stats row so the course home streak
+  // counter has something to read on first visit.
+  await prisma.learnerStats.upsert({
+    where: { userId },
+    update: {},
+    create: { userId }
+  });
+
+  res.status(201).json({
+    enrollmentId: enrollment.id,
+    courseId: enrollment.courseId,
+    targetLang: course.targetLang,
+    baseLang: course.baseLang,
+    startedAt: enrollment.startedAt.toISOString(),
+    lastActiveAt: enrollment.lastActiveAt.toISOString(),
+    currentStoryId: enrollment.currentStoryId
+  });
+});
+
+/* --------------------------------------------------------------------- *
+ * GET /enrollments/me — current user's enrollments (Patch 05)
+ * Spec § 7 onboarding-followup. Lists the courses the learner is
+ * currently studying, sorted by most-recent activity. Each row
+ * includes the course metadata so the course picker can render
+ * without a second round-trip.
+ * --------------------------------------------------------------------- */
+
+router.get("/enrollments/me", authMiddleware, async (req: Request, res: Response) => {
+  const userId = requireUserId(req as Parameters<typeof requireUserId>[0]);
+
+  const rows = await prisma.enrollment.findMany({
+    where: { userId },
+    orderBy: { lastActiveAt: "desc" },
+    include: { course: true }
+  });
+
+  res.json({
+    enrollments: rows.map((row) => ({
+      enrollmentId: row.id,
+      courseId: row.courseId,
+      targetLang: row.course.targetLang,
+      baseLang: row.course.baseLang,
+      title: row.course.title,
+      description: row.course.description,
+      startedAt: row.startedAt.toISOString(),
+      lastActiveAt: row.lastActiveAt.toISOString(),
+      currentStoryId: row.currentStoryId
+    }))
+  });
+});
+
+/* --------------------------------------------------------------------- *
+ * GET /courses/:courseId — course home (Patch 05)
+ * Spec § 7.3 + § 11. Returns the list of stories in the course
+ * (ordered by master_scene_order of the first scene), the learner's
+ * per-story progress, and a coarse "stats" rollup (streak + XP
+ * placeholders until Patch 10). Phase 1 course home is read-only
+ * over stories; Patch 12's admin screen writes here.
+ * --------------------------------------------------------------------- */
+
+router.get("/courses/:courseId", authMiddleware, async (req: Request, res: Response) => {
+  const rawId = req.params["courseId"];
+  const courseId = Array.isArray(rawId) ? rawId[0] : rawId;
+  if (!courseId) {
+    res.status(400).json({ error: "courseId is required" });
+    return;
+  }
+
+  const userId = requireUserId(req as Parameters<typeof requireUserId>[0]);
+
+  const course = await prisma.course.findUnique({ where: { id: courseId } });
+  if (!course) {
+    res.status(404).json({ error: "course not found", courseId });
+    return;
+  }
+
+  // Find every Story in this course. We join by target_lang because
+  // Story has no direct courseId column (the API design from Patch 02).
+  const stories = await prisma.story.findMany({
+    where: { targetLang: course.targetLang, isPublished: true },
+    include: {
+      masterStory: { select: { slug: true, titleEn: true } },
+      progressRows: { where: { userId } }
+    },
+    orderBy: { id: "asc" }
+  });
+
+  // Enrollment + stats for the learner (may not exist yet — a course
+  // home preview is allowed without an enrollment).
+  const enrollment = await prisma.enrollment.findUnique({
+    where: { userId_courseId: { userId, courseId } }
+  });
+  const stats = await prisma.learnerStats.findUnique({ where: { userId } });
+
+  // Map StoryProgress rows by storyId for O(1) lookup.
+  const progressByStory = new Map<string, { status: string; lastSceneOrder: number; scorePct: number; completedAt: string | null }>();
+  for (const p of enrollment ? stories.flatMap((s) => s.progressRows) : []) {
+    progressByStory.set(p.storyId, {
+      status: p.status,
+      lastSceneOrder: p.lastSceneOrder,
+      scorePct: p.scorePct,
+      completedAt: p.completedAt ? p.completedAt.toISOString() : null
+    });
+  }
+
+  res.json({
+    course: {
+      courseId: course.id,
+      targetLang: course.targetLang,
+      baseLang: course.baseLang,
+      title: course.title,
+      description: course.description
+    },
+    enrollment: enrollment
+      ? {
+          enrollmentId: enrollment.id,
+          startedAt: enrollment.startedAt.toISOString(),
+          lastActiveAt: enrollment.lastActiveAt.toISOString(),
+          currentStoryId: enrollment.currentStoryId
+        }
+      : null,
+    stats: stats
+      ? {
+          xpTotal: stats.xpTotal,
+          currentStreakDays: stats.currentStreakDays,
+          longestStreakDays: stats.longestStreakDays,
+          lastActivityDate: stats.lastActivityDate ? stats.lastActivityDate.toISOString().slice(0, 10) : null
+        }
+      : null,
+    stories: stories.map((s) => {
+      const progress = progressByStory.get(s.id) ?? null;
+      return {
+        storyId: `story:${s.masterStory.slug}:${s.targetLang}`,
+        masterSlug: s.masterStory.slug,
+        title: s.title,
+        cefrLevel: s.cefrLevel,
+        progress
+      };
+    })
+  });
+});
+
+/* --------------------------------------------------------------------- *
+ * POST /stories/:storyId/progress — record scene progress (Patch 05)
+ * Spec § 11. Body: { last_scene_order, score_pct?, completed? }.
+ * Idempotent: upserts a StoryProgress row keyed on (user, story).
+ * Sets `completed_at` when the caller marks the story complete.
+ * Spec § 7 — "progress saves per scene" so the player can resume
+ * from the last scene they watched.
+ * --------------------------------------------------------------------- */
+
+interface ProgressBody {
+  last_scene_order?: number;
+  score_pct?: number;
+  completed?: boolean;
+  status?: string;
+}
+
+router.post("/stories/:storyId/progress", authMiddleware, async (req: Request, res: Response) => {
+  const rawId = req.params["storyId"];
+  const storyId = Array.isArray(rawId) ? rawId[0] : rawId;
+  if (!storyId) {
+    res.status(400).json({ error: "storyId is required" });
+    return;
+  }
+
+  // storyId wire format is `story:<masterSlug>:<targetLang>` — we
+  // resolve to the cuid via the slug + lang pair.
+  const story = await resolveStoryId(storyId);
+  if (!story) {
+    res.status(404).json({ error: "story not found", storyId });
+    return;
+  }
+
+  const userId = requireUserId(req as Parameters<typeof requireUserId>[0]);
+  const body = (req.body ?? {}) as ProgressBody;
+  const lastSceneOrder = Number.isFinite(body.last_scene_order) ? Number(body.last_scene_order) : 1;
+  const scorePct = Number.isFinite(body.score_pct) ? Math.max(0, Math.min(100, Number(body.score_pct))) : 0;
+  const status =
+    body.completed === true ? "completed" : body.status === "completed" ? "completed" : body.status === "in_progress" ? "in_progress" : "in_progress";
+
+  const completedAt = status === "completed" ? new Date() : null;
+
+  const progress = await prisma.storyProgress.upsert({
+    where: { userId_storyId: { userId, storyId: story.id } },
+    update: {
+      status,
+      lastSceneOrder,
+      scorePct,
+      completedAt
+    },
+    create: {
+      userId,
+      storyId: story.id,
+      status,
+      lastSceneOrder,
+      scorePct,
+      completedAt
+    }
+  });
+
+  // Touch the enrollment's last_active_at so the course home
+  // surfaces this user as "recently active".
+  const enrollment = await prisma.enrollment.findFirst({
+    where: { userId, course: { targetLang: story.targetLang } }
+  });
+  if (enrollment) {
+    await prisma.enrollment.update({
+      where: { id: enrollment.id },
+      data: {
+        lastActiveAt: new Date(),
+        currentStoryId: story.id
+      }
+    });
+  }
+
+  // Touch the learner stats too so streak math (Patch 10) has an
+  // anchor to work with.
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  await prisma.learnerStats.upsert({
+    where: { userId },
+    update: { lastActivityDate: today },
+    create: { userId, lastActivityDate: today }
+  });
+
+  res.json({
+    storyProgressId: progress.id,
+    storyId: progress.storyId,
+    status: progress.status,
+    lastSceneOrder: progress.lastSceneOrder,
+    scorePct: progress.scorePct,
+    completedAt: progress.completedAt ? progress.completedAt.toISOString() : null
+  });
+});
+
+/**
+ * Resolve the synthetic storyId wire format
+ * (`story:<masterSlug>:<targetLang>`) to the DB cuid. Returns null
+ * if no matching Story row exists.
+ */
+async function resolveStoryId(syntheticId: string): Promise<{ id: string; targetLang: string } | null> {
+  if (!syntheticId.startsWith("story:")) return null;
+  const rest = syntheticId.slice("story:".length);
+  const lastColon = rest.lastIndexOf(":");
+  if (lastColon < 0) return null;
+  const slug = rest.slice(0, lastColon);
+  const targetLang = rest.slice(lastColon + 1);
+  if (!slug || !targetLang) return null;
+  const story = await prisma.story.findFirst({
+    where: { targetLang, masterStory: { slug } },
+    select: { id: true, targetLang: true }
+  });
+  return story;
+}
 
 export default router;

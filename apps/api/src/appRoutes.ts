@@ -333,6 +333,48 @@ export const APP_ROUTES: Module[] = [
         auth: "user",
         summary: "Story player payload.",
         notes: "Returns scenes, lines, tokens, exercises for the StoryPlayer. Query `?base=fr` selects translation + gloss language (defaults to en)."
+      },
+      {
+        method: "GET",
+        path: "/api/lang/languages",
+        auth: "user",
+        summary: "Active languages catalog (Patch 05 onboarding).",
+        notes: "Returns `is_active=true` rows ordered by base flag + code. Mirrors apps/web/src/features/languages/config.ts."
+      },
+      {
+        method: "GET",
+        path: "/api/lang/courses",
+        auth: "user",
+        summary: "Courses for a base language (Patch 05 course picker).",
+        notes: "Query `?base=en|fr`. Returns the 5–6 published courses for the requested base."
+      },
+      {
+        method: "POST",
+        path: "/api/lang/enrollments",
+        auth: "user",
+        summary: "Create / upsert an enrollment (Patch 05).",
+        notes: "Body `{ target_lang, base_lang, daily_goal? }`. Idempotent on (user, course). Spec forbids target_lang == base_lang. daily_goal is accepted but not yet persisted (lands with Patch 10 stats)."
+      },
+      {
+        method: "GET",
+        path: "/api/lang/enrollments/me",
+        auth: "user",
+        summary: "Current user's enrollments (Patch 05 onboarding follow-up).",
+        notes: "Returns each enrollment's course metadata so the picker renders directly."
+      },
+      {
+        method: "GET",
+        path: "/api/lang/courses/:courseId",
+        auth: "user",
+        summary: "Course home (Patch 05).",
+        notes: "Stories list, learner's per-story progress, streak/XP rollup. Course home preview is allowed without an enrollment."
+      },
+      {
+        method: "POST",
+        path: "/api/lang/stories/:storyId/progress",
+        auth: "user",
+        summary: "Record per-scene story progress (Patch 05).",
+        notes: "Body `{ last_scene_order, score_pct?, completed? }`. Idempotent upsert keyed on (user, story). Touches the matching enrollment + LearnerStats so the streak math has a fresh anchor."
       }
     ]
   },

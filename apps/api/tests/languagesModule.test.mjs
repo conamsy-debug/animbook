@@ -35,25 +35,34 @@ test("languages router exposes the placeholder /health route", async () => {
   assert.ok(paths.includes("/health"), `expected /health, got: ${paths.join(", ")}`);
 });
 
-test("languages router exposes the placeholder + the Patch 04 player route (no leaks)", async () => {
+test("languages router exposes the Patches 01 + 04 + 05 routes (no leaks)", async () => {
   const mod = await import("../dist/modules/languages/routes.js");
   const paths = (mod.default.stack ?? [])
     .map((s) => s.route?.path)
     .filter(Boolean);
-  // Patch 01 ships ONE placeholder route (/health). Patch 04 adds the
-  // story player route (/stories/:storyId). This guard prevents the
-  // scaffold from silently growing routes without updating the spec
-  // + the route catalogue.
+  // Patch 01 ships /health. Patch 04 adds /stories/:storyId.
+  // Patch 05 adds /languages, /courses, /enrollments,
+  // /enrollments/me, /courses/:courseId, /stories/:storyId/progress.
+  // This guard prevents the module from silently growing routes
+  // without updating the spec + the route catalogue.
+  const expected = [
+    "/health",
+    "/stories/:storyId",
+    "/languages",
+    "/courses",
+    "/enrollments",
+    "/enrollments/me",
+    "/courses/:courseId",
+    "/stories/:storyId/progress"
+  ];
   assert.equal(
     paths.length,
-    2,
-    `expected exactly two routes, got: ${paths.join(", ")}`
+    expected.length,
+    `expected exactly ${expected.length} routes, got ${paths.length}: ${paths.join(", ")}`
   );
-  assert.ok(paths.includes("/health"), "placeholder route missing");
-  assert.ok(
-    paths.includes("/stories/:storyId"),
-    "Patch 04 player route missing"
-  );
+  for (const exp of expected) {
+    assert.ok(paths.includes(exp), `expected ${exp} in routes, got: ${paths.join(", ")}`);
+  }
 });
 
 /* --------------------------------------------------------------------- *
