@@ -93,7 +93,19 @@ const en = {
   "exercise.xpAwarded": {
     one: "+1 XP",
     other: "+{count} XP"
-  }
+  },
+  // Patch 08 — pronunciation recorder + per-word colouring (Section 7.5 screen 5).
+  "pronunciation.record": "Record",
+  "pronunciation.stop": "Stop",
+  "pronunciation.submit": "Submit recording",
+  "pronunciation.submitting": "Scoring…",
+  "pronunciation.tryAgain": "Try again",
+  "pronunciation.submitError": "Couldn't score your recording. Try again.",
+  "pronunciation.passed": "Nice — that sounded great.",
+  "pronunciation.tryAgainHint": "Close — listen to the native audio and try once more.",
+  "pronunciation.transcriptHeard": "We heard:",
+  "pronunciation.colouringAria": "Per-word pronunciation breakdown",
+  "pronunciation.practiceScore": "Practice score: {count}"
 };
 const fr = {
   "landing.title": "Apprends une langue à travers des histoires animées.",
@@ -165,7 +177,19 @@ const fr = {
   "exercise.xpAwarded": {
     one: "+1 XP",
     other: "+{count} XP"
-  }
+  },
+  // Patch 08 — pronunciation recorder + per-word colouring.
+  "pronunciation.record": "Enregistrer",
+  "pronunciation.stop": "Arrêter",
+  "pronunciation.submit": "Envoyer l'enregistrement",
+  "pronunciation.submitting": "Évaluation…",
+  "pronunciation.tryAgain": "Réessayer",
+  "pronunciation.submitError": "Impossible d'évaluer ton enregistrement. Réessaie.",
+  "pronunciation.passed": "Bravo — c'était très bien.",
+  "pronunciation.tryAgainHint": "Presque — écoute l'audio natif et réessaie.",
+  "pronunciation.transcriptHeard": "On a entendu :",
+  "pronunciation.colouringAria": "Détail mot par mot de la prononciation",
+  "pronunciation.practiceScore": "Score d'entraînement : {count}"
 };
 const dicts = { en, fr };
 
@@ -423,4 +447,75 @@ test("t renders the builder + speak prompts in both locales", () => {
   assert.equal(t("exercise.builderPrompt", "fr"), "Appuie sur les mots dans le bon ordre.");
   assert.equal(t("exercise.speakPrompt", "en"), "Say the line out loud.");
   assert.equal(t("exercise.speakPrompt", "fr"), "Prononce la phrase à voix haute.");
+});
+
+/* --------------------------------------------------------------------- *
+ * Patch 08 — pronunciation recorder + per-word colouring
+ * --------------------------------------------------------------------- */
+
+test("t renders the recorder verbs in both locales", () => {
+  assert.equal(t("pronunciation.record", "en"), "Record");
+  assert.equal(t("pronunciation.record", "fr"), "Enregistrer");
+  assert.equal(t("pronunciation.stop", "en"), "Stop");
+  assert.equal(t("pronunciation.stop", "fr"), "Arrêter");
+  assert.equal(t("pronunciation.submit", "en"), "Submit recording");
+  assert.equal(t("pronunciation.submit", "fr"), "Envoyer l'enregistrement");
+  assert.equal(t("pronunciation.submitting", "en"), "Scoring…");
+  assert.equal(t("pronunciation.submitting", "fr"), "Évaluation…");
+  assert.equal(t("pronunciation.tryAgain", "en"), "Try again");
+  assert.equal(t("pronunciation.tryAgain", "fr"), "Réessayer");
+});
+
+test("t renders the pronunciation feedback copy in both locales", () => {
+  assert.equal(
+    t("pronunciation.passed", "en"),
+    "Nice — that sounded great."
+  );
+  assert.equal(
+    t("pronunciation.passed", "fr"),
+    "Bravo — c'était très bien."
+  );
+  assert.equal(
+    t("pronunciation.tryAgainHint", "en"),
+    "Close — listen to the native audio and try once more."
+  );
+  assert.equal(
+    t("pronunciation.tryAgainHint", "fr"),
+    "Presque — écoute l'audio natif et réessaie."
+  );
+  assert.equal(
+    t("pronunciation.submitError", "en"),
+    "Couldn't score your recording. Try again."
+  );
+  assert.equal(
+    t("pronunciation.submitError", "fr"),
+    "Impossible d'évaluer ton enregistrement. Réessaie."
+  );
+  assert.equal(
+    t("pronunciation.transcriptHeard", "en"),
+    "We heard:"
+  );
+  assert.equal(
+    t("pronunciation.transcriptHeard", "fr"),
+    "On a entendu :"
+  );
+  assert.equal(
+    t("pronunciation.colouringAria", "en"),
+    "Per-word pronunciation breakdown"
+  );
+  assert.equal(
+    t("pronunciation.colouringAria", "fr"),
+    "Détail mot par mot de la prononciation"
+  );
+});
+
+test("t interpolates the practice-score {count} placeholder", () => {
+  assert.equal(
+    t("pronunciation.practiceScore", "en", undefined, 87),
+    "Practice score: 87"
+  );
+  assert.equal(
+    t("pronunciation.practiceScore", "fr", undefined, 42),
+    "Score d'entraînement : 42"
+  );
 });

@@ -99,10 +99,24 @@ export const fr = {
   "exercise.builderEmpty": "Appuie sur un mot pour commencer ta phrase.",
   "exercise.reset": "Réinitialiser",
   "exercise.speakPrompt": "Prononce la phrase à voix haute.",
-  "exercise.speakStub": "L'enregistrement arrive dans le Patch 08 (Whisper). Pour l'instant, choisis ton score.",
-  "exercise.speakScore": "Score d'entraînement : {count}",
-  "exercise.speakTranscript": "Ce que tu as dit (optionnel)",
-  "exercise.speakTranscriptPlaceholder": "Tape ou colle ta transcription ici…",
+
+  // Pronunciation (Patch 08)
+  "pronunciation.record": "Enregistrer",
+  "pronunciation.stop": "Arrêter",
+  "pronunciation.submit": "Envoyer l'enregistrement",
+  "pronunciation.submitting": "Évaluation…",
+  "pronunciation.tryAgain": "Réessayer",
+  "pronunciation.submitError": "Impossible d'évaluer ton enregistrement. Réessaie.",
+  "pronunciation.missingLineId": "Cet exercice n'est pas configuré — merci de le signaler.",
+  "pronunciation.unsupported": "Ton navigateur ne supporte pas l'enregistrement audio.",
+  "pronunciation.passed": "Bravo — c'était très bien.",
+  "pronunciation.tryAgainHint": "Presque — écoute l'audio natif et réessaie.",
+  "pronunciation.practiceScore": "Score d'entraînement : {count}",
+  "pronunciation.transcriptHeard": "On a entendu :",
+  "pronunciation.ariaCorrect": "correct",
+  "pronunciation.ariaMissed": "manqué",
+  "pronunciation.ariaDifferent": "différent",
+  "pronunciation.colouringAria": "Détail mot par mot de la prononciation",
 
   // Word popup (Patch 06 — Section 7.5 screen 5)
   "popup.loading": "Chargement du mot…",

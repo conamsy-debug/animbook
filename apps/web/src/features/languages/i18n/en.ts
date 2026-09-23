@@ -102,10 +102,24 @@ export const en = {
   "exercise.builderEmpty": "Tap a token to start building your sentence.",
   "exercise.reset": "Reset",
   "exercise.speakPrompt": "Say the line out loud.",
-  "exercise.speakStub": "Recording lands in Patch 08 (Whisper). For now, set the score yourself.",
-  "exercise.speakScore": "Practice score: {count}",
-  "exercise.speakTranscript": "What you said (optional)",
-  "exercise.speakTranscriptPlaceholder": "Type or paste your transcript here…",
+
+  // Pronunciation (Patch 08 — Section 7.5 screen 5 + Section 9)
+  "pronunciation.record": "Record",
+  "pronunciation.stop": "Stop",
+  "pronunciation.submit": "Submit recording",
+  "pronunciation.submitting": "Scoring…",
+  "pronunciation.tryAgain": "Try again",
+  "pronunciation.submitError": "Couldn't score your recording. Try again.",
+  "pronunciation.missingLineId": "This exercise isn't wired up — please report it.",
+  "pronunciation.unsupported": "Your browser doesn't support audio recording.",
+  "pronunciation.passed": "Nice — that sounded great.",
+  "pronunciation.tryAgainHint": "Close — listen to the native audio and try once more.",
+  "pronunciation.practiceScore": "Practice score: {count}",
+  "pronunciation.transcriptHeard": "We heard:",
+  "pronunciation.ariaCorrect": "correct",
+  "pronunciation.ariaMissed": "missed",
+  "pronunciation.ariaDifferent": "different",
+  "pronunciation.colouringAria": "Per-word pronunciation breakdown",
 
   // Word popup (Patch 06 — Section 7.5 screen 5)
   "popup.loading": "Loading word…",

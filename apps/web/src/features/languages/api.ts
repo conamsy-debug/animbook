@@ -502,3 +502,76 @@ export async function submitExerciseAttempt(input: {
   }
   return (await res.json()) as ExerciseAttemptResult;
 }
+
+/* --------------------------------------------------------------------- *
+ * Patch 08 — pronunciation scoring
+ * --------------------------------------------------------------------- *
+ * Spec § 9 + § 11. The browser records an audio clip with
+ * MediaRecorder, then POSTs the raw bytes (no multipart) to
+ * /api/lang/pronunciation alongside the line id + stt code as
+ * headers. The route runs Whisper, normalises + tokenises both
+ * sides, returns a 0..100 score plus a per-word colouring array.
+ * */
+
+/** Server-side classification of one token in the expected line. */
+export type WordStatus = "correct" | "missed" | "different";
+
+/** One row in the per-word colouring payload. The UI renders each
+ *  token green (correct), yellow (missed), or red (different). */
+export interface AlignedWord {
+  expected: string | null;
+  transcript: string | null;
+  status: WordStatus;
+}
+
+/** Result of POST /api/lang/pronunciation. */
+export interface PronunciationResult {
+  attemptId: string;
+  /** Set when the line is bound to a speak_line exercise. */
+  exerciseAttemptId: string | null;
+  lineId: string;
+  transcript: string;
+  /** Normalised expected text. */
+  expected: string;
+  score: number;
+  perWord: AlignedWord[];
+  /** XP delta for this attempt. */
+  xpAwarded: number;
+  provider: string;
+}
+
+export interface PronunciationInput {
+  /** Recorded audio bytes (e.g. a webm blob from MediaRecorder). */
+  audio: Blob;
+  /** The line the learner was attempting. */
+  lineId: string;
+  /** BCP-47 / ISO-639 code matching the Language.stt_code field. */
+  sttCode: string;
+  /** AbortSignal for cancellation. */
+  signal?: AbortSignal;
+}
+
+/**
+ * POST /api/lang/pronunciation — raw audio body + line_id + stt_code
+ * via headers. Returns the score + per-word colouring.
+ */
+export async function submitPronunciation(input: PronunciationInput): Promise<PronunciationResult> {
+  const res = await fetch("/api/lang/pronunciation", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": input.audio.type || "audio/webm",
+      "X-Line-Id": input.lineId,
+      "X-Stt-Code": input.sttCode
+    },
+    body: input.audio,
+    signal: input.signal
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(
+      `POST /api/lang/pronunciation: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
+    );
+  }
+  return (await res.json()) as PronunciationResult;
+}

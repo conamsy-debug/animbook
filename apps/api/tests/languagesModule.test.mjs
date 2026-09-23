@@ -51,6 +51,8 @@ test("languages router exposes the Patches 01 + 04 + 05 + 06 routes (no leaks)",
   // Patch 05 adds /languages, /courses, /enrollments,
   // /enrollments/me, /courses/:courseId, /stories/:storyId/progress.
   // Patch 06 adds /lexemes/:lexemeId, /vocab, /vocab/:userVocabId.
+  // Patch 07 adds /exercises/:exerciseId/attempts.
+  // Patch 08 adds /pronunciation.
   // This guard prevents the module from silently growing routes
   // without updating the spec + the route catalogue.
   const expected = [
@@ -62,6 +64,7 @@ test("languages router exposes the Patches 01 + 04 + 05 + 06 routes (no leaks)",
     "/health",
     "/languages",
     "/lexemes/:lexemeId",
+    "/pronunciation",
     "/stories/:storyId",
     "/stories/:storyId/progress",
     "/vocab",

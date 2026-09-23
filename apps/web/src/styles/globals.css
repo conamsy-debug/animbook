@@ -7642,3 +7642,130 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
   margin: 0;
 }
+
+/* ==== Pronunciation Recorder (Patch 08) =====================================
+   Spec § 7.5 + § 9. The speak_line exercise shows the expected
+   line above the recorder controls, then a record / stop / submit
+   flow with auto-stop at 10s. Mobile-first 375px. */
+
+.lang-exercise-speak-expected {
+  font-family: var(--font-serif, 'Cormorant Garamond', Georgia, serif);
+  font-size: 22px;
+  line-height: 1.4;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  margin: 0;
+  color: var(--lang-ink, #f5ecd2);
+}
+
+.lang-exercise-speak-recorder {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.lang-exercise-speak-record,
+.lang-exercise-speak-stop,
+.lang-exercise-speak-again {
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: var(--lang-ink, #f5ecd2);
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.lang-exercise-speak-record {
+  background: rgba(196, 154, 28, 0.18);
+  border-color: var(--lang-accent, #c49a1c);
+  color: var(--lang-accent, #c49a1c);
+}
+
+.lang-exercise-speak-stop {
+  background: rgba(255, 138, 122, 0.18);
+  border-color: #ff8a7a;
+  color: #ff8a7a;
+  animation: lang-pulse 1.4s ease-in-out infinite;
+}
+
+.lang-exercise-speak-again {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.lang-exercise-speak-record:hover:not(:disabled),
+.lang-exercise-speak-again:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+@keyframes lang-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* ==== Pronunciation Result + Per-Word Colouring (Patch 08) =============== */
+
+.lang-exercise-result-score {
+  font-family: var(--font-mono, 'DM Mono', ui-monospace, monospace);
+  font-size: 14px;
+  color: var(--lang-accent, #c49a1c);
+  margin: 0;
+}
+
+.lang-exercise-result-transcript {
+  font-size: 13px;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+  margin: 0;
+}
+
+.lang-exercise-result-transcript em {
+  color: var(--lang-ink, #f5ecd2);
+  font-style: italic;
+}
+
+.lang-exercise-result-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lang-word-coloring {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 4px;
+}
+
+.lang-word-coloring-token {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--lang-ink, #f5ecd2);
+}
+
+.lang-word-coloring-token--correct {
+  background: rgba(111, 191, 127, 0.18);
+  border-color: rgba(111, 191, 127, 0.5);
+  color: #b4e6bf;
+}
+
+.lang-word-coloring-token--missed {
+  background: rgba(243, 196, 90, 0.18);
+  border-color: rgba(243, 196, 90, 0.5);
+  color: #f3c45a;
+}
+
+.lang-word-coloring-token--different {
+  background: rgba(255, 138, 122, 0.18);
+  border-color: rgba(255, 138, 122, 0.5);
+  color: #ffb3a8;
+}

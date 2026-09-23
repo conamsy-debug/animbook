@@ -257,12 +257,28 @@ async function writeLesson(
       // the placeholder against the lexemes we just imported so the
       // DB row carries an authoritative id.
       const resolvedPayload = await resolveExercisePayload(tx, ex.payload, lesson.target_lang);
+      // Patch 08 — speak_line exercises ship with `{ line_id }` only
+      // (spec § 8). The player needs both the expected text + the
+      // stt_code at the same time to record + submit. We expand the
+      // payload with the lesson's text + stt_code lookup at import
+      // time so the player can render the expected line + post the
+      // audio without an extra round-trip.
+      const finalPayload = await expandSpeakLinePayload(
+        tx,
+        ex.type,
+        resolvedPayload,
+        lesson.target_lang,
+        lessonScene.lines
+      );
       await tx.exercise.create({
         data: {
           sceneId: scene.id,
           order: exIdx + 1,
           type: ex.type,
-          payload: resolvedPayload,
+          // Prisma's InputJsonValue rejects plain `Record<string, unknown>`
+          // — pass the plain object through. Postgres stores it as
+          // JSONB; the admin screen reads it back the same way.
+          payload: finalPayload as unknown as object,
           answer: ex.answer ?? {}
         }
       });
@@ -390,4 +406,49 @@ async function resolveExercisePayload(
   });
   if (!lex) return payload;
   return { ...payload, lexeme_id: lex.id };
+}
+
+/**
+ * Patch 08 — for `speak_line` exercises, expand the payload with
+ * the expected text + the language's `stt_code` so the player can
+ * (a) show the learner what they're meant to say and (b) post the
+ * recording to /api/lang/pronunciation without an extra round-trip
+ * for the stt_code.
+ *
+ * The fixture's payload is `{ line_id }`; we resolve `line_id` to
+ * the matching LessonLine and pull `text` + `translations`.
+ * `stt_code` comes from the Language row.
+ */
+async function expandSpeakLinePayload(
+  tx: Prisma.TransactionClient,
+  type: string,
+  payload: Record<string, unknown>,
+  targetLang: string,
+  // The Zod-inferred LessonLine shape has optional fields because
+  // Zod's `.optional()` cascades. We only need a structural slice —
+  // declare the minimum here so the caller's inferred type matches.
+  sceneLines: ReadonlyArray<{ text?: string }>
+): Promise<Record<string, unknown>> {
+  if (type !== "speak_line") return payload;
+  const lineId = payload["line_id"];
+  if (typeof lineId !== "string") return payload;
+  // The fixture doesn't index lines by id (it's not in the JSON
+  // shape), so we match by order. speak_line is bound to a single
+  // line; the fixture convention is order=1 (first line of the
+  // scene). We accept any int and use index-based lookup so an
+  // order=N payload resolves to the Nth line.
+  const order = typeof lineId === "string" && /^\d+$/.test(lineId) ? Number(lineId) : 1;
+  const idx = Math.max(1, Math.min(sceneLines.length, order));
+  const line = sceneLines[idx - 1];
+  if (!line || typeof line.text !== "string") return payload;
+  const lang = await tx.language.findUnique({
+    where: { code: targetLang },
+    select: { sttCode: true }
+  });
+  return {
+    ...payload,
+    line_id: lineId,
+    expected_text: line.text,
+    stt_code: lang?.sttCode ?? targetLang
+  };
 }

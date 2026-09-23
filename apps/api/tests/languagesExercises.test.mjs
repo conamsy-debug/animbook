@@ -52,6 +52,11 @@ async function loadFixture(prisma, slug) {
   const raw = JSON.parse(readFileSync(fixturePath, "utf8"));
   await prisma.story.deleteMany({ where: { masterStory: { slug: raw.master_story_slug } } });
   await prisma.masterStory.deleteMany({ where: { slug: raw.master_story_slug } });
+  // Wipe exercises too: previous test runs (e.g. Hebrew fixture) leave
+  // orphaned rows behind, and `findFirst({ where: { type } })` may
+  // return a stale row from another fixture whose `answer.index`
+  // doesn't match what the caller expects.
+  await prisma.exercise.deleteMany({});
   await prisma.exerciseAttempt.deleteMany({});
   await prisma.learnerStats.deleteMany({});
   const result = await importLesson(prisma, raw);

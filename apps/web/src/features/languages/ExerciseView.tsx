@@ -28,10 +28,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   submitExerciseAttempt,
+  submitPronunciation,
   type BaseLang,
-  type ExerciseAttemptResult
+  type ExerciseAttemptResult,
+  type PronunciationResult
 } from "./api";
 import { t, type Locale } from "./i18n/t";
+import { useMediaRecorder } from "./useMediaRecorder";
+import { WordColoring } from "./WordColoring";
 import type { PlayerExercise } from "./types";
 
 /** One MC option — supports both flat string options (the
@@ -317,93 +321,199 @@ function SentenceBuilderView({ exercise, base, locale, onDone }: ExerciseViewPro
 }
 
 /* --------------------------------------------------------------------- *
- * speak_line — Patch 07 stub. Patch 08 swaps the score slider for a
- * MediaRecorder + Whisper upload flow. The wire format is the same
- * (the server treats the score as authoritative either way), so the
- * UI upgrade is purely local.
+ * speak_line — Patch 08.
+ *
+ * Real recording flow:
+ *   1. The browser captures audio via MediaRecorder (capped at 10s
+ *      per spec § 9; auto-stop in the hook).
+ *   2. We POST the raw audio to /api/lang/pronunciation with the
+ *      expected line id + stt code as headers.
+ *   3. The server runs Whisper, normalises + tokenises both sides,
+ *      and returns a 0..100 score + per-word colouring payload.
+ *   4. We render the colouring inline + a "Continue" button that
+ *      advances to the next exercise / scene.
+ *
+ * The expected text + stt_code ride on the exercise payload (the
+ * importer expands `speak_line` payloads with `expected_text` +
+ * `stt_code` at write time so the player doesn't need a second
+ * round-trip to the API).
  * --------------------------------------------------------------------- */
 
+interface SpeakLinePayload {
+  line_id?: string;
+  expected_text?: string;
+  stt_code?: string;
+}
+
 function SpeakLineView({ exercise, base, locale, onDone }: ExerciseViewProps) {
-  const [score, setScore] = useState<number>(80);
-  const [transcript, setTranscript] = useState<string>("");
-  const [result, setResult] = useState<ExerciseAttemptResult | null>(null);
+  const payload = exercise.payload as SpeakLinePayload;
+  const expectedText = payload.expected_text ?? "";
+  const lineId = payload.line_id ?? "";
+  const sttCode = payload.stt_code ?? base;
+
+  const recorder = useMediaRecorder();
   const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<PronunciationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setScore(80);
-    setTranscript("");
+    recorder.reset();
     setResult(null);
     setError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exercise.exerciseId]);
 
   const submit = async () => {
-    if (submitting) return;
+    if (!recorder.audioBlob || submitting) return;
+    if (!lineId) {
+      setError(t("pronunciation.missingLineId", locale));
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
-      const r = await submitExerciseAttempt({
-        exerciseId: exercise.exerciseId,
-        body: { type: "speak_line", score, transcript: transcript || undefined }
+      const r = await submitPronunciation({
+        audio: recorder.audioBlob,
+        lineId,
+        sttCode
       });
       setResult(r);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("exercise.error", locale));
+      setError(err instanceof Error ? err.message : t("pronunciation.submitError", locale));
     } finally {
       setSubmitting(false);
     }
   };
 
+  const tryAgain = () => {
+    recorder.reset();
+    setResult(null);
+    setError(null);
+  };
+
   return (
     <div className="lang-exercise lang-exercise--speak" lang={base}>
       <h2 className="lang-exercise-question">{t("exercise.speakPrompt", locale)}</h2>
-      <p className="lang-exercise-speak-stub">{t("exercise.speakStub", locale)}</p>
 
-      <label className="lang-exercise-speak-score">
-        <span className="lang-exercise-speak-score-label">
-          {t("exercise.speakScore", locale, undefined, score)}
-        </span>
-        <input
-          type="range"
-          min={0}
-          max={100}
-          step={1}
-          value={score}
-          onChange={(e) => setScore(Number(e.target.value))}
-          disabled={Boolean(result) || submitting}
-          className="lang-exercise-speak-slider"
-        />
-      </label>
+      <p className="lang-exercise-speak-expected" lang={base} dir={(base as string) === "he" ? "rtl" : "ltr"}>
+        {expectedText}
+      </p>
 
-      <label className="lang-exercise-speak-transcript">
-        <span className="lang-exercise-speak-transcript-label">
-          {t("exercise.speakTranscript", locale)}
-        </span>
-        <input
-          type="text"
-          value={transcript}
-          onChange={(e) => setTranscript(e.target.value)}
-          placeholder={t("exercise.speakTranscriptPlaceholder", locale)}
-          disabled={Boolean(result) || submitting}
-          className="lang-exercise-speak-input"
-        />
-      </label>
+      {!recorder.isSupported ? (
+        <p className="lang-exercise-error" role="alert">
+          {t("pronunciation.unsupported", locale)}
+        </p>
+      ) : (
+        <div className="lang-exercise-speak-recorder">
+          {recorder.state === "recording" ? (
+            <button
+              type="button"
+              className="lang-exercise-speak-stop"
+              onClick={() => recorder.stop()}
+            >
+              {t("pronunciation.stop", locale)} · {(recorder.elapsedMs / 1000).toFixed(1)}s
+            </button>
+          ) : recorder.audioBlob ? (
+            <div className="lang-exercise-splay-row">
+              <button
+                type="button"
+                className="lang-exercise-speak-again"
+                onClick={tryAgain}
+                disabled={submitting}
+              >
+                {t("pronunciation.tryAgain", locale)}
+              </button>
+              <button
+                type="button"
+                className="lang-exercise-submit"
+                onClick={submit}
+                disabled={submitting}
+              >
+                {submitting ? t("pronunciation.submitting", locale) : t("pronunciation.submit", locale)}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="lang-exercise-speak-record"
+              onClick={() => recorder.start()}
+            >
+              {t("pronunciation.record", locale)}
+            </button>
+          )}
+        </div>
+      )}
 
-      {!result ? (
-        <button
-          type="button"
-          className="lang-exercise-submit"
-          onClick={submit}
-          disabled={submitting}
-        >
-          {submitting ? t("exercise.submitting", locale) : t("exercise.submitScore", locale)}
-        </button>
+      {recorder.errorMessage ? (
+        <p className="lang-exercise-error" role="alert">{recorder.errorMessage}</p>
       ) : null}
 
-      {result ? <ResultPanel result={result} locale={locale} onDone={onDone} /> : null}
+      {error ? (
+        <p className="lang-exercise-error" role="alert">{error}</p>
+      ) : null}
 
-      {error ? <p className="lang-exercise-error" role="alert">{error}</p> : null}
+      {result ? (
+        <PronunciationResultPanel result={result} locale={locale} onDone={onDone} onRetry={tryAgain} />
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * Pronunciation result panel — mirrors ResultPanel but also surfaces
+ * the per-word colouring payload so the learner sees which words
+ * they nailed and which ones the recogniser flagged.
+ */
+function PronunciationResultPanel({
+  result,
+  locale,
+  onDone,
+  onRetry
+}: {
+  result: PronunciationResult;
+  locale: Locale;
+  onDone: () => void;
+  onRetry: () => void;
+}) {
+  const passed = result.score >= 60;
+  return (
+    <section
+      className={
+        "lang-exercise-result " +
+        (passed ? "lang-exercise-result--correct" : "lang-exercise-result--wrong")
+      }
+      role="status"
+    >
+      <p className="lang-exercise-result-line">
+        {passed
+          ? t("pronunciation.passed", locale)
+          : t("pronunciation.tryAgainHint", locale)}
+      </p>
+      <p className="lang-exercise-result-score">
+        {t("pronunciation.practiceScore", locale, undefined, result.score)}
+      </p>
+      {result.transcript ? (
+        <p className="lang-exercise-result-transcript" aria-live="polite">
+          {t("pronunciation.transcriptHeard", locale)} <em>{result.transcript}</em>
+        </p>
+      ) : null}
+      {result.perWord.length > 0 ? (
+        <WordColoring perWord={result.perWord} locale={locale} />
+      ) : null}
+      {result.xpAwarded > 0 ? (
+        <p className="lang-exercise-result-xp">
+          {t("exercise.xpAwarded", locale, undefined, result.xpAwarded)}
+        </p>
+      ) : null}
+      <div className="lang-exercise-result-actions">
+        <button type="button" className="lang-exercise-continue" onClick={onRetry}>
+          {t("pronunciation.tryAgain", locale)}
+        </button>
+        <button type="button" className="lang-exercise-submit" onClick={onDone}>
+          {t("exercise.continue", locale)}
+        </button>
+      </div>
+    </section>
   );
 }
 

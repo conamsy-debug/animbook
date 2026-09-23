@@ -410,6 +410,13 @@ export const APP_ROUTES: Module[] = [
         auth: "user",
         summary: "Record an exercise attempt + award XP (Patch 07).",
         notes: "Body shape depends on Exercise.type: `{ index }` for comprehension_mc / word_meaning_mc / listen_select; `{ order }` for sentence_builder; `{ score, transcript? }` for speak_line. Awards 10 XP per correct MC / sentence_builder answer, 5 XP per speak_line attempt scoring ≥ 60. Wrong attempts still write a row for the admin review screen (Patch 12)."
+      },
+      {
+        method: "POST",
+        path: "/api/lang/pronunciation",
+        auth: "user",
+        summary: "Speak_line audio scoring (Patch 08).",
+        notes: "Raw audio body (`audio/webm` / `audio/ogg` / `audio/mp4`) with `X-Line-Id` + `X-Stt-Code` headers. Runs Whisper transcription, normalises + tokenises both sides, emits a 0..100 score + per-word colouring. Awards 5 XP for ≥ 60. 503 when OPENAI_API_KEY is unset."
       }
     ]
   },

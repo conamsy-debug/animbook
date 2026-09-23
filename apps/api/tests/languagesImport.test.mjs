@@ -154,8 +154,13 @@ dbSuite("importer writes the Spanish fixture to a fresh DB", async (t) => {
   const fixture = JSON.parse(readFileSync(path.join(fixturesDir, "es-market-morning.json"), "utf8"));
 
   // Wipe any prior runs (we're sharing the DB across test runs).
+  // The lexeme table is shared across stories of the same target
+  // language — without a wipe, the importer's upsert hits the
+  // existing rows and `lexemesCreated` stays 0.
   await prisma.story.deleteMany({ where: { masterStory: { slug: fixture.master_story_slug } } });
   await prisma.masterStory.deleteMany({ where: { slug: fixture.master_story_slug } });
+  await prisma.lexeme.deleteMany({ where: { targetLang: fixture.target_lang } });
+  await prisma.exercise.deleteMany({});
 
   const result = await importLesson(prisma, fixture);
 

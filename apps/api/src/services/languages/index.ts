@@ -22,3 +22,16 @@ export type {
 export { parseLesson, tryParseLesson, LessonValidationError } from "./schema.js";
 export { importLesson, type ImportOptions } from "./importer.js";
 export { exportStory, type ExportOptions } from "./exporter.js";
+
+// Patch 08 — speech-to-text + pronunciation scoring helpers.
+export {
+  type SttProvider,
+  type AlignedWord,
+  type WordStatus,
+  WhisperOpenAIProvider,
+  resolveSttProvider,
+  normaliseForCompare,
+  tokenise,
+  alignTokens,
+  scoreFromAlignment
+} from "./stt.js";

@@ -20,7 +20,14 @@ import type { Request, Response } from "express";
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { authMiddleware, requireUserId } from "../../auth/middleware.js";
-import { exportStory } from "../../services/languages/index.js";
+import {
+  exportStory,
+  resolveSttProvider,
+  normaliseForCompare,
+  tokenise,
+  alignTokens,
+  scoreFromAlignment
+} from "../../services/languages/index.js";
 
 const prisma = new PrismaClient();
 
@@ -1189,5 +1196,209 @@ export function scoreAttempt(
       return { isCorrect: false, score: null, xpAwarded: 0 };
   }
 }
+
+/* --------------------------------------------------------------------- *
+ * POST /pronunciation — speak_line audio scoring (Patch 08)
+ * Spec § 9 + § 11. The browser posts a raw audio clip
+ * (`Content-Type: audio/webm`, `audio/ogg`, or `audio/mp4` depending on
+ * the codec the browser emits) with two headers:
+ *
+ *   - `X-Line-Id`     — the Line the learner was attempting
+ *   - `X-Stt-Code`    — the language's `stt_code` (e.g. "es", "zh",
+ *                        "he") for the Whisper `language` parameter
+ *
+ * The route asks the SttProvider for a transcript, normalises +
+ * tokenises both sides, runs Levenshtein alignment, writes a
+ * PronunciationAttempt row, and (if the line came from a
+ * speak_line exercise) writes an ExerciseAttempt row too.
+ *
+ * Spec § 9 step 4: per-word colouring is returned as a JSON array so
+ * the UI can highlight green / yellow / red on the page. Step 5:
+ * each tone comparison (for zh) is recorded separately when the
+ * helper detects pinyin tone marks — the Phase 1 helper doesn't
+ *   do tone decomposition yet (we'd need `pypinyin` on the server),
+ *   so Patch 08 ships per-word first and adds tone results in a
+ * follow-up patch when the pipeline surfaces pinyin tokens.
+ *
+ * Auth: gated by authMiddleware (the existing languages module
+ * mount). 503 when no SttProvider is configured (no OPENAI_API_KEY).
+ * --------------------------------------------------------------------- */
+
+interface PronunciationRequest extends Request {
+  body: Buffer;
+}
+
+router.post(
+  "/pronunciation",
+  authMiddleware,
+  // Raw body middleware: read the audio bytes as a Buffer. We mount
+  // it inline (instead of globally) so the JSON-only routes keep
+  // their body parser. Limit 5 MB — A1 lines are short, so even a
+  // 10-second clip is well under that.
+  (req: Request, _res: Response, next) => {
+    const raw = req as unknown as PronunciationRequest;
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    req.on("end", () => {
+      raw.body = Buffer.concat(chunks);
+      next();
+    });
+    req.on("error", next);
+  },
+  async (req: Request, res: Response) => {
+    const raw = req as unknown as PronunciationRequest;
+    const audio = raw.body;
+    if (!audio || audio.length === 0) {
+      res.status(400).json({ error: "audio body is required" });
+      return;
+    }
+    // 5 MB cap. Express middleware sets req.headers; we surface a
+    // 413 explicitly so the page can recover gracefully.
+    if (audio.length > 5 * 1024 * 1024) {
+      res.status(413).json({ error: "audio clip exceeds 5 MB" });
+      return;
+    }
+
+    const lineIdHeader = req.header("x-line-id") ?? req.header("X-Line-Id");
+    const sttCodeHeader = req.header("x-stt-code") ?? req.header("X-Stt-Code");
+    if (!lineIdHeader) {
+      res.status(400).json({ error: "X-Line-Id header is required" });
+      return;
+    }
+    if (!sttCodeHeader) {
+      res.status(400).json({ error: "X-Stt-Code header is required" });
+      return;
+    }
+
+    const line = await prisma.line.findUnique({
+      where: { id: lineIdHeader },
+      include: { scene: { include: { story: true } } }
+    });
+    if (!line) {
+      res.status(404).json({ error: "line not found", lineId: lineIdHeader });
+      return;
+    }
+
+    const provider = resolveSttProvider({
+      // Read process.env directly so the tests can flip the key
+      // mid-run. appEnv freezes at module-load time; this matches
+      // the production behaviour because dotenv loads .env into
+      // process.env at startup.
+      openaiApiKey: process.env.OPENAI_API_KEY,
+      // Resolve `fetch` at request time so a test can stub
+      // globalThis.fetch mid-run. In production globalThis.fetch
+      // is Node's built-in (or undici's) and never changes.
+      fetchImpl: globalThis.fetch
+    });
+    if (!provider.isConfigured()) {
+      res.status(503).json({
+        error: "No speech-to-text provider configured (set OPENAI_API_KEY)."
+      });
+      return;
+    }
+
+    let transcript: string;
+    try {
+      transcript = await provider.transcribe({
+        audio,
+        language: sttCodeHeader,
+        prompt: line.text
+      });
+    } catch (err) {
+      // Surface the provider's message but don't 500 — the page
+      // recovers by showing "couldn't transcribe" with a Retry
+      // button.
+      res.status(502).json({
+        error: err instanceof Error ? err.message : "transcription failed",
+        provider: provider.name
+      });
+      return;
+    }
+
+    const expected = normaliseForCompare(line.text);
+    const got = normaliseForCompare(transcript);
+    const expectedTokens = tokenise(expected);
+    const gotTokens = tokenise(got);
+    const aligned = alignTokens(expectedTokens, gotTokens);
+    const score = scoreFromAlignment(expectedTokens, gotTokens);
+
+    const userId = requireUserId(req as Parameters<typeof requireUserId>[0]);
+
+    // Persist the raw attempt so the admin review screen (Patch 12)
+    // can audit what the learner actually said. The migration makes
+    // `audio_url` NOT NULL — Patch 08 doesn't upload to R2 yet
+    // (the audio blob lives in the request body), so we record an
+    // empty string as the placeholder. A follow-up patch uploads
+    // the bytes to R2 and writes the CDN URL here.
+    const attempt = await prisma.pronunciationAttempt.create({
+      data: {
+        userId,
+        lineId: line.id,
+        audioUrl: "",
+        transcript,
+        score,
+        // Prisma's InputJsonValue rejects structured records with
+        // tuple arrays. The route's payload is a plain JS object
+        // so passing it through (with `as unknown as` since the
+        // helper's array typing is narrower than what Prisma
+        // accepts at runtime) is safe — Postgres stores the JSON
+        // and the admin review screen (Patch 12) reads it back.
+        details: {
+          perWord: aligned,
+          expectedTokens,
+          transcriptTokens: gotTokens,
+          provider: provider.name,
+          language: sttCodeHeader
+        } as unknown as object
+      }
+    });
+
+    // Mirror the attempt into the exercise_attempts ledger when the
+    // line is bound to a speak_line exercise. The exercise_id is
+    // resolved via the scene + order=index-1 lookup (Patch 07 ships
+    // speak_line as a single exercise per scene, so we find the
+    // first one).
+    let xpAwarded = 0;
+    let exerciseAttemptId: string | null = null;
+    const scene = line.scene;
+    if (scene) {
+      const speakExercise = await prisma.exercise.findFirst({
+        where: { sceneId: scene.id, type: "speak_line" }
+      });
+      if (speakExercise) {
+        const exAttempt = await prisma.exerciseAttempt.create({
+          data: {
+            userId,
+            exerciseId: speakExercise.id,
+            response: { transcript, score, provider: provider.name },
+            isCorrect: score >= SPEAK_PASS_THRESHOLD,
+            score
+          }
+        });
+        exerciseAttemptId = exAttempt.id;
+        if (score >= SPEAK_PASS_THRESHOLD) {
+          xpAwarded = XP_SPEAK_OK;
+          await prisma.learnerStats.upsert({
+            where: { userId },
+            update: { xpTotal: { increment: XP_SPEAK_OK } },
+            create: { userId, xpTotal: XP_SPEAK_OK }
+          });
+        }
+      }
+    }
+
+    res.status(201).json({
+      attemptId: attempt.id,
+      exerciseAttemptId,
+      lineId: line.id,
+      transcript,
+      expected,
+      score,
+      perWord: aligned,
+      xpAwarded,
+      provider: provider.name
+    });
+  }
+);
 
 export default router;
