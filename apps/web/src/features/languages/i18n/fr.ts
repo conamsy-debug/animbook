@@ -72,6 +72,37 @@ export const fr = {
   // Story player
   "player.savedProgress": "Progression enregistrée",
   "player.completeStory": "Marquer l'histoire comme terminée",
+  "player.completeTitle": "Histoire terminée",
+  "player.completeBody": "Bravo — chaque mot que tu as touché est maintenant dans ton deck.",
+  "player.completeWords": {
+    one: "1 nouveau mot appris",
+    other: "{count} nouveaux mots appris"
+  },
+
+  // Exercise views (Patch 07 — Section 7.6)
+  "exercise.questionFallback": "Choisis la meilleure réponse.",
+  "exercise.listenPrompt": "Écoute la phrase, puis choisis ce que tu as entendu.",
+  "exercise.check": "Vérifier",
+  "exercise.submitting": "Vérification…",
+  "exercise.submitScore": "Envoyer le score",
+  "exercise.error": "Une erreur s'est produite. Réessaie.",
+  "exercise.correct": "Correct !",
+  "exercise.wrong": "Pas tout à fait — la bonne réponse est surlignée.",
+  "exercise.xpAwarded": {
+    one: "+1 XP",
+    other: "+{count} XP"
+  },
+  "exercise.continue": "Continuer",
+  "exercise.skip": "Passer",
+  "exercise.unsupported": "Ce type d'exercice n'est pas encore supporté : {type}",
+  "exercise.builderPrompt": "Appuie sur les mots dans le bon ordre.",
+  "exercise.builderEmpty": "Appuie sur un mot pour commencer ta phrase.",
+  "exercise.reset": "Réinitialiser",
+  "exercise.speakPrompt": "Prononce la phrase à voix haute.",
+  "exercise.speakStub": "L'enregistrement arrive dans le Patch 08 (Whisper). Pour l'instant, choisis ton score.",
+  "exercise.speakScore": "Score d'entraînement : {count}",
+  "exercise.speakTranscript": "Ce que tu as dit (optionnel)",
+  "exercise.speakTranscriptPlaceholder": "Tape ou colle ta transcription ici…",
 
   // Word popup (Patch 06 — Section 7.5 screen 5)
   "popup.loading": "Chargement du mot…",

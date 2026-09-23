@@ -7334,3 +7334,311 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   border-color: var(--lang-accent, #c49a1c);
   color: var(--lang-accent, #c49a1c);
 }
+
+/* ==== Exercise Views (Patch 07) =============================================
+   Spec § 7.6 + § 8. One card per exercise; the parent <StoryPlayer>
+   renders it between the lines and the next scene (or the story-
+   complete summary). Mobile-first 375px. */
+
+.lang-exercise {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.lang-exercise-question {
+  font-family: var(--font-serif, 'Cormorant Garamond', Georgia, serif);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 0;
+  color: var(--lang-ink, #f5ecd2);
+}
+
+.lang-exercise-prompt {
+  font-size: 13px;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+  margin: 0;
+}
+
+.lang-exercise-options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lang-exercise-option {
+  width: 100%;
+  text-align: start;
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 15px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: transparent;
+  color: var(--lang-ink, #f5ecd2);
+  cursor: pointer;
+  min-height: 44px;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+
+.lang-exercise-option:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(196, 154, 28, 0.5);
+}
+
+.lang-exercise-option[aria-checked='true'] {
+  border-color: var(--lang-accent, #c49a1c);
+  background: rgba(196, 154, 28, 0.12);
+}
+
+.lang-exercise-option:disabled { cursor: default; }
+
+.lang-exercise-option--correct {
+  background: rgba(111, 191, 127, 0.16);
+  border-color: rgba(111, 191, 127, 0.6);
+  color: #b4e6bf;
+}
+
+.lang-exercise-option--wrong {
+  background: rgba(255, 138, 122, 0.14);
+  border-color: rgba(255, 138, 122, 0.5);
+  color: #ffb3a8;
+}
+
+.lang-exercise-option--reveal {
+  background: rgba(111, 191, 127, 0.12);
+  border-color: rgba(111, 191, 127, 0.45);
+}
+
+.lang-exercise-submit,
+.lang-exercise-continue {
+  align-self: flex-start;
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 22px;
+  border-radius: 999px;
+  border: 1px solid var(--lang-accent, #c49a1c);
+  background: var(--lang-accent, #c49a1c);
+  color: #161310;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.lang-exercise-submit:disabled,
+.lang-exercise-continue:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.lang-exercise-continue {
+  background: transparent;
+  color: var(--lang-accent, #c49a1c);
+  margin-block-start: 12px;
+}
+
+.lang-exercise-error {
+  font-size: 13px;
+  color: #ff8a7a;
+  margin: 0;
+}
+
+.lang-exercise-error-meta {
+  font-family: var(--font-mono, 'DM Mono', ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.6));
+  margin: 0;
+}
+
+.lang-exercise-result {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 10px;
+}
+
+.lang-exercise-result--correct {
+  background: rgba(111, 191, 127, 0.12);
+  border: 1px solid rgba(111, 191, 127, 0.5);
+}
+
+.lang-exercise-result--wrong {
+  background: rgba(255, 138, 122, 0.10);
+  border: 1px solid rgba(255, 138, 122, 0.4);
+}
+
+.lang-exercise-result-line {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--lang-ink, #f5ecd2);
+}
+
+.lang-exercise-result-xp {
+  font-family: var(--font-mono, 'DM Mono', ui-monospace, monospace);
+  font-size: 12px;
+  color: var(--lang-accent, #c49a1c);
+  margin: 0;
+}
+
+/* ==== sentence_builder ===================================================== */
+
+.lang-exercise-builder-output {
+  font-family: var(--font-serif, 'Cormorant Garamond', Georgia, serif);
+  font-size: 22px;
+  line-height: 1.4;
+  padding: 14px 16px;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  min-height: 64px;
+  margin: 0;
+  color: var(--lang-ink, #f5ecd2);
+}
+
+.lang-exercise-builder-output--empty {
+  font-size: 13px;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.6));
+  font-style: italic;
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+}
+
+.lang-exercise-builder-pool {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lang-exercise-builder-token {
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 14px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--lang-ink, #f5ecd2);
+  cursor: pointer;
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.lang-exercise-builder-token:hover:not(:disabled) {
+  border-color: var(--lang-accent, #c49a1c);
+}
+
+.lang-exercise-builder-token--used {
+  background: rgba(196, 154, 28, 0.16);
+  border-color: var(--lang-accent, #c49a1c);
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.lang-exercise-builder-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lang-exercise-builder-reset {
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 13px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: var(--lang-ink, #f5ecd2);
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.lang-exercise-builder-reset:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ==== speak_line (Patch 07 stub) =========================================== */
+
+.lang-exercise-speak-stub {
+  font-size: 13px;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+  margin: 0;
+  font-style: italic;
+}
+
+.lang-exercise-speak-score,
+.lang-exercise-speak-transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lang-exercise-speak-score-label,
+.lang-exercise-speak-transcript-label {
+  font-family: var(--font-mono, 'DM Mono', ui-monospace, monospace);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+}
+
+.lang-exercise-speak-slider {
+  width: 100%;
+  accent-color: var(--lang-accent, #c49a1c);
+}
+
+.lang-exercise-speak-input {
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(8, 12, 20, 0.6);
+  color: var(--lang-ink, #f5ecd2);
+}
+
+.lang-exercise-speak-input:focus-visible {
+  outline: 2px solid var(--lang-accent, #c49a1c);
+  outline-offset: 1px;
+}
+
+/* ==== Story Complete (Patch 07) ============================================ */
+
+.lang-player-complete {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 24px;
+  border: 1px solid rgba(196, 154, 28, 0.4);
+  border-radius: 14px;
+  background: rgba(196, 154, 28, 0.08);
+  text-align: center;
+}
+
+.lang-player-complete-title {
+  font-family: var(--font-serif, 'Cormorant Garamond', Georgia, serif);
+  font-size: 28px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--lang-accent, #c49a1c);
+}
+
+.lang-player-complete-body {
+  font-size: 14px;
+  color: var(--lang-ink, #f5ecd2);
+  margin: 0;
+}
+
+.lang-player-complete-meta {
+  font-family: var(--font-mono, 'DM Mono', ui-monospace, monospace);
+  font-size: 12px;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+  margin: 0;
+}

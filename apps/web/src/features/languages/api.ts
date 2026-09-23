@@ -437,3 +437,68 @@ export async function fetchMyWords(input: {
   );
   return data ? data.cards : [];
 }
+
+/* --------------------------------------------------------------------- *
+ * Patch 07 — exercise attempts
+ * --------------------------------------------------------------------- *
+ * Spec § 8 + § 11. The five exercise types share the same endpoint;
+ * the body shape varies. The wrapper accepts a discriminated union so
+ * the UI passes exactly the right body per type.
+ * */
+
+export type ExerciseAttemptBody =
+  /** comprehension_mc / word_meaning_mc / listen_select */
+  | { type: "comprehension_mc" | "word_meaning_mc" | "listen_select"; index: number }
+  /** sentence_builder — taps shuffled tokens into the correct order */
+  | { type: "sentence_builder"; order: number[] }
+  /** speak_line — recording score (Patch 08 owns Whisper; Patch 07
+   *  treats the score as already-known so the player UI can drive
+   *  the flow without a real STT backend yet). */
+  | { type: "speak_line"; score: number; transcript?: string };
+
+/** Result of POST /api/lang/exercises/:id/attempts. */
+export interface ExerciseAttemptResult {
+  attemptId: string;
+  exerciseId: string;
+  isCorrect: boolean;
+  /** 0-100 for speak_line, null otherwise. */
+  score: number | null;
+  /** XP delta for this attempt. */
+  xpAwarded: number;
+  /** The correct answer index for MC-style exercises — surfaced so
+   *  the UI can highlight the right option on a wrong answer. Null
+   *  for the other exercise types. */
+  correctIndex: number | null;
+}
+
+/**
+ * POST /api/lang/exercises/:exerciseId/attempts — record an attempt
+ * + award XP. The body's `type` field carries the exercise type so
+ * the API can shape the response (XP, score) without a separate GET
+ * on the exercise row.
+ */
+export async function submitExerciseAttempt(input: {
+  exerciseId: string;
+  body: ExerciseAttemptBody;
+}): Promise<ExerciseAttemptResult> {
+  // Strip the `type` field before sending — the server reads it
+  // from the Exercise row, not from the body.
+  const { type, ...rest } = input.body;
+  void type;
+  const res = await fetch(
+    `/api/lang/exercises/${encodeURIComponent(input.exerciseId)}/attempts`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(rest)
+    }
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(
+      `POST /api/lang/exercises/.../attempts: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
+    );
+  }
+  return (await res.json()) as ExerciseAttemptResult;
+}

@@ -250,12 +250,19 @@ async function writeLesson(
     // Exercises.
     for (let exIdx = 0; exIdx < lessonScene.exercises.length; exIdx++) {
       const ex = lessonScene.exercises[exIdx];
+      // Patch 07 — word_meaning_mc payloads carry `lexeme_id` so the
+      // learner knows which word's meaning to pick. The lesson JSON
+      // can't ship real cuids (those don't exist until import), so
+      // fixtures use a `<placeholder-<lemma>-id>` convention. Resolve
+      // the placeholder against the lexemes we just imported so the
+      // DB row carries an authoritative id.
+      const resolvedPayload = await resolveExercisePayload(tx, ex.payload, lesson.target_lang);
       await tx.exercise.create({
         data: {
           sceneId: scene.id,
           order: exIdx + 1,
           type: ex.type,
-          payload: ex.payload,
+          payload: resolvedPayload,
           answer: ex.answer ?? {}
         }
       });
@@ -355,4 +362,32 @@ function mergeGlosses(existing: GlossesMap, incoming: { en?: string[]; fr?: stri
     out[lang] = merged;
   }
   return out;
+}
+
+/**
+ * Resolve `<placeholder-<lemma>-id>` placeholders inside an exercise
+ * payload to the real Lexeme cuid. We only touch the `lexeme_id`
+ * field — other strings in the payload are left verbatim. If the
+ * placeholder lemma isn't in the catalogue (e.g. a typo in the
+ * fixture), we leave the placeholder in place so the admin can spot
+ * the drift via the admin review screen (Patch 12).
+ */
+async function resolveExercisePayload(
+  tx: Prisma.TransactionClient,
+  payload: Record<string, unknown>,
+  targetLang: string
+): Promise<Record<string, unknown>> {
+  const lexemeId = payload["lexeme_id"];
+  if (typeof lexemeId !== "string") return payload;
+  // Convention: <placeholder-<lemma>-id> for hand-written fixtures.
+  // Real cuids start with `cm` and don't contain angle brackets.
+  const match = /^<placeholder-([a-zA-ZÀ-ɏ_-]+)-id>$/.exec(lexemeId);
+  if (!match) return payload;
+  const lemma = match[1]!;
+  const lex = await tx.lexeme.findFirst({
+    where: { targetLang, lemma },
+    select: { id: true, partOfSpeech: true }
+  });
+  if (!lex) return payload;
+  return { ...payload, lexeme_id: lex.id };
 }

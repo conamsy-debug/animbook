@@ -1030,4 +1030,164 @@ router.get("/vocab", authMiddleware, async (req: Request, res: Response) => {
   });
 });
 
+/* --------------------------------------------------------------------- *
+ * POST /exercises/:exerciseId/attempts — record an attempt + award XP (Patch 07)
+ * Spec § 8 + § 11. Body shape depends on Exercise.type:
+ *   - comprehension_mc / word_meaning_mc / listen_select: `{ index: number }`
+ *   - sentence_builder:                                `{ order: number[] }`
+ *   - speak_line:                                       `{ score: number, transcript?: string }`
+ *
+ * XP rules (spec § 8):
+ *   - 10 XP per correct answer (the four MC-style + sentence_builder)
+ *   - 5 XP per speak_line attempt scoring ≥ 60
+ *
+ * Wrong answers and low-scoring speak_lines award no XP but still
+ * write the attempt row (so the admin can review learner progress
+ * per spec § 7.6).
+ * --------------------------------------------------------------------- */
+
+interface AttemptBody {
+  // MC + listen_select
+  index?: number;
+  // sentence_builder
+  order?: number[];
+  // speak_line (Patch 07 is a stub — Patch 08 owns Whisper)
+  score?: number;
+  transcript?: string;
+}
+
+router.post(
+  "/exercises/:exerciseId/attempts",
+  authMiddleware,
+  async (req: Request, res: Response) => {
+    const rawId = req.params["exerciseId"];
+    const exerciseId = Array.isArray(rawId) ? rawId[0] : rawId;
+    if (!exerciseId) {
+      res.status(400).json({ error: "exerciseId is required" });
+      return;
+    }
+
+    const userId = requireUserId(req as Parameters<typeof requireUserId>[0]);
+    const body = (req.body ?? {}) as AttemptBody;
+
+    const exercise = await prisma.exercise.findUnique({
+      where: { id: exerciseId }
+    });
+    if (!exercise) {
+      res.status(404).json({ error: "exercise not found", exerciseId });
+      return;
+    }
+
+    // Score per type. Pure function so the unit-style tests can
+    // assert the per-type behaviour without going through HTTP.
+    const result = scoreAttempt(exercise.type, exercise.payload, exercise.answer, body);
+
+    const attempt = await prisma.exerciseAttempt.create({
+      data: {
+        userId,
+        exerciseId,
+        // Prisma's InputJsonValue rejects plain `Record<string, unknown>`
+        // — pass the plain object directly (the live/routes.ts pattern
+        // does the same). Prisma validates the JSON shape at the
+        // boundary, so this is safe.
+        response: body as unknown as object,
+        isCorrect: result.isCorrect,
+        score: result.score
+      }
+    });
+
+    // Award XP on the learner stats row. Bumping atomically means a
+    // concurrent attempt can't lose an increment.
+    if (result.xpAwarded > 0) {
+      await prisma.learnerStats.upsert({
+        where: { userId },
+        update: { xpTotal: { increment: result.xpAwarded } },
+        create: { userId, xpTotal: result.xpAwarded }
+      });
+    }
+
+    res.status(201).json({
+      attemptId: attempt.id,
+      exerciseId: attempt.exerciseId,
+      isCorrect: attempt.isCorrect,
+      score: attempt.score,
+      xpAwarded: result.xpAwarded,
+      correctIndex: result.correctIndex ?? null
+    });
+  }
+);
+
+/**
+ * Pure scoring logic — exposed as a function so the unit test can
+ * exercise every type without booting Express. The route above
+ * delegates here.
+ */
+export interface ScoreResult {
+  isCorrect: boolean;
+  /** 0-100 for speak_line, null otherwise. */
+  score: number | null;
+  /** XP delta for this attempt. */
+  xpAwarded: number;
+  /** The correct answer index — surfaced so the UI can highlight it. */
+  correctIndex?: number;
+}
+
+const XP_CORRECT = 10;
+const XP_SPEAK_OK = 5;
+const SPEAK_PASS_THRESHOLD = 60;
+
+export function scoreAttempt(
+  exerciseType: string,
+  payload: unknown,
+  answer: unknown,
+  body: AttemptBody
+): ScoreResult {
+  const ans = (answer ?? {}) as Record<string, unknown>;
+  const pay = (payload ?? {}) as Record<string, unknown>;
+
+  switch (exerciseType) {
+    case "comprehension_mc":
+    case "word_meaning_mc":
+    case "listen_select": {
+      const correctIdx = Number(ans["index"]);
+      const learnerIdx = Number(body.index);
+      const correct = Number.isFinite(correctIdx) && Number.isFinite(learnerIdx) && correctIdx === learnerIdx;
+      return {
+        isCorrect: correct,
+        score: null,
+        xpAwarded: correct ? XP_CORRECT : 0,
+        correctIndex: Number.isFinite(correctIdx) ? correctIdx : undefined
+      };
+    }
+    case "sentence_builder": {
+      const correctOrder = Array.isArray(ans["order"]) ? (ans["order"] as number[]) : [];
+      const learnerOrder = Array.isArray(body.order) ? body.order : [];
+      const correct =
+        correctOrder.length > 0 &&
+        correctOrder.length === learnerOrder.length &&
+        correctOrder.every((v, i) => v === learnerOrder[i]);
+      return {
+        isCorrect: correct,
+        score: null,
+        xpAwarded: correct ? XP_CORRECT : 0
+      };
+    }
+    case "speak_line": {
+      const score = Number.isFinite(body.score) ? Math.max(0, Math.min(100, Number(body.score))) : 0;
+      const passed = score >= SPEAK_PASS_THRESHOLD;
+      return {
+        isCorrect: passed,
+        score,
+        xpAwarded: passed ? XP_SPEAK_OK : 0
+      };
+    }
+    default:
+      // Unknown type — treat as a no-op attempt so the route still
+      // returns a clean 201 rather than crashing. The admin screen
+      // (Patch 12) flags unknown types for cleanup.
+      void pay;
+      return { isCorrect: false, score: null, xpAwarded: 0 };
+  }
+}
+
 export default router;

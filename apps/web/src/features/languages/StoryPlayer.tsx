@@ -26,8 +26,10 @@ import { Subtitle } from "./Subtitle";
 import { PlayerControls } from "./PlayerControls";
 import { useStoryPlayer } from "./useStoryPlayer";
 import { WordPopup } from "./WordPopup";
+import { ExerciseView } from "./ExerciseView";
 import type { BaseLang, PlayerPayload, PlayerPhase } from "./types";
 import type { Locale } from "./i18n/t";
+import { t } from "./i18n/t";
 
 interface StoryPlayerProps {
   /** Synthetic storyId matching the server's format
@@ -168,36 +170,55 @@ export function StoryPlayer({ storyId, base = "en", locale, onSceneChange }: Sto
         </div>
       </div>
 
-      <Subtitle
-        line={player.currentLine}
-        lang={payload.lang}
-        direction={payload.direction}
-        fontFamily={payload.fontFamily}
-        readingAid={payload.readingAid}
-        toggles={player.toggles}
-        onReplayLine={player.replayCurrentLine}
-        onTokenTap={onTokenTap}
-      />
+      {player.storyComplete ? (
+        <section className="lang-player-complete" role="status">
+          <h2 className="lang-player-complete-title">{t("player.completeTitle", locale ?? base)}</h2>
+          <p className="lang-player-complete-body">{t("player.completeBody", locale ?? base)}</p>
+          <p className="lang-player-complete-meta">
+            {t("player.completeWords", locale ?? base, undefined, player.newLexemeCount)}
+          </p>
+        </section>
+      ) : player.currentExercise ? (
+        <ExerciseView
+          exercise={player.currentExercise}
+          base={base}
+          locale={locale ?? base}
+          onDone={player.nextExercise}
+        />
+      ) : (
+        <>
+          <Subtitle
+            line={player.currentLine}
+            lang={payload.lang}
+            direction={payload.direction}
+            fontFamily={payload.fontFamily}
+            readingAid={payload.readingAid}
+            toggles={player.toggles}
+            onReplayLine={player.replayCurrentLine}
+            onTokenTap={onTokenTap}
+          />
 
-      <PlayerControls
-        playing={player.playing}
-        speed={player.speed}
-        toggles={player.toggles}
-        readingAid={payload.readingAid}
-        progress={player.progress}
-        canPrev={player.currentSceneIndex > 0 || player.currentLineIndex > 0}
-        canNext={
-          player.currentSceneIndex < payload.scenes.length - 1 ||
-          player.currentLineIndex < (player.currentScene?.lines.length ?? 1) - 1
-        }
-        onTogglePlay={player.togglePlay}
-        onPrev={player.prev}
-        onNext={player.next}
-        onReplay={player.replayCurrentLine}
-        onSpeedChange={player.setSpeed}
-        onToggleTranslation={() => player.setToggles({ showTranslation: !player.toggles.showTranslation })}
-        onToggleReadingAid={() => player.setToggles({ showReadingAid: !player.toggles.showReadingAid })}
-      />
+          <PlayerControls
+            playing={player.playing}
+            speed={player.speed}
+            toggles={player.toggles}
+            readingAid={payload.readingAid}
+            progress={player.progress}
+            canPrev={player.currentSceneIndex > 0 || player.currentLineIndex > 0}
+            canNext={
+              player.currentSceneIndex < payload.scenes.length - 1 ||
+              player.currentLineIndex < (player.currentScene?.lines.length ?? 1) - 1
+            }
+            onTogglePlay={player.togglePlay}
+            onPrev={player.prev}
+            onNext={player.next}
+            onReplay={player.replayCurrentLine}
+            onSpeedChange={player.setSpeed}
+            onToggleTranslation={() => player.setToggles({ showTranslation: !player.toggles.showTranslation })}
+            onToggleReadingAid={() => player.setToggles({ showReadingAid: !player.toggles.showReadingAid })}
+          />
+        </>
+      )}
 
       {popupState ? (
         <WordPopup

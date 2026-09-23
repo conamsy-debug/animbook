@@ -81,7 +81,19 @@ const en = {
     one: "1 word saved",
     other: "{count} words saved"
   },
-  "words.remove": "Remove"
+  "words.remove": "Remove",
+  // Patch 07 — exercise views
+  "player.completeTitle": "Story complete",
+  "exercise.correct": "Correct!",
+  "exercise.wrong": "Not quite — the right answer is highlighted.",
+  "exercise.check": "Check",
+  "exercise.continue": "Continue",
+  "exercise.builderPrompt": "Tap the tokens in the right order.",
+  "exercise.speakPrompt": "Say the line out loud.",
+  "exercise.xpAwarded": {
+    one: "+1 XP",
+    other: "+{count} XP"
+  }
 };
 const fr = {
   "landing.title": "Apprends une langue à travers des histoires animées.",
@@ -141,7 +153,19 @@ const fr = {
     one: "1 mot enregistré",
     other: "{count} mots enregistrés"
   },
-  "words.remove": "Retirer"
+  "words.remove": "Retirer",
+  // Patch 07
+  "player.completeTitle": "Histoire terminée",
+  "exercise.correct": "Correct !",
+  "exercise.wrong": "Pas tout à fait — la bonne réponse est surlignée.",
+  "exercise.check": "Vérifier",
+  "exercise.continue": "Continuer",
+  "exercise.builderPrompt": "Appuie sur les mots dans le bon ordre.",
+  "exercise.speakPrompt": "Prononce la phrase à voix haute.",
+  "exercise.xpAwarded": {
+    one: "+1 XP",
+    other: "+{count} XP"
+  }
 };
 const dicts = { en, fr };
 
@@ -374,4 +398,29 @@ test("t picks the right plural form for the words-count counter", () => {
   assert.equal(t("words.count", "en", undefined, 47), "47 words saved");
   assert.equal(t("words.count", "fr", undefined, 1), "1 mot enregistré");
   assert.equal(t("words.count", "fr", undefined, 12), "12 mots enregistrés");
+});
+
+/* --------------------------------------------------------------------- *
+ * Patch 07 — exercise views (new screens)
+ * --------------------------------------------------------------------- */
+
+test("t renders the correct/wrong copy in both locales", () => {
+  assert.equal(t("exercise.correct", "en"), "Correct!");
+  assert.equal(t("exercise.correct", "fr"), "Correct !");
+  assert.equal(t("exercise.wrong", "en"), "Not quite — the right answer is highlighted.");
+  assert.equal(t("exercise.wrong", "fr"), "Pas tout à fait — la bonne réponse est surlignée.");
+});
+
+test("t picks the right plural form for the XP-awarded counter", () => {
+  assert.equal(t("exercise.xpAwarded", "en", undefined, 1), "+1 XP");
+  assert.equal(t("exercise.xpAwarded", "en", undefined, 10), "+10 XP");
+  assert.equal(t("exercise.xpAwarded", "fr", undefined, 1), "+1 XP");
+  assert.equal(t("exercise.xpAwarded", "fr", undefined, 10), "+10 XP");
+});
+
+test("t renders the builder + speak prompts in both locales", () => {
+  assert.equal(t("exercise.builderPrompt", "en"), "Tap the tokens in the right order.");
+  assert.equal(t("exercise.builderPrompt", "fr"), "Appuie sur les mots dans le bon ordre.");
+  assert.equal(t("exercise.speakPrompt", "en"), "Say the line out loud.");
+  assert.equal(t("exercise.speakPrompt", "fr"), "Prononce la phrase à voix haute.");
 });

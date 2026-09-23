@@ -75,6 +75,37 @@ export const en = {
   // Story player
   "player.savedProgress": "Progress saved",
   "player.completeStory": "Mark story complete",
+  "player.completeTitle": "Story complete",
+  "player.completeBody": "Nice work — every word you tapped is now in your deck.",
+  "player.completeWords": {
+    one: "1 new word learned",
+    other: "{count} new words learned"
+  },
+
+  // Exercise views (Patch 07 — Section 7.6)
+  "exercise.questionFallback": "Pick the best answer.",
+  "exercise.listenPrompt": "Listen to the line, then pick what you heard.",
+  "exercise.check": "Check",
+  "exercise.submitting": "Checking…",
+  "exercise.submitScore": "Submit score",
+  "exercise.error": "Something went wrong. Try again.",
+  "exercise.correct": "Correct!",
+  "exercise.wrong": "Not quite — the right answer is highlighted.",
+  "exercise.xpAwarded": {
+    one: "+1 XP",
+    other: "+{count} XP"
+  },
+  "exercise.continue": "Continue",
+  "exercise.skip": "Skip",
+  "exercise.unsupported": "This exercise type isn't supported yet: {type}",
+  "exercise.builderPrompt": "Tap the tokens in the right order.",
+  "exercise.builderEmpty": "Tap a token to start building your sentence.",
+  "exercise.reset": "Reset",
+  "exercise.speakPrompt": "Say the line out loud.",
+  "exercise.speakStub": "Recording lands in Patch 08 (Whisper). For now, set the score yourself.",
+  "exercise.speakScore": "Practice score: {count}",
+  "exercise.speakTranscript": "What you said (optional)",
+  "exercise.speakTranscriptPlaceholder": "Type or paste your transcript here…",
 
   // Word popup (Patch 06 — Section 7.5 screen 5)
   "popup.loading": "Loading word…",

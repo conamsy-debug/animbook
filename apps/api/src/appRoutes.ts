@@ -403,6 +403,13 @@ export const APP_ROUTES: Module[] = [
         auth: "user",
         summary: "My words (Patch 06).",
         notes: "Returns the learner's saved cards with lexeme + source-line metadata. Query `?course=:courseId` scopes to one course; `?q=…` substring-searches lemma + glosses; `?base=fr` picks the gloss language."
+      },
+      {
+        method: "POST",
+        path: "/api/lang/exercises/:exerciseId/attempts",
+        auth: "user",
+        summary: "Record an exercise attempt + award XP (Patch 07).",
+        notes: "Body shape depends on Exercise.type: `{ index }` for comprehension_mc / word_meaning_mc / listen_select; `{ order }` for sentence_builder; `{ score, transcript? }` for speak_line. Awards 10 XP per correct MC / sentence_builder answer, 5 XP per speak_line attempt scoring ≥ 60. Wrong attempts still write a row for the admin review screen (Patch 12)."
       }
     ]
   },
