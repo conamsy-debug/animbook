@@ -6023,3 +6023,338 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   .lang-page .lang-cta-row { flex-direction: column; align-items: stretch; }
   .lang-page .lang-btn { justify-content: center; }
 }
+
+
+/* ==== Story Player (Patch 04) ============================================
+   Mounts anywhere — uses logical properties so the same CSS mirrors
+   correctly for RTL (Hebrew). Per-story font family is plumbed through
+   a CSS variable (--lang-font-family) on the wrapper so each language
+   can carry its own Noto stack. */
+
+.lang-story-page {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+.lang-player {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  font-family: var(--lang-font-family, system-ui, sans-serif);
+}
+
+.lang-player--loading,
+.lang-player--error {
+  min-height: 240px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.7));
+  font-size: 15px;
+}
+
+.lang-player-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-block-end: 12px;
+  border-block-end: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lang-player-title {
+  font-family: var(--font-serif, 'Cormorant Garamond', Georgia, serif);
+  font-size: clamp(28px, 4.5vw, 40px);
+  font-weight: 500;
+  line-height: 1.1;
+  margin: 0;
+  color: var(--lang-ink, #f5ecd2);
+}
+
+.lang-player-meta {
+  margin: 0;
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.7));
+}
+
+.lang-player-new-words {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(196, 154, 28, 0.12);
+  color: var(--lang-accent, #c49a1c);
+  font-weight: 500;
+}
+
+.lang-player-stage {
+  aspect-ratio: 16 / 9;
+  border-radius: 14px;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 50%, rgba(196, 154, 28, 0.05) 0%, transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, rgba(0, 0, 0, 0.2) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.lang-player-stage-placeholder {
+  text-align: center;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.5));
+}
+
+.lang-player-stage-placeholder p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.lang-player-stage-meta {
+  font-size: 12px !important;
+  opacity: 0.7;
+  margin-block-start: 4px !important;
+}
+
+/* ---------------------------------------------------------------------
+   Subtitle
+   --------------------------------------------------------------------- */
+
+.lang-subtitle {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 18px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-family: var(--lang-font-family, system-ui, sans-serif);
+  min-height: 120px;
+}
+
+.lang-subtitle--empty {
+  align-items: center;
+  justify-content: center;
+}
+
+.lang-subtitle-empty-text {
+  margin: 0;
+  font-size: 24px;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.4));
+}
+
+.lang-subtitle-line {
+  margin: 0;
+  font-size: clamp(20px, 3.2vw, 26px);
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--lang-ink, #f5ecd2);
+  cursor: pointer;
+  user-select: none;
+  /* Logical properties: these mirror correctly when [dir=rtl]. */
+  padding-inline: 4px;
+  padding-block: 6px;
+  border-radius: 8px;
+  transition: background-color 160ms ease;
+}
+
+.lang-subtitle-line:hover,
+.lang-subtitle-line:focus-visible {
+  background-color: rgba(255, 255, 255, 0.04);
+  outline: none;
+}
+
+.lang-subtitle-line:focus-visible {
+  box-shadow: 0 0 0 2px var(--lang-accent, #c49a1c);
+}
+
+.lang-subtitle-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  font-size: 13px;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.55));
+  font-family: var(--lang-font-family, system-ui, sans-serif);
+}
+
+/* ruby (Chinese pinyin) — keep the pinyin readable without
+   overlapping neighbouring characters. */
+.lang-token ruby {
+  ruby-align: center;
+}
+
+.lang-token rt {
+  font-size: 0.65em;
+  color: var(--lang-accent, #c49a1c);
+  font-weight: 400;
+  user-select: none;
+  letter-spacing: 0.01em;
+}
+
+.lang-token--new {
+  /* New vocab for this story: a subtle underline + accent tint. */
+  text-decoration: underline dotted currentColor;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1.5px;
+  color: var(--lang-ink, #f5ecd2);
+}
+
+.lang-token--punct {
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.45));
+}
+
+/* Hebrew: keep the base direction but allow inline tokens to flow
+   naturally. Spec § 7 — "Mixed-direction text (e.g. Hebrew line with
+   an English translation below) must display correctly". */
+[dir='rtl'] .lang-subtitle-line {
+  text-align: right;
+}
+
+.lang-subtitle-translation {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.7));
+  /* Logical property so the translation sits a fixed distance from
+     the target text regardless of direction. */
+  padding-inline-start: 4px;
+  border-inline-start: 2px solid rgba(196, 154, 28, 0.3);
+  font-style: italic;
+}
+
+/* ---------------------------------------------------------------------
+   Player controls
+   --------------------------------------------------------------------- */
+
+.lang-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 14px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.lang-controls-progress {
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.lang-controls-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #c49a1c 0%, #f0cf6a 100%);
+  border-radius: 999px;
+  transition: width 280ms ease;
+}
+
+.lang-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lang-controls-row--toggles {
+  justify-content: flex-start;
+  gap: 16px;
+}
+
+.lang-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;            /* Apple HIG / Material min tap target */
+  min-width: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.lang-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.lang-btn--ghost {
+  background: transparent;
+  color: var(--lang-ink, #f5ecd2);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.lang-btn--ghost:hover:not(:disabled) {
+  border-color: var(--lang-accent, #c49a1c);
+  color: var(--lang-accent, #c49a1c);
+}
+
+.lang-btn--primary {
+  background: var(--lang-accent, #c49a1c);
+  color: #161310;
+  border-color: var(--lang-accent, #c49a1c);
+}
+
+.lang-btn--primary:hover:not(:disabled) {
+  background: #d8b13a;
+  border-color: #d8b13a;
+}
+
+.lang-btn--play {
+  min-width: 60px;
+  font-size: 18px;
+  letter-spacing: 0.05em;
+}
+
+.lang-btn--speed {
+  min-width: 56px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lang-btn--active {
+  background: var(--lang-accent, #c49a1c);
+  color: #161310;
+  border-color: var(--lang-accent, #c49a1c);
+}
+
+.lang-controls-speed {
+  display: inline-flex;
+  gap: 6px;
+  padding-inline-start: 8px;
+  margin-inline-start: 8px;
+  border-inline-start: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lang-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--lang-ink, #f5ecd2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.lang-toggle input {
+  accent-color: var(--lang-accent, #c49a1c);
+}
+
+/* ---------------------------------------------------------------------
+   Mobile-first breakpoints
+   --------------------------------------------------------------------- */
+
+@media (max-width: 699px) {
+  .lang-story-page { padding: 16px 12px 32px; }
+  .lang-player-title { font-size: 26px; }
+  .lang-subtitle { padding: 16px 14px; }
+  .lang-subtitle-line { font-size: 18px; }
+  .lang-controls-row--toggles { gap: 12px; }
+  .lang-controls-speed { border-inline-start: none; padding-inline-start: 0; margin-inline-start: 0; }
+}

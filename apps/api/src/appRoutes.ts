@@ -326,6 +326,13 @@ export const APP_ROUTES: Module[] = [
         auth: "public",
         summary: "Health probe for the Languages module.",
         notes: "Returns { ok, feature, patch, status }. Mounted only when LANGUAGES_ENABLED=true."
+      },
+      {
+        method: "GET",
+        path: "/api/lang/stories/:storyId",
+        auth: "user",
+        summary: "Story player payload.",
+        notes: "Returns scenes, lines, tokens, exercises for the StoryPlayer. Query `?base=fr` selects translation + gloss language (defaults to en)."
       }
     ]
   },

@@ -35,15 +35,25 @@ test("languages router exposes the placeholder /health route", async () => {
   assert.ok(paths.includes("/health"), `expected /health, got: ${paths.join(", ")}`);
 });
 
-test("languages router exposes only the placeholder route (no leaks)", async () => {
+test("languages router exposes the placeholder + the Patch 04 player route (no leaks)", async () => {
   const mod = await import("../dist/modules/languages/routes.js");
   const paths = (mod.default.stack ?? [])
     .map((s) => s.route?.path)
     .filter(Boolean);
-  // Patch 01 ships ONE placeholder route. Later patches add more.
-  // This guard prevents the scaffold from silently growing routes
-  // without updating the spec + the route catalogue.
-  assert.equal(paths.length, 1, `expected exactly one route, got: ${paths.join(", ")}`);
+  // Patch 01 ships ONE placeholder route (/health). Patch 04 adds the
+  // story player route (/stories/:storyId). This guard prevents the
+  // scaffold from silently growing routes without updating the spec
+  // + the route catalogue.
+  assert.equal(
+    paths.length,
+    2,
+    `expected exactly two routes, got: ${paths.join(", ")}`
+  );
+  assert.ok(paths.includes("/health"), "placeholder route missing");
+  assert.ok(
+    paths.includes("/stories/:storyId"),
+    "Patch 04 player route missing"
+  );
 });
 
 /* --------------------------------------------------------------------- *
