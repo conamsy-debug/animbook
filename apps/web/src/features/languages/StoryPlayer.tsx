@@ -1,5 +1,5 @@
 /**
- * StoryPlayer — the screen Patch 04 ships.
+ * StoryPlayer — Patch 04 + Patch 06.
  *
  * Spec § 7 screen 4 + script/layout requirements. Pulls a player
  * payload from `/api/lang/stories/:storyId`, runs it through
@@ -10,6 +10,8 @@
  *     real `<video>` element when R2 clips land)
  *   - Bottom: the Subtitle (with tappable tokens + RTL/ruby) and
  *     the PlayerControls bar
+ *   - Patch 06: WordPopup overlays the player when a word token is
+ *     tapped. The player pauses while the popup is open.
  *
  * Mobile-first 375px. The wrapper carries `lang=` and `dir=` so
  * screen readers + browser BIDI pick the right defaults (spec § 7).
@@ -18,12 +20,14 @@
  * component assumes the route is reachable and the payload is
  * well-formed.
  */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchStoryPlayer } from "./api";
 import { Subtitle } from "./Subtitle";
 import { PlayerControls } from "./PlayerControls";
 import { useStoryPlayer } from "./useStoryPlayer";
+import { WordPopup } from "./WordPopup";
 import type { BaseLang, PlayerPayload, PlayerPhase } from "./types";
+import type { Locale } from "./i18n/t";
 
 interface StoryPlayerProps {
   /** Synthetic storyId matching the server's format
@@ -32,10 +36,8 @@ interface StoryPlayerProps {
   storyId: string;
   /** Base language for translations + glosses. */
   base?: BaseLang;
-  /** Patch 06 will pass this in to wire up the word popup. The
-   *  player reads it but ignores it for now (the token click still
-   *  bubbles up to the line replay). */
-  onTokenTap?: (lexemeId: string) => void;
+  /** Locale for the learner-facing UI text. Defaults to base. */
+  locale?: Locale;
   /**
    * Patch 05 — fires when the active scene changes. The page wires
    * this to `saveStoryProgress()` so the learner's progress is
@@ -47,10 +49,14 @@ interface StoryPlayerProps {
   onSceneChange?: (info: { sceneIndex: number; completed: boolean }) => void;
 }
 
-export function StoryPlayer({ storyId, base = "en", onTokenTap, onSceneChange }: StoryPlayerProps) {
+export function StoryPlayer({ storyId, base = "en", locale, onSceneChange }: StoryPlayerProps) {
   const [phase, setPhase] = useState<PlayerPhase>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [payload, setPayload] = useState<PlayerPayload | null>(null);
+
+  // Patch 06 — the WordPopup state. When set, the player pauses and
+  // renders the popup overlay. Closing the popup resumes.
+  const [popupState, setPopupState] = useState<{ lexemeId: string; lineId: string } | null>(null);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -88,6 +94,27 @@ export function StoryPlayer({ storyId, base = "en", onTokenTap, onSceneChange }:
     const completed = player.currentSceneIndex >= payload.scenes.length - 1 && !player.playing && player.currentLineIndex >= (player.currentScene?.lines.length ?? 1) - 1;
     onSceneChange({ sceneIndex: player.currentSceneIndex, completed });
   }, [phase, onSceneChange, player.currentSceneIndex, player.currentLineIndex, player.playing, player.currentScene, payload]);
+
+  // Patch 06 — open the word popup for the tapped token. Pause the
+  // player so the line doesn't auto-advance while the popup is open.
+  // We pass the lexeme cuid + the current line id so the popup can
+  // fetch its data + render the example sentence in one round-trip.
+  const onTokenTap = useCallback(
+    (tokenIndex: number) => {
+      if (!payload) return;
+      const token = player.currentLine?.tokens[tokenIndex];
+      if (!token || !token.lexemeId || token.isPunctuation) return;
+      const line = player.currentLine;
+      if (!line) return;
+      player.pause();
+      setPopupState({ lexemeId: token.lexemeId, lineId: line.lineId });
+    },
+    [payload, player]
+  );
+
+  const closePopup = useCallback(() => {
+    setPopupState(null);
+  }, []);
 
   // Loading / error states render a minimal shell so the page can
   // wrap this in the cinematic topbar without layout shift.
@@ -149,14 +176,7 @@ export function StoryPlayer({ storyId, base = "en", onTokenTap, onSceneChange }:
         readingAid={payload.readingAid}
         toggles={player.toggles}
         onReplayLine={player.replayCurrentLine}
-        onTokenTap={
-          onTokenTap
-            ? (idx) => {
-                const token = player.currentLine?.tokens[idx];
-                if (token?.lexemeId) onTokenTap(token.lexemeId);
-              }
-            : undefined
-        }
+        onTokenTap={onTokenTap}
       />
 
       <PlayerControls
@@ -178,6 +198,15 @@ export function StoryPlayer({ storyId, base = "en", onTokenTap, onSceneChange }:
         onToggleTranslation={() => player.setToggles({ showTranslation: !player.toggles.showTranslation })}
         onToggleReadingAid={() => player.setToggles({ showReadingAid: !player.toggles.showReadingAid })}
       />
+
+      {popupState ? (
+        <WordPopup
+          lexemeId={popupState.lexemeId}
+          sourceLineId={popupState.lineId}
+          locale={locale ?? base}
+          onClose={closePopup}
+        />
+      ) : null}
     </div>
   );
 }

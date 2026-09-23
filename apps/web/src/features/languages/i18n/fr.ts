@@ -73,6 +73,32 @@ export const fr = {
   "player.savedProgress": "Progression enregistrée",
   "player.completeStory": "Marquer l'histoire comme terminée",
 
+  // Word popup (Patch 06 — Section 7.5 screen 5)
+  "popup.loading": "Chargement du mot…",
+  "popup.notFound": "Mot introuvable.",
+  "popup.error": "Impossible de charger ce mot.",
+  "popup.saveError": "Sauvegarde impossible. Réessaie.",
+  "popup.close": "Fermer",
+  "popup.audioFallback": "Ton navigateur ne supporte pas la lecture audio.",
+  "popup.meanings": "Sens",
+  "popup.noGlosses": "Aucune traduction disponible pour cette langue de base.",
+  "popup.exampleHeading": "Tiré de l'histoire",
+  "popup.saveButton": "Enregistrer dans mes mots",
+  "popup.savedButton": "Enregistré ✓",
+  "popup.saving": "Sauvegarde…",
+
+  // My words page (Patch 06 — Section 7.9 screen 9)
+  "words.title": "Mes mots",
+  "words.shortcut": "Mes mots dans ce cours",
+  "words.search": "Rechercher",
+  "words.searchPlaceholder": "Rechercher un lemme ou un sens…",
+  "words.count": {
+    one: "1 mot enregistré",
+    other: "{count} mots enregistrés"
+  },
+  "words.empty": "Tu n'as encore enregistré aucun mot. Appuie sur un mot dans une histoire pour l'ajouter ici.",
+  "words.remove": "Retirer",
+
   // Misc shared bits
   "nav.label": "Langues",
   "common.comingSoon": "Bientôt disponible",

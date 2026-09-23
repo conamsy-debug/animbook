@@ -171,6 +171,18 @@ function CourseHomeInner() {
           </ul>
         </section>
 
+        {/* Patch 06 — the "My words" link. Lives below the stories so
+            the home flow (read story → tap word → save) is the
+            primary action, but always reachable in one tap. */}
+        <section className="lang-course-extra-links" aria-label="Course shortcuts">
+          <Link
+            href={`/languages/courses/${encodeURIComponent(courseId)}/words`}
+            className="lang-course-extra-link"
+          >
+            {t("words.shortcut", locale)} →
+          </Link>
+        </section>
+
         {error ? (
           <p className="lang-course-error" role="alert">
             {error}

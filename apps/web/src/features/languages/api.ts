@@ -285,3 +285,155 @@ export async function saveStoryProgress(input: {
   }
   return (await res.json()) as StoryProgressWriteResult;
 }
+
+/* --------------------------------------------------------------------- *
+ * Patch 06 — word popup + vocabulary deck
+ * --------------------------------------------------------------------- *
+ * Spec § 7.5 + § 7.9 + § 11.
+ *
+ * The popup opens when the StoryPlayer dispatches an `onTokenTap`
+ * event for a non-punctuation token. We fetch the lexeme by its DB
+ * cuid (the player emits this directly via PlayerToken.lexemeId,
+ * patched in Patch 06 — Patch 04's `lex:<slug>:<lemma>` synthetic
+ * id collided for homonyms and is gone). The popup is responsible
+ * for the "Save to my words" button, which calls `saveVocab`.
+ *
+ * `fetchMyWords` powers the "My words" page. We hydrate source-line
+ * context on the server (one extra query) so the page renders
+ * without an N+1 round-trip per card.
+ * */
+
+/** Per-source-line context attached to a vocab row. */
+export interface VocabSourceLine {
+  lineId: string;
+  text: string;
+  textReading: string | null;
+  translation: string;
+}
+
+/** One row in the learner's deck. */
+export interface VocabRow {
+  userVocabId: string;
+  lexemeId: string;
+  lemma: string;
+  reading: string | null;
+  partOfSpeech: string;
+  /** "m" | "f" | "n" | null — null for languages without grammatical gender. */
+  gender: string | null;
+  glosses: string[];
+  audioUrl: string | null;
+  targetLang: string;
+  due: string;
+  savedAt: string;
+  reps: number;
+  lapses: number;
+  sourceLine: VocabSourceLine | null;
+}
+
+/** Word-popup payload. */
+export interface LexemePopup {
+  lexemeId: string;
+  targetLang: string;
+  /** The lexeme's dictionary form (also used as the surface when the
+   *  token's surface was a conjugated/inflected variant — Patch 06
+   *  always surfaces the lemma in the popup). */
+  surface: string;
+  lemma: string;
+  reading: string | null;
+  partOfSpeech: string;
+  gender: string | null;
+  glosses: string[];
+  audioUrl: string | null;
+  frequencyRank: number | null;
+  sourceLine: VocabSourceLine | null;
+}
+
+/**
+ * GET /api/lang/lexemes/:lexemeId — word popup data.
+ * `base` selects the gloss language (defaults to "en"). `lineId`
+ * optionally attaches the source line as the example sentence.
+ */
+export async function fetchLexeme(input: {
+  lexemeId: string;
+  base?: BaseLang;
+  lineId?: string | null;
+  signal?: AbortSignal;
+}): Promise<LexemePopup | null> {
+  const params = new URLSearchParams();
+  params.set("base", input.base ?? "en");
+  if (input.lineId) params.set("line_id", input.lineId);
+  return jsonFetch<LexemePopup>(
+    `/api/lang/lexemes/${encodeURIComponent(input.lexemeId)}?${params.toString()}`,
+    { method: "GET", signal: input.signal }
+  );
+}
+
+/** Result of POST /api/lang/vocab. */
+export interface SaveVocabResult {
+  userVocabId: string;
+  lexemeId: string;
+  due: string;
+  /** True when the row already existed (idempotent re-save). */
+  alreadySaved: boolean;
+}
+
+/**
+ * POST /api/lang/vocab — save a word to the learner's deck.
+ * Idempotent — a duplicate (user, lexeme) returns the existing card.
+ */
+export async function saveVocab(input: {
+  lexemeId: string;
+  sourceLineId?: string | null;
+}): Promise<SaveVocabResult> {
+  const res = await fetch("/api/lang/vocab", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      lexeme_id: input.lexemeId,
+      source_line_id: input.sourceLineId ?? null
+    })
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(
+      `POST /api/lang/vocab: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
+    );
+  }
+  return (await res.json()) as SaveVocabResult;
+}
+
+/** DELETE /api/lang/vocab/:userVocabId — remove a word from the deck. */
+export async function unsaveVocab(userVocabId: string): Promise<{ removed: boolean }> {
+  const res = await fetch(`/api/lang/vocab/${encodeURIComponent(userVocabId)}`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: { Accept: "application/json" }
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(
+      `DELETE /api/lang/vocab/${userVocabId}: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
+    );
+  }
+  return (await res.json()) as { removed: boolean };
+}
+
+/** GET /api/lang/vocab — list the learner's saved words (optionally scoped to a course). */
+export async function fetchMyWords(input: {
+  courseId?: string | null;
+  query?: string | null;
+  base?: BaseLang;
+  signal?: AbortSignal;
+}): Promise<VocabRow[]> {
+  const params = new URLSearchParams();
+  if (input.courseId) params.set("course", input.courseId);
+  if (input.query && input.query.trim().length > 0) params.set("q", input.query.trim());
+  if (input.base) params.set("base", input.base);
+  const qs = params.toString();
+  const data = await jsonFetch<{ cards: VocabRow[] }>(
+    `/api/lang/vocab${qs ? `?${qs}` : ""}`,
+    { method: "GET", signal: input.signal }
+  );
+  return data ? data.cards : [];
+}

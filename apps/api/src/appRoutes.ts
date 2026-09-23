@@ -375,6 +375,34 @@ export const APP_ROUTES: Module[] = [
         auth: "user",
         summary: "Record per-scene story progress (Patch 05).",
         notes: "Body `{ last_scene_order, score_pct?, completed? }`. Idempotent upsert keyed on (user, story). Touches the matching enrollment + LearnerStats so the streak math has a fresh anchor."
+      },
+      {
+        method: "GET",
+        path: "/api/lang/lexemes/:lexemeId",
+        auth: "user",
+        summary: "Word popup data (Patch 06).",
+        notes: "Returns surface + lemma + reading + partOfSpeech + gender + per-base glosses + audioUrl. Query `?base=fr` switches gloss language. Optional `?line_id=` adds the source-line context the popup displays under the example sentence."
+      },
+      {
+        method: "POST",
+        path: "/api/lang/vocab",
+        auth: "user",
+        summary: "Save a word to the learner's deck (Patch 06).",
+        notes: "Body `{ lexeme_id, source_line_id? }`. Idempotent on (user, lexeme) — a duplicate returns 200 + `alreadySaved: true`. Creates a `user_vocab` card in the FSRS \"new\" state and awards 2 XP."
+      },
+      {
+        method: "DELETE",
+        path: "/api/lang/vocab/:userVocabId",
+        auth: "user",
+        summary: "Remove a word from the deck (Patch 06).",
+        notes: "Idempotent — 200 with `{ removed: false }` when the row is already gone or belongs to another user."
+      },
+      {
+        method: "GET",
+        path: "/api/lang/vocab",
+        auth: "user",
+        summary: "My words (Patch 06).",
+        notes: "Returns the learner's saved cards with lexeme + source-line metadata. Query `?course=:courseId` scopes to one course; `?q=…` substring-searches lemma + glosses; `?base=fr` picks the gloss language."
       }
     ]
   },

@@ -242,7 +242,12 @@ function toPlayerPayload(
           order: idx + 1,
           surface: tok.surface,
           reading: tok.reading ?? null,
-          lexemeId: tok.lemma ? `lex:${lesson.master_story_slug}:${tok.lemma}` : null,
+          // Patch 06 — use the lexeme cuid directly. Patch 04 used a
+          // `lex:<masterSlug>:<lemma>` synthetic id that collided for
+          // homonyms (e.g. Spanish "banco" seat vs bank). The
+          // exporter now passes the joined lexeme.id through, so the
+          // wire format is opaque and stable.
+          lexemeId: tok.lexeme_id ?? null,
           isNewInStory: Boolean(tok.is_new),
           isPunctuation: isPunct,
           startChar: 0, // Patch 11 fills via real TTS alignment
@@ -677,5 +682,352 @@ async function resolveStoryId(syntheticId: string): Promise<{ id: string; target
   });
   return story;
 }
+
+/* --------------------------------------------------------------------- *
+ * GET /lexemes/:lexemeId?base=fr — word popup data (Patch 06)
+ * Spec § 7.5 (screen 5) + § 11. Returns everything the WordPopup
+ * renders: the surface form, lemma, reading aid, part of speech,
+ * gender (with a colour cue for de), per-base-language glosses,
+ * audio url, and the source line the learner was watching when they
+ * tapped the token.
+ *
+ * The popup needs the source line to surface the example sentence;
+ * we accept an optional `?line_id=` query so the popup can stay
+ * context-free when invoked from "My words" (no line).
+ * --------------------------------------------------------------------- */
+
+router.get("/lexemes/:lexemeId", authMiddleware, async (req: Request, res: Response) => {
+  const rawId = req.params["lexemeId"];
+  const lexemeId = Array.isArray(rawId) ? rawId[0] : rawId;
+  if (!lexemeId) {
+    res.status(400).json({ error: "lexemeId is required" });
+    return;
+  }
+
+  const rawBaseRaw = req.query["base"];
+  const rawBase = Array.isArray(rawBaseRaw) ? rawBaseRaw[0] : rawBaseRaw;
+  const baseStr = typeof rawBase === "string" ? rawBase : "en";
+  const base = ALLOWED_BASES.has(baseStr as "en" | "fr") ? (baseStr as "en" | "fr") : null;
+  if (!base) {
+    res.status(400).json({ error: "base must be 'en' or 'fr'", received: baseStr });
+    return;
+  }
+
+  // Optional source line for the example-sentence display.
+  const rawLineId = req.query["line_id"];
+  const sourceLineId = typeof rawLineId === "string" && rawLineId.length > 0 ? rawLineId : null;
+
+  const lexeme = await prisma.lexeme.findUnique({
+    where: { id: lexemeId }
+  });
+  if (!lexeme) {
+    res.status(404).json({ error: "lexeme not found", lexemeId });
+    return;
+  }
+
+  // Pull glosses for the requested base language; fall back to en
+  // when the target language's glosses for fr are still empty (the
+  // pipeline often ships en glosses first and fills fr later).
+  const glosses = (lexeme.glosses as Record<string, string[] | undefined>) ?? {};
+  const glossesForBase = glosses[base] ?? glosses["en"] ?? [];
+
+  // Fetch the source line in parallel with the popup shape build —
+  // it's optional and may not exist (My-words entry with no recorded
+  // line). We don't await it earlier so a missing line doesn't block
+  // the popup.
+  const sourceLine = sourceLineId
+    ? await prisma.line.findUnique({
+        where: { id: sourceLineId },
+        select: { text: true, textReading: true, translations: true }
+      })
+    : null;
+
+  const sourceLineWire = sourceLine
+    ? {
+        lineId: sourceLineId,
+        text: sourceLine.text,
+        textReading: sourceLine.textReading ?? null,
+        translation:
+          ((sourceLine.translations as Record<string, string | undefined>) ?? {})[base] ??
+          sourceLine.text
+      }
+    : null;
+
+  res.json({
+    lexemeId: lexeme.id,
+    targetLang: lexeme.targetLang,
+    surface: lexeme.lemma,
+    lemma: lexeme.lemma,
+    reading: lexeme.reading,
+    partOfSpeech: lexeme.partOfSpeech,
+    gender: lexeme.gender ?? null,
+    glosses: glossesForBase,
+    audioUrl: lexeme.audioUrl ?? null,
+    frequencyRank: lexeme.frequencyRank ?? null,
+    sourceLine: sourceLineWire
+  });
+});
+
+/* --------------------------------------------------------------------- *
+ * POST /vocab — save a word to the learner's deck (Patch 06)
+ * Spec § 11. Body: { lexeme_id, source_line_id? }. Idempotent on
+ * (userId, lexemeId) — a duplicate save returns the existing card
+ * with a 200 instead of creating a new row.
+ *
+ * FSRS state (due / stability / difficulty / reps / state /
+ * last_review) is initialised to the "new" state — due immediately,
+ * stability 0, reps 0. The spaced-repetition engine (Patch 09) takes
+ * over from there.
+ *
+ * XP: we award 2 XP per save, in line with Section 8's "2 per review
+ * card" hint, treating the save as the first contact with the card.
+ * The LearnerStats.xpTotal counter is bumped atomically.
+ * --------------------------------------------------------------------- */
+
+interface SaveVocabBody {
+  lexeme_id?: string;
+  source_line_id?: string | null;
+}
+
+router.post("/vocab", authMiddleware, async (req: Request, res: Response) => {
+  const body = (req.body ?? {}) as SaveVocabBody;
+  const lexemeId = typeof body.lexeme_id === "string" && body.lexeme_id.length > 0 ? body.lexeme_id : null;
+  const sourceLineId = typeof body.source_line_id === "string" && body.source_line_id.length > 0 ? body.source_line_id : null;
+
+  if (!lexemeId) {
+    res.status(400).json({ error: "lexeme_id is required" });
+    return;
+  }
+
+  const userId = requireUserId(req as Parameters<typeof requireUserId>[0]);
+
+  const lexeme = await prisma.lexeme.findUnique({ where: { id: lexemeId }, select: { id: true } });
+  if (!lexeme) {
+    res.status(404).json({ error: "lexeme not found", lexeme_id: lexemeId });
+    return;
+  }
+
+  // Validate the optional source_line_id belongs to a real line.
+  // A bad id should fail loudly so the page can recover; we don't
+  // silently drop it (the popup uses the line as the example sentence
+  // and a mismatched id would render the wrong context).
+  if (sourceLineId) {
+    const line = await prisma.line.findUnique({ where: { id: sourceLineId }, select: { id: true } });
+    if (!line) {
+      res.status(400).json({ error: "source_line_id does not exist", source_line_id: sourceLineId });
+      return;
+    }
+  }
+
+  // Idempotent save — upsert keyed on the schema's
+  // @@unique([userId, lexemeId]). A duplicate returns the existing
+  // card; we don't bump lastSavedAt or XP twice.
+  const existing = await prisma.userVocab.findUnique({
+    where: { userId_lexemeId: { userId, lexemeId } },
+    select: { id: true, due: true }
+  });
+  if (existing) {
+    res.status(200).json({
+      userVocabId: existing.id,
+      lexemeId,
+      due: existing.due.toISOString(),
+      alreadySaved: true
+    });
+    return;
+  }
+
+  const card = await prisma.userVocab.create({
+    data: {
+      userId,
+      lexemeId,
+      sourceLineId: sourceLineId ?? null,
+      // FSRS "new" state — due immediately, all counters at zero.
+      // Patch 09 wires ts-fsrs to recompute these on review. The
+      // schema's `state` is a string ("new" | "learning" | "review"
+      // | "relearning"); we set the initial literal here.
+      due: new Date(),
+      stability: 0,
+      difficulty: 0,
+      elapsedDays: 0,
+      scheduledDays: 0,
+      reps: 0,
+      lapses: 0,
+      state: "new",
+      lastReview: new Date()
+    }
+  });
+
+  // Bump XP — 2 per save (Section 8 hint). Atomic increment via
+  // learnerStats.upsert so the row always exists.
+  await prisma.learnerStats.upsert({
+    where: { userId },
+    update: { xpTotal: { increment: 2 } },
+    create: { userId, xpTotal: 2 }
+  });
+
+  res.status(201).json({
+    userVocabId: card.id,
+    lexemeId,
+    due: card.due.toISOString(),
+    alreadySaved: false
+  });
+});
+
+/* --------------------------------------------------------------------- *
+ * DELETE /vocab/:userVocabId — remove a word from the deck (Patch 06)
+ * Idempotent — a 404 on a missing row returns 200 so the page can
+ * optimistically drop the row without an extra GET.
+ * --------------------------------------------------------------------- */
+
+router.delete("/vocab/:userVocabId", authMiddleware, async (req: Request, res: Response) => {
+  const rawId = req.params["userVocabId"];
+  const userVocabId = Array.isArray(rawId) ? rawId[0] : rawId;
+  if (!userVocabId) {
+    res.status(400).json({ error: "userVocabId is required" });
+    return;
+  }
+
+  const userId = requireUserId(req as Parameters<typeof requireUserId>[0]);
+
+  // Confirm ownership before deleting; a 404 here also serves the
+  // "already unsaved" idempotent path.
+  const card = await prisma.userVocab.findUnique({
+    where: { id: userVocabId },
+    select: { userId: true }
+  });
+  if (!card || card.userId !== userId) {
+    res.status(200).json({ removed: false });
+    return;
+  }
+  await prisma.userVocab.delete({ where: { id: userVocabId } });
+  res.json({ removed: true, userVocabId });
+});
+
+/* --------------------------------------------------------------------- *
+ * GET /vocab?course=:courseId — the learner's deck for one course (Patch 06)
+ * Spec § 7.9 (screen 9) — the searchable "My words" list. We
+ * include the lexeme + source line so the page renders without a
+ * second round-trip per row. Supports `?q=` for substring search on
+ * lemma + surface glosses, and `?course=` to scope to one course.
+ *
+ * If no `course` is given, returns words across all of the learner's
+ * enrolled courses (useful for a global "My words" landing in Patch 09).
+ * --------------------------------------------------------------------- */
+
+router.get("/vocab", authMiddleware, async (req: Request, res: Response) => {
+  const userId = requireUserId(req as Parameters<typeof requireUserId>[0]);
+
+  const rawCourse = req.query["course"];
+  const courseId = typeof rawCourse === "string" && rawCourse.length > 0 ? rawCourse : null;
+
+  const rawQuery = req.query["q"];
+  const search = typeof rawQuery === "string" && rawQuery.length > 0 ? rawQuery.trim() : null;
+
+  // Resolve the course → target_lang filter. A bad course id returns
+  // 404 (we don't silently return the user's whole deck).
+  let targetLangFilter: string | undefined;
+  if (courseId) {
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      select: { targetLang: true }
+    });
+    if (!course) {
+      res.status(404).json({ error: "course not found", courseId });
+      return;
+    }
+    targetLangFilter = course.targetLang;
+  }
+
+  const cards = await prisma.userVocab.findMany({
+    where: {
+      userId,
+      ...(targetLangFilter
+        ? { lexeme: { targetLang: targetLangFilter } }
+        : {})
+    },
+    orderBy: { createdAt: "desc" },
+    include: {
+      lexeme: {
+        select: {
+          id: true,
+          lemma: true,
+          reading: true,
+          partOfSpeech: true,
+          gender: true,
+          glosses: true,
+          audioUrl: true,
+          targetLang: true
+        }
+      },
+      // sourceLineId may be null (older saves or legacy data); the
+      // include is left as an optional join so the query doesn't fail.
+      // Prisma's relation include doesn't have a built-in
+      // `where: { isNotNull }` filter, so we filter null rows in JS.
+    }
+  });
+
+  // Hydrate source lines in one query instead of N+1.
+  const lineIds = Array.from(new Set(cards.map((c) => c.sourceLineId).filter((v): v is string => Boolean(v))));
+  const lines = lineIds.length > 0
+    ? await prisma.line.findMany({
+        where: { id: { in: lineIds } },
+        select: { id: true, text: true, textReading: true, translations: true }
+      })
+    : [];
+  const lineById = new Map(lines.map((l) => [l.id, l]));
+
+  const baseRaw = req.query["base"];
+  const baseStr = typeof baseRaw === "string" ? baseRaw : "en";
+  const base = ALLOWED_BASES.has(baseStr as "en" | "fr") ? (baseStr as "en" | "fr") : "en";
+
+  // Compose wire shape + apply search filter.
+  let wire = cards.map((card) => {
+    const glosses = (card.lexeme.glosses as Record<string, string[] | undefined>) ?? {};
+    const glossesForBase = glosses[base] ?? glosses["en"] ?? [];
+    const line = card.sourceLineId ? lineById.get(card.sourceLineId) ?? null : null;
+    const translation = line
+      ? ((line.translations as Record<string, string | undefined>) ?? {})[base] ?? line.text
+      : null;
+    return {
+      userVocabId: card.id,
+      lexemeId: card.lexeme.id,
+      lemma: card.lexeme.lemma,
+      reading: card.lexeme.reading ?? null,
+      partOfSpeech: card.lexeme.partOfSpeech,
+      gender: card.lexeme.gender ?? null,
+      glosses: glossesForBase,
+      audioUrl: card.lexeme.audioUrl ?? null,
+      targetLang: card.lexeme.targetLang,
+      due: card.due.toISOString(),
+      savedAt: card.createdAt.toISOString(),
+      reps: card.reps,
+      lapses: card.lapses,
+      sourceLine: line
+        ? {
+            lineId: line.id,
+            text: line.text,
+            textReading: line.textReading ?? null,
+            translation
+          }
+        : null
+    };
+  });
+
+  if (search) {
+    const needle = search.toLowerCase();
+    wire = wire.filter((row) => {
+      if (row.lemma.toLowerCase().includes(needle)) return true;
+      if (row.glosses.some((g) => g.toLowerCase().includes(needle))) return true;
+      return false;
+    });
+  }
+
+  res.json({
+    base,
+    ...(courseId ? { courseId } : {}),
+    ...(search ? { query: search } : {}),
+    cards: wire
+  });
+});
 
 export default router;

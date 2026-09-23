@@ -6861,3 +6861,476 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 .lang-story-save-toast--error {
   color: #ff8a7a;
 }
+
+/* ==== Word Popup (Patch 06) ===============================================
+   Spec § 7.5 screen 5 — sheet on mobile (full-width, slides up from
+   bottom), centred popover on desktop. Logical CSS properties so RTL
+   wrappers mirror correctly. */
+
+.lang-popup-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 12, 20, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  z-index: 1000;
+}
+
+.lang-popup {
+  background: #0F1422;
+  color: var(--lang-ink, #f5ecd2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px 18px 0 0;
+  padding: 24px 22px 28px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 80vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.5);
+}
+
+@media (min-width: 720px) {
+  .lang-popup-scrim { align-items: center; }
+  .lang-popup { border-radius: 18px; max-width: 460px; }
+}
+
+.lang-popup-close {
+  position: absolute;
+  inset-block-start: 12px;
+  inset-inline-end: 12px;
+  background: transparent;
+  border: none;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+}
+
+.lang-popup-close:hover { color: var(--lang-ink, #f5ecd2); background: rgba(255, 255, 255, 0.06); }
+
+.lang-popup-loading,
+.lang-popup-error {
+  font-size: 14px;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+  margin: 12px 0;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lang-popup-error { color: #ff8a7a; }
+
+.lang-popup-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-inline-end: 36px;
+}
+
+.lang-popup-surface {
+  font-family: var(--font-serif, 'Cormorant Garamond', Georgia, serif);
+  font-size: 32px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--lang-ink, #f5ecd2);
+  line-height: 1.1;
+}
+
+.lang-popup-reading {
+  font-size: 14px;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+  margin: 0;
+  font-style: italic;
+}
+
+.lang-popup-pos {
+  margin: 0;
+}
+
+.lang-popup-gender {
+  display: inline-block;
+  font-family: var(--font-mono, 'DM Mono', ui-monospace, monospace);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+}
+
+.lang-popup-gender--de { color: #8fb4ff; border-color: rgba(143, 180, 255, 0.4); }
+.lang-popup-gender--latin { color: #d6b9ff; border-color: rgba(214, 185, 255, 0.4); }
+.lang-popup-gender--neutral { color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72)); }
+
+.lang-popup-audio {
+  width: 100%;
+  margin-block-start: 8px;
+  height: 36px;
+}
+
+.lang-popup-section {
+  margin-block-start: 20px;
+}
+
+.lang-popup-section-heading {
+  font-family: var(--font-mono, 'DM Mono', ui-monospace, monospace);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--lang-accent, #c49a1c);
+  margin: 0 0 8px;
+}
+
+.lang-popup-glosses {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lang-popup-gloss {
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--lang-ink, #f5ecd2);
+}
+
+.lang-popup-empty {
+  font-size: 13px;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.6));
+  margin: 0;
+}
+
+.lang-popup-source {
+  border-block-start: 1px solid rgba(255, 255, 255, 0.08);
+  padding-block-start: 16px;
+}
+
+.lang-popup-source-text {
+  font-size: 18px;
+  line-height: 1.45;
+  margin: 0;
+  color: var(--lang-ink, #f5ecd2);
+}
+
+.lang-popup-source-reading {
+  font-size: 13px;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+  margin: 4px 0 0;
+  font-style: italic;
+}
+
+.lang-popup-source-translation {
+  font-size: 13px;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+  margin: 8px 0 0;
+}
+
+.lang-popup-actions {
+  margin-block-start: 20px;
+}
+
+.lang-popup-save {
+  width: 100%;
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 14px 22px;
+  border-radius: 999px;
+  border: 1px solid var(--lang-accent, #c49a1c);
+  background: var(--lang-accent, #c49a1c);
+  color: #161310;
+  cursor: pointer;
+  min-height: 48px;
+  transition: background 180ms ease;
+}
+
+.lang-popup-save:hover:not(:disabled) { background: #d8b13a; }
+
+.lang-popup-save--saved {
+  background: rgba(111, 191, 127, 0.18);
+  border-color: rgba(111, 191, 127, 0.6);
+  color: #6fbf7f;
+  cursor: default;
+}
+
+.lang-popup-save--busy {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.lang-popup-save-error {
+  font-size: 13px;
+  color: #ff8a7a;
+  margin: 8px 0 0;
+}
+
+/* Token-level tap affordance (Patch 06). The Subtitle already had
+   .lang-token--punct; we add a clear :hover + cursor for non-
+   punctuation tokens so the learner knows they're tappable. */
+.lang-token--tappable {
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 120ms ease;
+}
+
+.lang-token--tappable:hover {
+  background: rgba(196, 154, 28, 0.18);
+}
+
+/* ==== My Words (Patch 06) ================================================= */
+
+.lang-words {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 16px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.lang-words-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lang-words-back {
+  font-size: 13px;
+  color: var(--lang-accent, #c49a1c);
+  text-decoration: none;
+  padding: 8px 0;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.lang-words-title {
+  font-family: var(--font-serif, 'Cormorant Garamond', Georgia, serif);
+  font-size: 32px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--lang-ink, #f5ecd2);
+}
+
+.lang-words-count {
+  font-size: 13px;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+  margin: 0;
+}
+
+.lang-words-search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-block-start: 8px;
+}
+
+.lang-words-search-label {
+  font-family: var(--font-mono, 'DM Mono', ui-monospace, monospace);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+}
+
+.lang-words-search-input {
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 15px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(8, 12, 20, 0.85);
+  color: var(--lang-ink, #f5ecd2);
+}
+
+.lang-words-search-input:focus-visible {
+  outline: 2px solid var(--lang-accent, #c49a1c);
+  outline-offset: 1px;
+}
+
+.lang-words-empty {
+  font-size: 14px;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+  text-align: center;
+  padding: 32px 16px;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+}
+
+.lang-words-error {
+  font-size: 13px;
+  color: #ff8a7a;
+  margin: 0;
+}
+
+.lang-words-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lang-words-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+
+.lang-words-row-button {
+  text-align: start;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font: inherit;
+  min-height: 44px;
+}
+
+.lang-words-row-button:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.lang-words-row-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.lang-words-row-lemma {
+  font-family: var(--font-serif, 'Cormorant Garamond', Georgia, serif);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--lang-ink, #f5ecd2);
+}
+
+.lang-words-row-reading {
+  font-size: 13px;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+  font-style: italic;
+}
+
+.lang-words-row-pos {
+  font-family: var(--font-mono, 'DM Mono', ui-monospace, monospace);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+}
+
+.lang-words-row-glosses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lang-words-row-gloss {
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(196, 154, 28, 0.16);
+  color: var(--lang-ink, #f5ecd2);
+}
+
+.lang-words-row-gloss--more {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+}
+
+.lang-words-row-source {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.lang-words-row-source-text {
+  color: var(--lang-ink, #f5ecd2);
+}
+
+.lang-words-row-source-translation {
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+  font-style: italic;
+}
+
+.lang-words-row-remove {
+  width: 44px;
+  background: transparent;
+  border: none;
+  border-inline-start: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+  font-size: 24px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lang-words-row-remove:hover {
+  color: #ff8a7a;
+  background: rgba(255, 138, 122, 0.06);
+}
+
+@media (max-width: 699px) {
+  .lang-words { padding: 32px 16px 48px; }
+  .lang-words-title { font-size: 26px; }
+  .lang-words-row { grid-template-columns: 1fr; }
+  .lang-words-row-remove {
+    border-inline-start: none;
+    border-block-start: 1px solid rgba(255, 255, 255, 0.08);
+    width: 100%;
+    height: 44px;
+  }
+}
+
+/* ==== Course home extra link (Patch 06) =================================== */
+
+.lang-course-extra-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.lang-course-extra-link {
+  display: inline-flex;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--lang-ink, #f5ecd2);
+  text-decoration: none;
+  min-height: 44px;
+}
+
+.lang-course-extra-link:hover {
+  border-color: var(--lang-accent, #c49a1c);
+  color: var(--lang-accent, #c49a1c);
+}

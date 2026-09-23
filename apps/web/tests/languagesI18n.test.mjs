@@ -67,7 +67,21 @@ const en = {
   "course.reviewStory": "Review",
   "course.status.notStarted": "Not started",
   "course.status.inProgress": "In progress",
-  "course.status.completed": "Completed"
+  "course.status.completed": "Completed",
+  // Patch 06 — word popup + my-words page.
+  "popup.loading": "Loading word…",
+  "popup.notFound": "Word not found.",
+  "popup.saveButton": "Save to my words",
+  "popup.savedButton": "Saved ✓",
+  "popup.exampleHeading": "From the story",
+  "words.title": "My words",
+  "words.shortcut": "My words in this course",
+  "words.search": "Search",
+  "words.count": {
+    one: "1 word saved",
+    other: "{count} words saved"
+  },
+  "words.remove": "Remove"
 };
 const fr = {
   "landing.title": "Apprends une langue à travers des histoires animées.",
@@ -113,7 +127,21 @@ const fr = {
   "course.reviewStory": "Revoir",
   "course.status.notStarted": "Pas commencé",
   "course.status.inProgress": "En cours",
-  "course.status.completed": "Terminé"
+  "course.status.completed": "Terminé",
+  // Patch 06
+  "popup.loading": "Chargement du mot…",
+  "popup.notFound": "Mot introuvable.",
+  "popup.saveButton": "Enregistrer dans mes mots",
+  "popup.savedButton": "Enregistré ✓",
+  "popup.exampleHeading": "Tiré de l'histoire",
+  "words.title": "Mes mots",
+  "words.shortcut": "Mes mots dans ce cours",
+  "words.search": "Rechercher",
+  "words.count": {
+    one: "1 mot enregistré",
+    other: "{count} mots enregistrés"
+  },
+  "words.remove": "Retirer"
 };
 const dicts = { en, fr };
 
@@ -312,4 +340,38 @@ test("t renders the three course-status labels in both locales", () => {
   assert.equal(t("course.status.notStarted", "fr"), "Pas commencé");
   assert.equal(t("course.status.inProgress", "fr"), "En cours");
   assert.equal(t("course.status.completed", "fr"), "Terminé");
+});
+
+/* --------------------------------------------------------------------- *
+ * Patch 06 — word popup + my words (new screens)
+ * --------------------------------------------------------------------- */
+
+test("t renders the popup save button in both locales", () => {
+  assert.equal(t("popup.saveButton", "en"), "Save to my words");
+  assert.equal(t("popup.saveButton", "fr"), "Enregistrer dans mes mots");
+});
+
+test("t renders the saved-button confirmation in both locales", () => {
+  assert.equal(t("popup.savedButton", "en"), "Saved ✓");
+  assert.equal(t("popup.savedButton", "fr"), "Enregistré ✓");
+});
+
+test("t renders the popup example-heading in both locales", () => {
+  assert.equal(t("popup.exampleHeading", "en"), "From the story");
+  assert.equal(t("popup.exampleHeading", "fr"), "Tiré de l'histoire");
+});
+
+test("t renders the My-words title and shortcut in both locales", () => {
+  assert.equal(t("words.title", "en"), "My words");
+  assert.equal(t("words.title", "fr"), "Mes mots");
+  assert.equal(t("words.shortcut", "en"), "My words in this course");
+  assert.equal(t("words.shortcut", "fr"), "Mes mots dans ce cours");
+});
+
+test("t picks the right plural form for the words-count counter", () => {
+  assert.equal(t("words.count", "en", undefined, 0), "0 words saved");
+  assert.equal(t("words.count", "en", undefined, 1), "1 word saved");
+  assert.equal(t("words.count", "en", undefined, 47), "47 words saved");
+  assert.equal(t("words.count", "fr", undefined, 1), "1 mot enregistré");
+  assert.equal(t("words.count", "fr", undefined, 12), "12 mots enregistrés");
 });

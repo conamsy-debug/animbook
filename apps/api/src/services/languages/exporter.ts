@@ -117,6 +117,7 @@ interface TokenWithLexeme {
   reading: string | null;
   isNewInStory: boolean;
   lexeme: {
+    id: string;
     lemma: string;
     partOfSpeech: string;
     gender: string | null;
@@ -133,6 +134,11 @@ function tokenToLessonToken(token: TokenWithLexeme, baseLang: "en" | "fr"): Less
     is_new: token.isNewInStory
   };
   if (token.lexeme) {
+    // Patch 06 — surface the lexeme cuid so the player can hand the
+    // popup endpoint an authoritative id (no need to resolve by
+    // lemma+pos, which collides for homonyms like the Spanish
+    // "banco" seat vs bank).
+    out.lexeme_id = token.lexeme.id;
     out.pos = token.lexeme.partOfSpeech;
     if (token.lexeme.gender) out.gender = token.lexeme.gender as "m" | "f" | "n";
     const glosses = (token.lexeme.glosses as Record<string, string[]>) ?? {};

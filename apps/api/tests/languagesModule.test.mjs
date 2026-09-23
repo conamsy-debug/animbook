@@ -35,34 +35,42 @@ test("languages router exposes the placeholder /health route", async () => {
   assert.ok(paths.includes("/health"), `expected /health, got: ${paths.join(", ")}`);
 });
 
-test("languages router exposes the Patches 01 + 04 + 05 routes (no leaks)", async () => {
+test("languages router exposes the Patches 01 + 04 + 05 + 06 routes (no leaks)", async () => {
   const mod = await import("../dist/modules/languages/routes.js");
-  const paths = (mod.default.stack ?? [])
-    .map((s) => s.route?.path)
-    .filter(Boolean);
+  // Multiple HTTP methods can share a path (GET + POST on /vocab).
+  // We dedupe by path so the assertion matches the catalogue and not
+  // Express's internal stack.
+  const paths = Array.from(
+    new Set(
+      (mod.default.stack ?? [])
+        .map((s) => s.route?.path)
+        .filter(Boolean)
+    )
+  ).sort();
   // Patch 01 ships /health. Patch 04 adds /stories/:storyId.
   // Patch 05 adds /languages, /courses, /enrollments,
   // /enrollments/me, /courses/:courseId, /stories/:storyId/progress.
+  // Patch 06 adds /lexemes/:lexemeId, /vocab, /vocab/:userVocabId.
   // This guard prevents the module from silently growing routes
   // without updating the spec + the route catalogue.
   const expected = [
-    "/health",
-    "/stories/:storyId",
-    "/languages",
     "/courses",
+    "/courses/:courseId",
     "/enrollments",
     "/enrollments/me",
-    "/courses/:courseId",
-    "/stories/:storyId/progress"
+    "/health",
+    "/languages",
+    "/lexemes/:lexemeId",
+    "/stories/:storyId",
+    "/stories/:storyId/progress",
+    "/vocab",
+    "/vocab/:userVocabId"
   ];
-  assert.equal(
-    paths.length,
-    expected.length,
-    `expected exactly ${expected.length} routes, got ${paths.length}: ${paths.join(", ")}`
+  assert.deepEqual(
+    paths,
+    expected,
+    `route catalogue mismatch. expected ${expected.length} unique paths, got ${paths.length}: ${paths.join(", ")}`
   );
-  for (const exp of expected) {
-    assert.ok(paths.includes(exp), `expected ${exp} in routes, got: ${paths.join(", ")}`);
-  }
 });
 
 /* --------------------------------------------------------------------- *

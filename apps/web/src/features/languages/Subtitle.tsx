@@ -1,24 +1,26 @@
 /**
  * Subtitle — renders the active line of a story as a row of tappable
- * tokens. Honors three spec § 7 requirements:
+ * tokens. Honors spec § 7 requirements:
  *
  *   1. `<ruby>` / `<rt>` for Chinese reading aid — the per-token
- *      reading (tone-marked pinyin) sits above each character group
- *      without overlapping.
+ *      reading (tone-marked pinyin) sits above each character group.
  *   2. RTL for Hebrew — the wrapper carries `lang="he" dir="rtl"`
  *      and CSS logical properties. Tap targets stay square; only
  *      the text flow mirrors.
  *   3. New-word underline — tokens flagged `is_new` get a thin
  *      underline so the learner can spot the vocab to come.
+ *   4. Tappable tokens (Patch 06) — clicking a word token opens the
+ *      word popup. Punctuation tokens and gaps between tokens
+ *      trigger line replay instead, so the line-level behaviour
+ *      survives a missed tap.
  *
- * Tap behaviour (spec § 7: "Tap a line to replay it"):
- *   - Tapping any token (or the empty area between tokens) replays
- *     the current line via `onReplayLine`.
- *   - Patch 06 will add token-level taps to open the word popup.
- *     For now, the token click bubbles up to the line-level handler.
+ * Tap behaviour:
+ *   - Tap a word token (data-token-index set) → onTokenTap(idx)
+ *   - Tap a punctuation token or anywhere outside a word token →
+ *     onReplayLine()
  */
 import type { CSSProperties } from "react";
-import type { PlayerLine, PlayerToggles, ReadingAid } from "./types";
+import type { PlayerLine, PlayerToken, PlayerToggles, ReadingAid } from "./types";
 
 interface SubtitleProps {
   line: PlayerLine | null;
@@ -29,11 +31,9 @@ interface SubtitleProps {
   fontFamily: string | null;
   readingAid: ReadingAid;
   toggles: PlayerToggles;
-  /** True when the auto-advance timer should pause (e.g. user opened
-   *  the word popup or is mid-replay). Patch 06 will flip this. */
+  /** Replay the current line (line-level tap). */
   onReplayLine: () => void;
-  /** Patch 06 hook — currently a no-op so we keep the prop surface
-   *  stable. The token click handler checks it before delegating up. */
+  /** Patch 06 — open the word popup for the tapped token. */
   onTokenTap?: (tokenIndex: number) => void;
 }
 
@@ -59,25 +59,31 @@ export function Subtitle({
 
   // Pick the visible text. For Hebrew the toggle swaps between
   // unpointed (`text`) and pointed (`text_reading`); for Chinese
-  // pinyin lives on the per-token reading, not on the line.
+  // pinyin lives on the per-token reading, not on the line. We
+  // pre-compute the showPointed flag and pass it to TokenSpan so
+  // each token renders the right variant in the same row.
   const showPointed = readingAid === "niqqud" && toggles.showReadingAid && Boolean(line.textReading);
-  const displayText = showPointed ? line.textReading ?? line.text : line.text;
 
   return (
     <div className="lang-subtitle" lang={lang} dir={direction} style={wrapperStyle}>
       <p
         className="lang-subtitle-line"
         onClick={(e) => {
-          // Distinguish token click from line click — token clicks
-          // have data-token-index set by the inner span.
+          // A token click sets data-token-index on the target span;
+          // bubbles up here. Stop further bubbling so the wrapper
+          // doesn't fire line-replay for the same gesture, then
+          // delegate to onTokenTap.
           const target = e.target as HTMLElement;
-          if (target.dataset["tokenIndex"] !== undefined) {
-            const idx = Number(target.dataset["tokenIndex"]);
+          const raw = target.closest("[data-token-index]")?.getAttribute("data-token-index");
+          if (raw !== null && raw !== undefined) {
+            const idx = Number(raw);
             if (onTokenTap && Number.isFinite(idx)) {
               onTokenTap(idx);
             }
             return;
           }
+          // Bare wrapper click (gap between tokens, punctuation) →
+          // replay the line.
           onReplayLine();
         }}
         role="button"
@@ -90,21 +96,16 @@ export function Subtitle({
           }
         }}
       >
-        {displayText}
-      </p>
-      <div className="lang-subtitle-tokens" aria-hidden="true">
         {line.tokens.map((token) => (
           <TokenSpan
             key={token.order}
-            surface={token.surface}
-            reading={token.reading}
+            token={token}
             readingAid={readingAid}
             showReadingAid={toggles.showReadingAid}
-            isNew={token.isNewInStory}
-            isPunctuation={token.isPunctuation}
+            showPointed={showPointed}
           />
         ))}
-      </div>
+      </p>
       {toggles.showTranslation ? (
         <p className="lang-subtitle-translation" lang={direction === "rtl" ? "en" : undefined}>
           {line.translation}
@@ -115,12 +116,11 @@ export function Subtitle({
 }
 
 interface TokenSpanProps {
-  surface: string;
-  reading: string | null;
+  token: PlayerToken;
   readingAid: ReadingAid;
   showReadingAid: boolean;
-  isNew: boolean;
-  isPunctuation: boolean;
+  /** True when Hebrew niqqud toggle is on — surface the pointed line text. */
+  showPointed: boolean;
 }
 
 /**
@@ -128,26 +128,52 @@ interface TokenSpanProps {
  * in `<ruby><rt>` so the pinyin sits above the character group.
  * For other languages, `<ruby>` is harmless: browsers without
  * ruby support fall back to inline rendering.
+ *
+ * Token-level click metadata: data-token-index carries the token's
+ * 1-based order; the wrapper's click handler reads it to decide
+ * between onTokenTap and onReplayLine. Punctuation tokens stay
+ * clickable so a learner can still replay by tapping punctuation,
+ * but the index is exposed for analytics later if we need it.
  */
-function TokenSpan({ surface, reading, readingAid, showReadingAid, isNew, isPunctuation }: TokenSpanProps) {
+function TokenSpan({ token, readingAid, showReadingAid, showPointed }: TokenSpanProps) {
   const isChinese = readingAid === "pinyin";
-  const showRuby = isChinese && showReadingAid && Boolean(reading);
+  const showRuby = isChinese && showReadingAid && Boolean(token.reading);
+
+  // Hebrew "text ↔ textReading" swap. Patch 06 uses the per-token
+  // reading as the pointed variant for consistency with the line-
+  // level swap (line.textReading carries the full pointed line for
+  // sites that don't per-token-point; here we honour the per-token
+  // reading when present, falling back to surface).
+  const displaySurface = showPointed && token.reading ? token.reading : token.surface;
 
   const classes = [
     "lang-token",
-    isNew && "lang-token--new",
-    isPunctuation && "lang-token--punct"
+    token.isNewInStory && "lang-token--new",
+    token.isPunctuation && "lang-token--punct",
+    token.lexemeId && "lang-token--tappable"
   ]
     .filter(Boolean)
     .join(" ");
 
   if (showRuby) {
     return (
-      <ruby className={classes}>
-        {surface}
-        <rt>{reading}</rt>
+      <ruby
+        className={classes}
+        data-token-index={token.order}
+        data-lexeme-id={token.lexemeId ?? undefined}
+      >
+        {displaySurface}
+        <rt>{token.reading}</rt>
       </ruby>
     );
   }
-  return <span className={classes}>{surface}</span>;
+  return (
+    <span
+      className={classes}
+      data-token-index={token.order}
+      data-lexeme-id={token.lexemeId ?? undefined}
+    >
+      {displaySurface}
+    </span>
+  );
 }

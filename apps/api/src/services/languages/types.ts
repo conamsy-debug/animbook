@@ -39,6 +39,14 @@ export interface LessonToken {
   reading?: string | null;
   /** True if this token introduces a new word for the story's vocab deck. */
   is_new?: boolean;
+  /**
+   * Patch 06 — the Lexeme cuid. The exporter populates this from the
+   * joined lexeme row so the player can hand the popup endpoint an
+   * authoritative DB id without resolving by (lemma, pos). Null when
+   * the token has no lexeme (punctuation, proper names imported
+   * without a dictionary entry).
+   */
+  lexeme_id?: string | null;
 }
 
 /** One spoken subtitle line. */

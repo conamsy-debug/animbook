@@ -72,9 +72,35 @@ export const en = {
   "course.status.completed": "Completed",
   "course.dailyGoal": "Daily goal: {minutes} min",
 
-  // Story player (existing course progress wires from Patch 04)
+  // Story player
   "player.savedProgress": "Progress saved",
   "player.completeStory": "Mark story complete",
+
+  // Word popup (Patch 06 — Section 7.5 screen 5)
+  "popup.loading": "Loading word…",
+  "popup.notFound": "Word not found.",
+  "popup.error": "Could not load this word.",
+  "popup.saveError": "Couldn't save. Try again.",
+  "popup.close": "Close",
+  "popup.audioFallback": "Your browser doesn't support audio playback.",
+  "popup.meanings": "Meanings",
+  "popup.noGlosses": "No glosses yet for this base language.",
+  "popup.exampleHeading": "From the story",
+  "popup.saveButton": "Save to my words",
+  "popup.savedButton": "Saved ✓",
+  "popup.saving": "Saving…",
+
+  // My words page (Patch 06 — Section 7.9 screen 9)
+  "words.title": "My words",
+  "words.shortcut": "My words in this course",
+  "words.search": "Search",
+  "words.searchPlaceholder": "Search lemma or meaning…",
+  "words.count": {
+    one: "1 word saved",
+    other: "{count} words saved"
+  },
+  "words.empty": "You haven't saved any words yet. Tap a word in a story to add it here.",
+  "words.remove": "Remove",
 
   // Misc shared bits
   "nav.label": "Languages",
