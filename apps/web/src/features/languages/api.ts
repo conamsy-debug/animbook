@@ -696,3 +696,48 @@ export async function submitReviewRating(input: {
   }
   return (await res.json()) as ReviewPostResult;
 }
+
+/* --------------------------------------------------------------------- *
+ * Patch 10 — stats payload
+ * --------------------------------------------------------------------- *
+ * Spec § 7.3 + § 11. The /stats endpoint returns the full learner
+ * stats card. The page renders this in one fetch — XP, streak (with
+ * re-derived "current" against `now`), timezone, total vocab + attempt
+ * counts. The shape is stable across patches so other surfaces
+ * (course home, profile) can reuse it.
+ * */
+
+export interface LearnerStats {
+  userId: string;
+  xpTotal: number;
+  /** Current consecutive-day streak. 0 when broken. The route
+   *  re-derives this against `now` so a learner who hasn't visited
+   *  in a while sees the correct value without a write. */
+  currentStreakDays: number;
+  /** All-time longest streak. Never decreases. */
+  longestStreakDays: number;
+  /** `YYYY-MM-DD` of the most recent activity, or null if the learner
+   *  has never recorded activity. */
+  lastActivityDate: string | null;
+  /** IANA tz the server used for streak math. */
+  timezone: string;
+  vocabCount: number;
+  exerciseAttemptCount: number;
+}
+
+/**
+ * GET /api/lang/stats — full learner stats payload.
+ */
+export async function fetchLearnerStats(): Promise<LearnerStats> {
+  const res = await fetch("/api/lang/stats", {
+    method: "GET",
+    credentials: "include"
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(
+      `GET /api/lang/stats: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
+    );
+  }
+  return (await res.json()) as LearnerStats;
+}

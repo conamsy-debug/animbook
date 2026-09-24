@@ -48,3 +48,12 @@ export {
   ratingName,
   REVIEW_BATCH_SIZE
 } from "./fsrs.js";
+
+// Patch 10 — streak math (spec § 7.3 + § 11). tz-aware day counter.
+export {
+  type StreakResult,
+  bumpStreak,
+  localDateInTz,
+  daysBetween,
+  resolveTz
+} from "./streaks.js";

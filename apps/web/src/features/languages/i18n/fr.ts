@@ -146,6 +146,19 @@ export const fr = {
   "review.glossesLabel": "Sens",
   "review.exampleLabel": "Exemple",
 
+  // Stats card (Patch 10 — Section 7.3)
+  "stats.heading": "Tes progrès",
+  "stats.streak": "Série actuelle",
+  "stats.longest": "Plus longue série",
+  "stats.xp": "XP totale",
+  "stats.vocabCount": "Mots enregistrés",
+  "stats.exerciseCount": "Exercices terminés",
+  "stats.timezone": "Fuseau horaire",
+  "stats.lastActivity": "Dernière activité : {when}",
+  "stats.alive": "Continue comme ça !",
+  "stats.atRisk": "Ne casse pas la chaîne — révise aujourd'hui.",
+  "stats.broken": "Série cassée. Recommence aujourd'hui !",
+
   // Word popup (Patch 06 — Section 7.5 screen 5)
   "popup.loading": "Chargement du mot…",
   "popup.notFound": "Mot introuvable.",

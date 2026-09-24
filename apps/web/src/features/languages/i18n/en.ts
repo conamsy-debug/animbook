@@ -149,6 +149,19 @@ export const en = {
   "review.glossesLabel": "Meaning",
   "review.exampleLabel": "Example",
 
+  // Stats card (Patch 10 — Section 7.3)
+  "stats.heading": "Your progress",
+  "stats.streak": "Current streak",
+  "stats.longest": "Longest streak",
+  "stats.xp": "Total XP",
+  "stats.vocabCount": "Words saved",
+  "stats.exerciseCount": "Exercises completed",
+  "stats.timezone": "Timezone",
+  "stats.lastActivity": "Last activity: {when}",
+  "stats.alive": "Keep it going!",
+  "stats.atRisk": "Don't break the chain — review today.",
+  "stats.broken": "Streak broken. Start a new one today!",
+
   // Word popup (Patch 06 — Section 7.5 screen 5)
   "popup.loading": "Loading word…",
   "popup.notFound": "Word not found.",

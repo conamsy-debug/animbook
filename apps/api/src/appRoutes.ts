@@ -431,6 +431,13 @@ export const APP_ROUTES: Module[] = [
         auth: "user",
         summary: "Record an FSRS rating (Patch 09).",
         notes: "Body: `{ rating: 1|2|3|4 }` (Again|Hard|Good|Easy). Runs ts-fsrs to compute the next card state, writes both the `user_vocab` update + `review_logs` insert in a transaction, awards +1 XP. Returns the next card state + the FSRS log payload."
+      },
+      {
+        method: "GET",
+        path: "/api/lang/stats",
+        auth: "user",
+        summary: "Learner stats payload (Patch 10).",
+        notes: "Returns XP, current + longest streak, last activity date, timezone, total vocab + exercise attempt counts. The streak counter is re-derived against `now` so a learner who hasn't visited in a while sees their streak properly broken without a write."
       }
     ]
   },

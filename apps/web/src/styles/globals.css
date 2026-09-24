@@ -8063,3 +8063,80 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   font-family: var(--font-mono, 'DM Mono', ui-monospace, monospace);
   font-weight: 700;
 }
+
+/* ==== Stats Card (Patch 10) =============================================
+   Spec § 7.3. Lives at the top of /languages/me so the learner sees
+   XP, streak (current + longest), and lifetime totals without
+   diving into a course. Mobile-first 375px — the grid collapses
+   to a single column on narrow viewports. */
+
+.lang-stats-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid rgba(196, 154, 28, 0.4);
+  border-radius: 14px;
+  background: rgba(196, 154, 28, 0.06);
+}
+
+.lang-stats-heading {
+  font-family: var(--font-serif, 'Cormorant Garamond', Georgia, serif);
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--lang-accent, #c49a1c);
+}
+
+.lang-stats-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 18px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lang-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lang-stat-label {
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+}
+
+.lang-stat-value {
+  font-family: var(--font-serif, 'Cormorant Garamond', Georgia, serif);
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--lang-ink, #f5ecd2);
+}
+
+.lang-stat-value--mono {
+  font-family: var(--font-mono, 'DM Mono', ui-monospace, monospace);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.lang-stat-note {
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 12px;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+}
+
+.lang-stat-note--warn {
+  color: #f3c45a;
+}
+
+.lang-stats-footer {
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 12px;
+  color: var(--lang-ink-dim, rgba(245, 236, 210, 0.72));
+  margin: 0;
+}

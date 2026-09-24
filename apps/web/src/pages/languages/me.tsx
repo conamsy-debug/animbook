@@ -6,18 +6,21 @@ import { Topbar } from "@/components/Topbar";
 import { ErrorBoundary, ErrorState } from "@/components/ErrorBoundary";
 import {
   type EnrollmentRow,
+  type LearnerStats,
+  fetchLearnerStats,
   fetchMyEnrollments
 } from "@/features/languages/api";
 import { LANGUAGES_ENABLED } from "@/features/languages/config";
 import { t, type Locale } from "@/features/languages/i18n/t";
 
 /**
- * /languages/me — Patch 05.
+ * /languages/me — Patch 05 (+ Patch 10 stats card).
  *
  * Spec § 7 onboarding follow-up — the "My languages" hub. Lists
  * the learner's enrollments (most-recent activity first) and links
- * each row to its course home. Empty state guides them to start
- * their first course via /languages/onboarding.
+ * each row to its course home. Patch 10 layers the stats card
+ * (XP, streak, last activity) at the top so the learner sees
+ * their progress without diving into a course.
  */
 export default function LanguagesMePage() {
   if (!LANGUAGES_ENABLED) return <NotAvailable />;
@@ -41,19 +44,37 @@ function MyLanguagesInner() {
   const locale: Locale = (Array.isArray(localeRaw) ? localeRaw[0] : localeRaw) === "fr" ? "fr" : "en";
 
   const [rows, setRows] = useState<EnrollmentRow[] | null>(null);
+  const [stats, setStats] = useState<LearnerStats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const ac = new AbortController();
-    fetchMyEnrollments(ac.signal)
-      .then((data) => {
-        if (ac.signal.aborted) return;
-        setRows(data);
-      })
-      .catch((err: unknown) => {
-        if (ac.signal.aborted) return;
-        setError(err instanceof Error ? err.message : "Failed to load.");
-      });
+    // Fetch the stats + enrollments in parallel — both come back from
+    // small endpoints and the dashboard renders them together.
+    void Promise.all([
+      fetchLearnerStats()
+        .then((s) => {
+          if (!ac.signal.aborted) setStats(s);
+        })
+        .catch((err: unknown) => {
+          if (!ac.signal.aborted) {
+            setError((prev) =>
+              prev ?? (err instanceof Error ? err.message : "Failed to load stats.")
+            );
+          }
+        }),
+      fetchMyEnrollments(ac.signal)
+        .then((data) => {
+          if (ac.signal.aborted) return;
+          setRows(data);
+        })
+        .catch((err: unknown) => {
+          if (ac.signal.aborted) return;
+          setError((prev) =>
+            prev ?? (err instanceof Error ? err.message : "Failed to load.")
+          );
+        })
+    ]);
     return () => ac.abort();
   }, []);
 
@@ -72,6 +93,8 @@ function MyLanguagesInner() {
             {error}
           </p>
         ) : null}
+
+        {stats ? <StatsCard stats={stats} locale={locale} /> : null}
 
         {rows === null ? (
           <p className="lang-me-loading">…</p>
@@ -102,6 +125,67 @@ function MyLanguagesInner() {
         )}
       </main>
     </Shell>
+  );
+}
+
+/**
+ * Stats card — XP + streak + lifetime metrics. Spec § 7.3.
+ * Mirrors the course-home stats block but with the full picture
+ * (longest streak + timezone + totals).
+ */
+function StatsCard({ stats, locale }: { stats: LearnerStats; locale: Locale }) {
+  const atRisk = stats.currentStreakDays > 0 && stats.currentStreakDays < stats.longestStreakDays;
+  const broken = stats.currentStreakDays === 0 && stats.longestStreakDays > 0;
+  return (
+    <section className="lang-stats-card" aria-labelledby="lang-stats-heading">
+      <h2 id="lang-stats-heading" className="lang-stats-heading">
+        {t("stats.heading", locale)}
+      </h2>
+      <ul className="lang-stats-list" role="list">
+        <li className="lang-stat lang-stat--streak">
+          <span className="lang-stat-label">{t("stats.streak", locale)}</span>
+          <span className="lang-stat-value">{stats.currentStreakDays}</span>
+          {atRisk ? (
+            <span className="lang-stat-note lang-stat-note--warn">
+              {t("stats.atRisk", locale)}
+            </span>
+          ) : broken ? (
+            <span className="lang-stat-note lang-stat-note--warn">
+              {t("stats.broken", locale)}
+            </span>
+          ) : stats.currentStreakDays > 0 ? (
+            <span className="lang-stat-note">{t("stats.alive", locale)}</span>
+          ) : null}
+        </li>
+        <li className="lang-stat lang-stat--longest">
+          <span className="lang-stat-label">{t("stats.longest", locale)}</span>
+          <span className="lang-stat-value">{stats.longestStreakDays}</span>
+        </li>
+        <li className="lang-stat lang-stat--xp">
+          <span className="lang-stat-label">{t("stats.xp", locale)}</span>
+          <span className="lang-stat-value">{stats.xpTotal}</span>
+        </li>
+        <li className="lang-stat lang-stat--vocab">
+          <span className="lang-stat-label">{t("stats.vocabCount", locale)}</span>
+          <span className="lang-stat-value">{stats.vocabCount}</span>
+        </li>
+        <li className="lang-stat lang-stat--exercises">
+          <span className="lang-stat-label">{t("stats.exerciseCount", locale)}</span>
+          <span className="lang-stat-value">{stats.exerciseAttemptCount}</span>
+        </li>
+        <li className="lang-stat lang-stat--tz">
+          <span className="lang-stat-label">{t("stats.timezone", locale)}</span>
+          <span className="lang-stat-value lang-stat-value--mono">{stats.timezone}</span>
+        </li>
+      </ul>
+      {stats.lastActivityDate ? (
+        <p className="lang-stats-footer">
+          {t("stats.lastActivity", locale, {
+            when: stats.lastActivityDate
+          })}
+        </p>
+      ) : null}
+    </section>
   );
 }
 

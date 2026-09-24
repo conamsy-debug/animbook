@@ -28,6 +28,9 @@ import {
   alignTokens,
   scoreFromAlignment,
   rateCard,
+  bumpStreak,
+  resolveTz,
+  daysBetween,
   type CardSnapshot,
   type CardRating,
   REVIEW_BATCH_SIZE
@@ -670,15 +673,10 @@ router.post("/stories/:storyId/progress", authMiddleware, async (req: Request, r
     });
   }
 
-  // Touch the learner stats too so streak math (Patch 10) has an
-  // anchor to work with.
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  await prisma.learnerStats.upsert({
-    where: { userId },
-    update: { lastActivityDate: today },
-    create: { userId, lastActivityDate: today }
-  });
+  // Touch the learner stats too — Patch 10 wires this through the
+  // streak helper so the date + counter move together in the
+  // learner's local tz.
+  await bumpLearnerStats({ userId, now: new Date() });
 
   res.json({
     storyProgressId: progress.id,
@@ -884,13 +882,10 @@ router.post("/vocab", authMiddleware, async (req: Request, res: Response) => {
     }
   });
 
-  // Bump XP — 2 per save (Section 8 hint). Atomic increment via
-  // learnerStats.upsert so the row always exists.
-  await prisma.learnerStats.upsert({
-    where: { userId },
-    update: { xpTotal: { increment: 2 } },
-    create: { userId, xpTotal: 2 }
-  });
+  // Bump XP — 2 per save (Section 8 hint) + bump the streak so the
+  // course home reflects today's activity. The streak helper does
+  // both in one upsert so we don't race two writes against the row.
+  await bumpLearnerStats({ userId, now: new Date(), xpDelta: 2 });
 
   res.status(201).json({
     userVocabId: card.id,
@@ -1123,14 +1118,17 @@ router.post(
       }
     });
 
-    // Award XP on the learner stats row. Bumping atomically means a
-    // concurrent attempt can't lose an increment.
+    // Award XP on the learner stats row + bump the streak.
+    // `bumpLearnerStats` handles the atomic increment internally so
+    // the XP branch and the date branch don't race.
     if (result.xpAwarded > 0) {
-      await prisma.learnerStats.upsert({
-        where: { userId },
-        update: { xpTotal: { increment: result.xpAwarded } },
-        create: { userId, xpTotal: result.xpAwarded }
-      });
+      await bumpLearnerStats({ userId, now: new Date(), xpDelta: result.xpAwarded });
+    } else {
+      // Wrong attempts still count as activity for streak purposes
+      // — the learner engaged with the lesson. Spec § 7.3 doesn't
+      // say "only correct counts", and a wrong attempt is still a
+      // calendar-day touch.
+      await bumpLearnerStats({ userId, now: new Date() });
     }
 
     res.status(201).json({
@@ -1398,12 +1396,14 @@ router.post(
         exerciseAttemptId = exAttempt.id;
         if (score >= SPEAK_PASS_THRESHOLD) {
           xpAwarded = XP_SPEAK_OK;
-          await prisma.learnerStats.upsert({
-            where: { userId },
-            update: { xpTotal: { increment: XP_SPEAK_OK } },
-            create: { userId, xpTotal: XP_SPEAK_OK }
-          });
         }
+        // Bump streak on every pronunciation attempt (the learner
+        // engaged with the lesson, even if the score fell short).
+        await bumpLearnerStats({
+          userId,
+          now: new Date(),
+          ...(xpAwarded > 0 ? { xpDelta: xpAwarded } : {})
+        });
       }
     }
 
@@ -1636,10 +1636,48 @@ router.post("/review/:userVocabId", authMiddleware, async (req: Request, res: Re
       });
       // +1 XP per rating (spec § 8 — light feedback signal; the
       // bigger XP awards live on the MC + speak_line paths).
+      // Patch 10: route the XP branch through bumpLearnerStats so the
+      // streak counter also ticks for review activity. We do it
+      // outside the transaction (the helper reads + writes the stats
+      // row) — the rating row is already committed by this point so
+      // a failed stats update doesn't lose learner progress.
+      const userIdForStats = userId;
+      const xpDelta = 1;
+      const statsRow = await tx.learnerStats.findUnique({
+        where: { userId: userIdForStats },
+        select: {
+          currentStreakDays: true,
+          longestStreakDays: true,
+          lastActivityDate: true,
+          timezone: true
+        }
+      });
+      const tzStats = resolveTz(statsRow?.timezone);
+      const streakUpdate = bumpStreak({
+        lastActivityDate: statsRow?.lastActivityDate
+          ? statsRow.lastActivityDate.toISOString().slice(0, 10)
+          : null,
+        currentStreakDays: statsRow?.currentStreakDays ?? 0,
+        longestStreakDays: statsRow?.longestStreakDays ?? 0,
+        now: new Date(),
+        tz: tzStats
+      });
       await tx.learnerStats.upsert({
-        where: { userId },
-        update: { xpTotal: { increment: 1 } },
-        create: { userId, xpTotal: 1 }
+        where: { userId: userIdForStats },
+        update: {
+          currentStreakDays: streakUpdate.currentStreakDays,
+          longestStreakDays: streakUpdate.longestStreakDays,
+          lastActivityDate: new Date(`${streakUpdate.lastActivityDate}T00:00:00Z`),
+          xpTotal: { increment: xpDelta }
+        },
+        create: {
+          userId: userIdForStats,
+          currentStreakDays: streakUpdate.currentStreakDays,
+          longestStreakDays: streakUpdate.longestStreakDays,
+          lastActivityDate: new Date(`${streakUpdate.lastActivityDate}T00:00:00Z`),
+          timezone: tzStats,
+          xpTotal: xpDelta
+        }
       });
     });
   } catch (err) {
@@ -1664,5 +1702,141 @@ router.post("/review/:userVocabId", authMiddleware, async (req: Request, res: Re
     log: result.log
   });
 });
+
+/* --------------------------------------------------------------------- *
+ * Streak helper — bumps last_activity_date + streak counters.
+ * --------------------------------------------------------------------- *
+ * Every activity-recording route calls this so the course home /
+ * stats endpoint always sees a coherent streak. We do a SELECT then
+ * an UPSERT (not a single SQL CASE) because Prisma's upsert doesn't
+ * express "compute the new values from the existing ones" without
+ * shipping a transaction. The cost is one extra round-trip per
+ * activity; given how infrequent FSRS reviews + vocab saves are
+ * (one per minute at the most), the simpler code wins.
+ *
+ * Pass `xpDelta: 0` if the caller already awarded XP via a separate
+ * `learnerStats.upsert({ increment: ... })` — we don't double-count.
+ * */
+
+interface BumpStatsInput {
+  userId: string;
+  now: Date;
+  /** XP to add on top of any caller-issued increments. Use 0 to skip
+   *  the XP branch when the caller already did it. */
+  xpDelta?: number;
+}
+
+async function bumpLearnerStats(input: BumpStatsInput): Promise<void> {
+  const stats = await prisma.learnerStats.findUnique({
+    where: { userId: input.userId },
+    select: {
+      currentStreakDays: true,
+      longestStreakDays: true,
+      lastActivityDate: true,
+      timezone: true
+    }
+  });
+
+  const tz = resolveTz(stats?.timezone);
+  const streak = bumpStreak({
+    lastActivityDate: stats?.lastActivityDate
+      ? stats.lastActivityDate.toISOString().slice(0, 10)
+      : null,
+    currentStreakDays: stats?.currentStreakDays ?? 0,
+    longestStreakDays: stats?.longestStreakDays ?? 0,
+    now: input.now,
+    tz
+  });
+
+  await prisma.learnerStats.upsert({
+    where: { userId: input.userId },
+    update: {
+      currentStreakDays: streak.currentStreakDays,
+      longestStreakDays: streak.longestStreakDays,
+      lastActivityDate: new Date(`${streak.lastActivityDate}T00:00:00Z`),
+      ...(input.xpDelta && input.xpDelta > 0
+        ? { xpTotal: { increment: input.xpDelta } }
+        : {})
+    },
+    create: {
+      userId: input.userId,
+      currentStreakDays: streak.currentStreakDays,
+      longestStreakDays: streak.longestStreakDays,
+      lastActivityDate: new Date(`${streak.lastActivityDate}T00:00:00Z`),
+      timezone: tz,
+      ...(input.xpDelta && input.xpDelta > 0 ? { xpTotal: input.xpDelta } : {})
+    }
+  });
+}
+
+/* --------------------------------------------------------------------- *
+ * GET /stats — full learner stats payload (Patch 10)
+ * Spec § 7.3 + § 11. Returns everything the course home + stats
+ * card render needs: XP, streak (current + longest), the activity
+ * date, and the timezone used for streak math. We also surface the
+ * total vocab + exercise attempt counts so the page can render the
+ * "I've learned N words" line without a follow-up query.
+ * --------------------------------------------------------------------- */
+
+router.get("/stats", authMiddleware, async (req: Request, res: Response) => {
+  const userId = requireUserId(req as Parameters<typeof requireUserId>[0]);
+
+  const stats = await prisma.learnerStats.findUnique({
+    where: { userId },
+    select: {
+      userId: true,
+      xpTotal: true,
+      currentStreakDays: true,
+      longestStreakDays: true,
+      lastActivityDate: true,
+      timezone: true
+    }
+  });
+
+  // Recompute the streak against "now" so a learner who hasn't
+  // visited the page in a week sees their streak properly broken.
+  // We don't write anything here — the next activity call will
+  // reconcile.
+  let currentStreakDays = stats?.currentStreakDays ?? 0;
+  if (stats?.lastActivityDate) {
+    const today = new Date();
+    const lastDate = stats.lastActivityDate.toISOString().slice(0, 10);
+    const delta = daysBetweenStrings(
+      lastDate,
+      today.toISOString().slice(0, 10),
+      resolveTz(stats.timezone)
+    );
+    if (delta >= 2) {
+      currentStreakDays = 0;
+    }
+  }
+
+  // Aggregate counts so the stats card can render without a
+  // follow-up query. `userVocab` and `exerciseAttempt` are cheap
+  // count queries on the indexed userId.
+  const [vocabCount, exerciseAttemptCount] = await Promise.all([
+    prisma.userVocab.count({ where: { userId } }),
+    prisma.exerciseAttempt.count({ where: { userId } })
+  ]);
+
+  res.json({
+    userId,
+    xpTotal: stats?.xpTotal ?? 0,
+    currentStreakDays,
+    longestStreakDays: stats?.longestStreakDays ?? 0,
+    lastActivityDate: stats?.lastActivityDate
+      ? stats.lastActivityDate.toISOString().slice(0, 10)
+      : null,
+    timezone: resolveTz(stats?.timezone),
+    vocabCount,
+    exerciseAttemptCount
+  });
+});
+
+/** Days between two `YYYY-MM-DD` strings, thin wrapper so the GET
+ *  /stats handler reads cleanly. Delegates to the streak helper. */
+function daysBetweenStrings(a: string, b: string, tz: string): number {
+  return daysBetween(a, b, tz);
+}
 
 export default router;

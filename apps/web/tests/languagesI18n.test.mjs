@@ -117,7 +117,19 @@ const en = {
   "review.empty": "Nothing due right now.",
   "review.back": "Back to course",
   "review.glossesLabel": "Meaning",
-  "review.exampleLabel": "Example"
+  "review.exampleLabel": "Example",
+  // Patch 10 — stats card labels.
+  "stats.heading": "Your progress",
+  "stats.streak": "Current streak",
+  "stats.longest": "Longest streak",
+  "stats.xp": "Total XP",
+  "stats.vocabCount": "Words saved",
+  "stats.exerciseCount": "Exercises completed",
+  "stats.timezone": "Timezone",
+  "stats.alive": "Keep it going!",
+  "stats.atRisk": "Don't break the chain — review today.",
+  "stats.broken": "Streak broken. Start a new one today!",
+  "stats.lastActivity": "Last activity: {when}"
 };
 const fr = {
   "landing.title": "Apprends une langue à travers des histoires animées.",
@@ -213,7 +225,19 @@ const fr = {
   "review.empty": "Rien à réviser pour l'instant.",
   "review.back": "Retour au cours",
   "review.glossesLabel": "Sens",
-  "review.exampleLabel": "Exemple"
+  "review.exampleLabel": "Exemple",
+  // Patch 10 — stats card labels.
+  "stats.heading": "Tes progrès",
+  "stats.streak": "Série actuelle",
+  "stats.longest": "Plus longue série",
+  "stats.xp": "XP totale",
+  "stats.vocabCount": "Mots enregistrés",
+  "stats.exerciseCount": "Exercices terminés",
+  "stats.timezone": "Fuseau horaire",
+  "stats.alive": "Continue comme ça !",
+  "stats.atRisk": "Ne casse pas la chaîne — révise aujourd'hui.",
+  "stats.broken": "Série cassée. Recommence aujourd'hui !",
+  "stats.lastActivity": "Dernière activité : {when}"
 };
 const dicts = { en, fr };
 
@@ -574,4 +598,51 @@ test("t renders the review complete + empty + back-link copy in both locales", (
   assert.equal(t("review.glossesLabel", "fr"), "Sens");
   assert.equal(t("review.exampleLabel", "en"), "Example");
   assert.equal(t("review.exampleLabel", "fr"), "Exemple");
+});
+
+/* --------------------------------------------------------------------- *
+ * Patch 10 — stats card
+ * --------------------------------------------------------------------- */
+
+test("t renders the stats card heading + labels in both locales", () => {
+  assert.equal(t("stats.heading", "en"), "Your progress");
+  assert.equal(t("stats.heading", "fr"), "Tes progrès");
+  assert.equal(t("stats.streak", "en"), "Current streak");
+  assert.equal(t("stats.streak", "fr"), "Série actuelle");
+  assert.equal(t("stats.longest", "en"), "Longest streak");
+  assert.equal(t("stats.longest", "fr"), "Plus longue série");
+  assert.equal(t("stats.xp", "en"), "Total XP");
+  assert.equal(t("stats.xp", "fr"), "XP totale");
+  assert.equal(t("stats.vocabCount", "en"), "Words saved");
+  assert.equal(t("stats.vocabCount", "fr"), "Mots enregistrés");
+  assert.equal(t("stats.exerciseCount", "en"), "Exercises completed");
+  assert.equal(t("stats.exerciseCount", "fr"), "Exercices terminés");
+  assert.equal(t("stats.timezone", "en"), "Timezone");
+  assert.equal(t("stats.timezone", "fr"), "Fuseau horaire");
+});
+
+test("t renders the streak status copy in both locales", () => {
+  assert.equal(t("stats.alive", "en"), "Keep it going!");
+  assert.equal(t("stats.alive", "fr"), "Continue comme ça !");
+  assert.equal(t("stats.atRisk", "en"), "Don't break the chain — review today.");
+  assert.equal(
+    t("stats.atRisk", "fr"),
+    "Ne casse pas la chaîne — révise aujourd'hui."
+  );
+  assert.equal(t("stats.broken", "en"), "Streak broken. Start a new one today!");
+  assert.equal(
+    t("stats.broken", "fr"),
+    "Série cassée. Recommence aujourd'hui !"
+  );
+});
+
+test("t interpolates the last-activity {when} placeholder", () => {
+  assert.equal(
+    t("stats.lastActivity", "en", { when: "2026-09-23" }),
+    "Last activity: 2026-09-23"
+  );
+  assert.equal(
+    t("stats.lastActivity", "fr", { when: "2026-09-23" }),
+    "Dernière activité : 2026-09-23"
+  );
 });
