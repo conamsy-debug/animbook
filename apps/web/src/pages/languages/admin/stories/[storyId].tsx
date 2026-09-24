@@ -146,33 +146,33 @@ export default function LanguagesAdminStoryDetailPage() {
 
   if (loadError) {
     return (
-      <>
+      <div className="app-shell lib-page lang-page">
         <Head>
           <title>Admin · Story · AnimBook Languages</title>
         </Head>
-        <Topbar />
-        <main className="lang-page">
+        <Topbar variant="cinematic" />
+        <main className="container lang-page lang-admin">
           <ErrorState
             title="Couldn't load story"
             error={new Error(loadError)}
             onRetry={() => reload(storyId)}
           />
         </main>
-      </>
+      </div>
     );
   }
 
   if (!detail) return <LoadingShell />;
 
   return (
-    <>
+    <div className="app-shell lib-page lang-page">
       <Head>
         <title>
           Review · {detail.title || detail.masterStoryTitle} · AnimBook
         </title>
       </Head>
-      <Topbar />
-      <main className="lang-page">
+      <Topbar variant="cinematic" />
+      <main className="container lang-page lang-admin">
         <ErrorBoundary
           fallback={(err, reset) => (
             <ErrorState
@@ -299,31 +299,33 @@ export default function LanguagesAdminStoryDetailPage() {
           ))}
         </ErrorBoundary>
       </main>
-    </>
+    </div>
   );
 }
 
 function LoadingShell() {
   return (
-    <>
+    <div className="app-shell lib-page lang-page">
       <Head>
         <title>Admin · Story · AnimBook Languages</title>
       </Head>
-      <Topbar />
-      <main className="lang-page">
+      <Topbar variant="cinematic" />
+      <main className="container lang-page lang-admin">
         <p className="lang-admin-loading">Loading…</p>
       </main>
-    </>
+    </div>
   );
 }
 
 function NotAvailable() {
   return (
-    <main className="lang-page">
-      <Topbar />
-      <p className="lang-not-available">
-        AnimBook Languages is not enabled in this build.
-      </p>
-    </main>
+    <div className="app-shell lib-page lang-page">
+      <Topbar variant="cinematic" />
+      <main className="container lang-page lang-admin">
+        <p className="lang-not-available">
+          AnimBook Languages is not enabled in this build.
+        </p>
+      </main>
+    </div>
   );
 }

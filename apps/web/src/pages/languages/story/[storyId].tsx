@@ -85,7 +85,7 @@ export default function LanguagesStoryPage() {
   };
 
   return (
-    <div className="app-shell">
+    <div className="app-shell lib-page lang-page">
       <Head>
         <title>AnimBook Languages — story player</title>
       </Head>
@@ -125,7 +125,7 @@ export default function LanguagesStoryPage() {
 
 function NotAvailable() {
   return (
-    <div className="app-shell">
+    <div className="app-shell lib-page lang-page">
       <Head>
         <title>AnimBook Languages — coming soon</title>
       </Head>
@@ -141,7 +141,7 @@ function NotAvailable() {
 
 function BadUrlFallback() {
   return (
-    <div className="app-shell">
+    <div className="app-shell lib-page lang-page">
       <Head>
         <title>AnimBook Languages — story not found</title>
       </Head>

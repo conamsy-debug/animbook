@@ -211,7 +211,7 @@ function relativeTime(iso: string, locale: Locale): string {
 
 function Shell({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="app-shell">
+    <div className="app-shell lib-page lang-page">
       <Head>
         <title>{title}</title>
       </Head>
@@ -223,7 +223,7 @@ function Shell({ title, children }: { title: string; children: React.ReactNode }
 
 function NotAvailable() {
   return (
-    <div className="app-shell">
+    <div className="app-shell lib-page lang-page">
       <Head>
         <title>AnimBook Languages — coming soon</title>
       </Head>

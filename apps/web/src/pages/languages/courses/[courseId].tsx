@@ -247,7 +247,7 @@ function CourseStoryItem({ story, locale }: { story: CourseStoryRow; locale: Loc
 
 function Shell({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="app-shell">
+    <div className="app-shell lib-page lang-page">
       <Head>
         <title>{title}</title>
       </Head>
@@ -272,7 +272,7 @@ function BadUrlFallback({ locale }: { locale: Locale }) {
 
 function NotAvailable() {
   return (
-    <div className="app-shell">
+    <div className="app-shell lib-page lang-page">
       <Head>
         <title>AnimBook Languages — coming soon</title>
       </Head>

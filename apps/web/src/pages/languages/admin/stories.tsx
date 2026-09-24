@@ -49,12 +49,12 @@ export default function LanguagesAdminStoriesPage() {
   if (!LANGUAGES_ENABLED) return <NotAvailable />;
 
   return (
-    <>
+    <div className="app-shell lib-page lang-page">
       <Head>
         <title>Admin · Stories · AnimBook Languages</title>
       </Head>
-      <Topbar />
-      <main className="lang-page">
+      <Topbar variant="cinematic" />
+      <main className="container lang-page lang-admin">
         <ErrorBoundary
           fallback={(err, reset) => (
             <ErrorState
@@ -131,7 +131,7 @@ export default function LanguagesAdminStoriesPage() {
           )}
         </ErrorBoundary>
       </main>
-    </>
+    </div>
   );
 }
 
@@ -156,11 +156,13 @@ function formatTime(iso: string): string {
 
 function NotAvailable() {
   return (
-    <main className="lang-page">
-      <Topbar />
-      <p className="lang-not-available">
-        AnimBook Languages is not enabled in this build.
-      </p>
-    </main>
+    <div className="app-shell lib-page lang-page">
+      <Topbar variant="cinematic" />
+      <main className="container lang-page lang-admin">
+        <p className="lang-not-available">
+          AnimBook Languages is not enabled in this build.
+        </p>
+      </main>
+    </div>
   );
 }

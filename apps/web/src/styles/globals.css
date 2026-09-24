@@ -31,6 +31,7 @@
 /* ==== Reset + base ==== */
 *, *::before, *::after { box-sizing: border-box; }
 html, body, #__next { height: 100%; }
+html, body { overflow-x: hidden; }
 body {
   margin: 0;
   background: var(--bg);
@@ -5794,11 +5795,17 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 
 .lang-page .lang-landing {
   min-height: calc(100vh - 80px);
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   padding: 64px 16px 48px;
   position: relative;
   isolation: isolate;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 0 auto;
 }
 
 .lang-page .lang-landing::before {
@@ -5830,10 +5837,22 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 .lang-page .lang-title {
   font-family: var(--font-serif, 'Cormorant Garamond', Georgia, serif);
   font-weight: 500;
-  font-size: clamp(38px, 6vw, 64px);
+  font-size: clamp(34px, 6vw, 64px);
   line-height: 1.05;
   margin: 0 0 14px;
   color: var(--lang-ink);
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.lang-page .lang-cta {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
 }
 
 .lang-page .lang-subtitle {
@@ -5841,7 +5860,10 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   line-height: 1.55;
   color: var(--lang-ink-dim);
   max-width: 640px;
+  width: 100%;
   margin: 0 auto 36px;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .lang-page .lang-grid {
@@ -8487,4 +8509,184 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 
 .lang-admin-line-audio button:hover {
   background: rgba(107, 140, 255, 0.28);
+}
+
+
+/* ==== AnimBook Languages — landing card polish + section heading ======
+   Landing's seven-language grid reuses the site design language:
+   large serif native name, smaller English + script pill, RTL flows
+   correctly. Tokens come from `--lib-*` (set on `.lib-page`) so the
+   cards sit visually inside the Library look. */
+
+.lang-page .lang-page-main {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 20px 80px;
+}
+
+.lang-page .lang-section-heading {
+  font-family: var(--lib-display, "Cormorant Garamond", Georgia, serif);
+  font-weight: 500;
+  font-size: clamp(22px, 3vw, 28px);
+  margin: 32px 0 16px;
+  color: var(--lib-text, #f2eee6);
+  letter-spacing: -0.01em;
+}
+
+.lang-page .lang-languages {
+  margin-top: 28px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.lang-page .lang-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  text-align: left;
+}
+
+.lang-page .lang-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 22px 20px;
+  border: 1px solid var(--lib-line, rgba(242, 238, 230, 0.10));
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+  color: var(--lib-text, #f2eee6);
+  text-decoration: none;
+  transition: border-color 220ms ease, transform 220ms ease, background 220ms ease;
+  min-height: 148px;
+}
+
+.lang-page .lang-card:hover {
+  border-color: rgba(196, 154, 28, 0.55);
+  transform: translateY(-2px);
+  background: linear-gradient(180deg, rgba(196, 154, 28, 0.07) 0%, rgba(255, 255, 255, 0.01) 100%);
+  color: var(--lib-text, #f2eee6);
+}
+
+.lang-page .lang-card-native {
+  font-family: var(--lib-display, "Cormorant Garamond", Georgia, serif);
+  font-weight: 500;
+  font-size: clamp(32px, 4vw, 44px);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  color: var(--lib-text, #f2eee6);
+  margin: 0;
+}
+
+/* Hebrew + Arabic flow RTL. Native name + English + pills all align right. */
+.lang-page .lang-card-native[dir="rtl"],
+.lang-page .lang-card-native[dir="rtl"] + .lang-card-en,
+.lang-page .lang-card-native[dir="rtl"] + .lang-card-en + .lang-card-meta {
+  text-align: right;
+  justify-content: flex-end;
+}
+
+.lang-page .lang-card-en {
+  font-size: 14px;
+  color: var(--lib-muted, #b9c1cd);
+  margin: 0;
+  font-family: var(--lib-sans, "Figtree", "Inter", system-ui, sans-serif);
+}
+
+.lang-page .lang-card-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.lang-page .lang-pill {
+  font-family: var(--font-mono, "DM Mono", ui-monospace, monospace);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(196, 154, 28, 0.35);
+  color: var(--lang-accent, #c49a1c);
+  background: rgba(196, 154, 28, 0.06);
+}
+
+.lang-page .lang-pill.script {
+  border-color: rgba(242, 238, 230, 0.18);
+  color: var(--lib-muted, #b9c1cd);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.lang-page .lang-pill.rtl {
+  border-color: rgba(220, 100, 100, 0.45);
+  color: #e7a8a8;
+  background: rgba(220, 100, 100, 0.08);
+}
+
+.lang-page .lang-cta {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+
+.lang-page .lang-landing-hero {
+  text-align: center;
+  margin-bottom: 8px;
+  max-width: 880px;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.lang-page .lang-landing-hero > * {
+  max-width: 100%;
+  min-width: 0;
+  align-self: stretch;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.lang-page .lang-notavailable {
+  text-align: center;
+  padding: 80px 0;
+}
+
+.lang-page .lang-notavailable .btn {
+  display: inline-flex;
+}
+
+/* Mobile (390px): single-column grid, larger touch targets */
+@media (max-width: 700px) {
+  .lang-page {
+    overflow-x: hidden;
+  }
+  .lang-page .lang-page-main {
+    padding: 20px 16px 64px;
+  }
+  .lang-page .lang-landing {
+    padding: 32px 12px 24px;
+  }
+  .lang-page .lang-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .lang-page .lang-card {
+    padding: 18px;
+    min-height: 132px;
+  }
+  .lang-page .lang-cta {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .lang-page .lang-cta .btn {
+    width: 100%;
+  }
 }
