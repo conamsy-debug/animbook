@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LANGUAGES } from "./config";
+import { LANGUAGES, type LanguageConfig } from "./config";
 import { t, type Locale } from "./i18n/t";
 
 /**
@@ -49,6 +49,7 @@ export function Landing({ locale = "en" }: Props) {
         <div className="lang-grid">
           {LANGUAGES.filter((l) => l.isTarget).map((lang) => {
             const isRtl = lang.direction === "rtl";
+            const badges = scriptBadgeFor(lang);
             return (
               <Link
                 key={lang.code}
@@ -65,8 +66,11 @@ export function Landing({ locale = "en" }: Props) {
                 </span>
                 <span className="lang-card-en">{lang.nameEn}</span>
                 <span className="lang-card-meta">
-                  <span className="lang-pill script">{lang.script}</span>
-                  {isRtl ? <span className="lang-pill rtl">RTL</span> : null}
+                  {badges.map((b, i) => (
+                    <span key={i} className={`lang-pill ${b.kind}`}>
+                      {b.label}
+                    </span>
+                  ))}
                 </span>
               </Link>
             );
@@ -75,6 +79,37 @@ export function Landing({ locale = "en" }: Props) {
       </section>
     </div>
   );
+}
+
+/**
+ * Per-language badge(s) for the landing card.
+ *
+ *  - Latin scripts (en, fr, es, de, it) → no badge at all. The script
+ *    name in tiny mono caps just adds noise for English / French /
+ *    Spanish / German / Italian readers.
+ *  - zh-Hans → "Chinese characters · pinyin" (the script + reading aid).
+ *  - he → "Hebrew alphabet · right to left" (combines script +
+ *    direction into one line so the card doesn't show two redundant
+ *    Hebrew pills).
+ *  - any future RTL / non-Latin language → fallback to its script + an
+ *    "RTL" pill, same shape as before.
+ */
+function scriptBadgeFor(
+  lang: LanguageConfig
+): { label: string; kind: "script" | "rtl" | "meta" }[] {
+  if (lang.script === "Latin") return [];
+  if (lang.code === "zh-Hans") {
+    return [{ label: "Chinese characters · pinyin", kind: "meta" }];
+  }
+  if (lang.code === "he") {
+    return [{ label: "Hebrew alphabet · right to left", kind: "meta" }];
+  }
+  // Future-proof fallback
+  const out: { label: string; kind: "script" | "rtl" | "meta" }[] = [
+    { label: lang.script, kind: "script" }
+  ];
+  if (lang.direction === "rtl") out.push({ label: "RTL", kind: "rtl" });
+  return out;
 }
 
 /**

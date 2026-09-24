@@ -5940,6 +5940,17 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   background: rgba(220, 100, 100, 0.08);
 }
 
+.lang-page .lang-pill.meta {
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 4px 10px;
+  border-color: rgba(242, 238, 230, 0.18);
+  color: var(--lib-text, #f2eee6);
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .lang-page .lang-card[dir='rtl'] {
   text-align: right;
 }
@@ -6471,16 +6482,23 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   gap: 8px;
 }
 
+.lang-onboarding-daily-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 4px;
+}
+
 .lang-onboarding-daily-pill {
   font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
   font-size: 13px;
-  padding: 10px 14px;
+  padding: 10px 18px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: transparent;
   color: var(--lang-ink, #f5ecd2);
   cursor: pointer;
-  transition: background 180ms ease, border-color 180ms ease;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
   min-height: 44px;
 }
 
@@ -6491,6 +6509,8 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 .lang-onboarding-daily-pill--active {
   background: rgba(196, 154, 28, 0.18);
   border-color: var(--lang-accent, #c49a1c);
+  color: var(--lang-accent, #c49a1c);
+  box-shadow: 0 0 0 1px rgba(196, 154, 28, 0.45) inset;
 }
 
 .lang-onboarding-error {
@@ -6499,11 +6519,19 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   margin: 0;
 }
 
+/* Start my first story — real primary button matching the site's
+   .btn primary chrome (gold pill, dark text), with a clearly
+   disabled state. Reuses the same gold accent so the page stays
+   visually consistent with /languages. */
 .lang-onboarding-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
   font-size: 15px;
   font-weight: 600;
-  padding: 14px 24px;
+  padding: 14px 28px;
   border-radius: 999px;
   border: 1px solid var(--lang-accent, #c49a1c);
   background: var(--lang-accent, #c49a1c);
@@ -6512,16 +6540,25 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   min-height: 48px;
   align-self: center;
   margin-top: 8px;
-  transition: background 180ms ease;
+  text-decoration: none;
+  transition: background 180ms ease, border-color 180ms ease, transform 80ms ease;
 }
 
 .lang-onboarding-submit:hover:not(:disabled) {
   background: #d8b13a;
+  border-color: #d8b13a;
+}
+
+.lang-onboarding-submit:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .lang-onboarding-submit:disabled {
-  opacity: 0.5;
+  background: rgba(196, 154, 28, 0.18);
+  border-color: rgba(196, 154, 28, 0.35);
+  color: rgba(245, 236, 210, 0.45);
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 @media (max-width: 699px) {
@@ -8624,6 +8661,20 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   border-color: rgba(220, 100, 100, 0.45);
   color: #e7a8a8;
   background: rgba(220, 100, 100, 0.08);
+}
+
+/* "Chinese characters · pinyin" / "Hebrew alphabet · right to left".
+   Mixed-case prose, not the all-caps mono treatment — these read as
+   sentences, not tags. */
+.lang-page .lang-pill.meta {
+  font-family: var(--font-sans, "Inter", system-ui, sans-serif);
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 4px 10px;
+  border-color: rgba(242, 238, 230, 0.18);
+  color: var(--lib-text, #f2eee6);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .lang-page .lang-cta {

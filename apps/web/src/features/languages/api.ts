@@ -126,13 +126,20 @@ export interface StoryProgressWriteResult {
 
 /* --------------------------------------------------------------------- *
  * Fetch helpers
+ *
+ * IMPORTANT: must use absolute URLs (apiUrl from @/lib/api), not
+ * relative paths. Production has the web on animbook.com and the API
+ * on api.animbook.com — relative paths resolve to animbook.com/api/lang/*
+ * which has no Next.js rewrite and 404s, leaving the picker empty.
  * --------------------------------------------------------------------- */
+
+import { apiUrl } from "@/lib/api";
 
 async function jsonFetch<T>(
   path: string,
   init: RequestInit & { signal?: AbortSignal } = {}
 ): Promise<T | null> {
-  const res = await fetch(path, {
+  const res = await fetch(apiUrl(path), {
     credentials: "include",
     headers: { Accept: "application/json", ...(init.headers ?? {}) },
     ...init
@@ -211,7 +218,7 @@ export async function enrollInCourse(input: {
   /** Accepted but not yet persisted (lands with Patch 10 stats). */
   dailyGoal?: number;
 }): Promise<EnrollmentCreateResult> {
-  const res = await fetch("/api/lang/enrollments", {
+  const res = await fetch(apiUrl("/api/lang/enrollments"), {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -269,7 +276,7 @@ export async function saveStoryProgress(input: {
   completed?: boolean;
 }): Promise<StoryProgressWriteResult> {
   const res = await fetch(
-    `/api/lang/stories/${encodeURIComponent(input.storyId)}/progress`,
+    apiUrl(`/api/lang/stories/${encodeURIComponent(input.storyId)}/progress`),
     {
       method: "POST",
       credentials: "include",
@@ -389,7 +396,7 @@ export async function saveVocab(input: {
   lexemeId: string;
   sourceLineId?: string | null;
 }): Promise<SaveVocabResult> {
-  const res = await fetch("/api/lang/vocab", {
+  const res = await fetch(apiUrl("/api/lang/vocab"), {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -409,7 +416,7 @@ export async function saveVocab(input: {
 
 /** DELETE /api/lang/vocab/:userVocabId — remove a word from the deck. */
 export async function unsaveVocab(userVocabId: string): Promise<{ removed: boolean }> {
-  const res = await fetch(`/api/lang/vocab/${encodeURIComponent(userVocabId)}`, {
+  const res = await fetch(apiUrl(`/api/lang/vocab/${encodeURIComponent(userVocabId)}`), {
     method: "DELETE",
     credentials: "include",
     headers: { Accept: "application/json" }
@@ -490,7 +497,7 @@ export async function submitExerciseAttempt(input: {
   const { type, ...rest } = input.body;
   void type;
   const res = await fetch(
-    `/api/lang/exercises/${encodeURIComponent(input.exerciseId)}/attempts`,
+    apiUrl(`/api/lang/exercises/${encodeURIComponent(input.exerciseId)}/attempts`),
     {
       method: "POST",
       credentials: "include",
@@ -560,7 +567,7 @@ export interface PronunciationInput {
  * via headers. Returns the score + per-word colouring.
  */
 export async function submitPronunciation(input: PronunciationInput): Promise<PronunciationResult> {
-  const res = await fetch("/api/lang/pronunciation", {
+  const res = await fetch(apiUrl("/api/lang/pronunciation"), {
     method: "POST",
     credentials: "include",
     headers: {
@@ -656,7 +663,7 @@ export interface ReviewPostResult {
  */
 export async function fetchReviewDue(courseId?: string): Promise<ReviewDueResponse> {
   const qs = courseId ? `?course=${encodeURIComponent(courseId)}` : "";
-  const res = await fetch(`/api/lang/review/due${qs}`, {
+  const res = await fetch(apiUrl(`/api/lang/review/due${qs}`), {
     method: "GET",
     credentials: "include"
   });
@@ -679,7 +686,7 @@ export async function submitReviewRating(input: {
   signal?: AbortSignal;
 }): Promise<ReviewPostResult> {
   const res = await fetch(
-    `/api/lang/review/${encodeURIComponent(input.userVocabId)}`,
+    apiUrl(`/api/lang/review/${encodeURIComponent(input.userVocabId)}`),
     {
       method: "POST",
       credentials: "include",
@@ -729,7 +736,7 @@ export interface LearnerStats {
  * GET /api/lang/stats — full learner stats payload.
  */
 export async function fetchLearnerStats(): Promise<LearnerStats> {
-  const res = await fetch("/api/lang/stats", {
+  const res = await fetch(apiUrl("/api/lang/stats"), {
     method: "GET",
     credentials: "include"
   });
@@ -808,7 +815,7 @@ async function adminJsonFetch<T>(
   path: string,
   init: RequestInit & { signal?: AbortSignal } = {}
 ): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetch(apiUrl(path), {
     credentials: "include",
     headers: { Accept: "application/json", ...(init.headers ?? {}) },
     ...init
