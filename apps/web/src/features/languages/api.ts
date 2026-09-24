@@ -741,3 +741,171 @@ export async function fetchLearnerStats(): Promise<LearnerStats> {
   }
   return (await res.json()) as LearnerStats;
 }
+
+/* --------------------------------------------------------------------- *
+ * Patch 12 — admin review screen helpers
+ * --------------------------------------------------------------------- *
+ * The review UI talks to /api/lang/admin/* which requires a user whose
+ * `roles` include "platform_admin". The pages under
+ * /languages/admin/* only render when the caller is signed in via
+ * Clerk AND the smoke test has promoted that user. We throw on non-2xx
+ * (no silent 404) because admin callers want the toast to fire on errors.
+ * --------------------------------------------------------------------- */
+
+export type ReviewStatus = "draft" | "in_review" | "approved" | "rejected";
+
+export interface ReviewStorySummary {
+  id: string;
+  masterStoryId: string;
+  targetLang: LangCode;
+  title: string;
+  titleTranslations: Record<string, string>;
+  cefrLevel: string;
+  reviewStatus: ReviewStatus;
+  reviewerId: string | null;
+  reviewerNotes: string | null;
+  isPublished: boolean;
+  createdAt: string;
+  updatedAt: string;
+  masterStoryTitle: string;
+}
+
+export interface ReviewStoryDetail extends ReviewStorySummary {
+  scenes: Array<{
+    id: string;
+    order: number;
+    lines: Array<{
+      id: string;
+      order: number;
+      speaker: string;
+      text: string;
+      textReading: string | null;
+      translations: { en: string; fr: string } | null;
+      audioUrl: string | null;
+      startMs: number | null;
+      endMs: number | null;
+      wordTimings: unknown;
+    }>;
+    exercises: Array<{
+      id: string;
+      order: number;
+      type: string;
+      payload: unknown;
+      answer: unknown;
+    }>;
+  }>;
+}
+
+export interface RegenerateAudioResult {
+  lineId: string;
+  audioUrl: string | null;
+  source: "elevenlabs" | "stub";
+  characters: number;
+  voiceId: string | null;
+}
+
+async function adminJsonFetch<T>(
+  path: string,
+  init: RequestInit & { signal?: AbortSignal } = {}
+): Promise<T> {
+  const res = await fetch(path, {
+    credentials: "include",
+    headers: { Accept: "application/json", ...(init.headers ?? {}) },
+    ...init
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(
+      `${init.method ?? "GET"} ${path}: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
+    );
+  }
+  return (await res.json()) as T;
+}
+
+export async function fetchAdminStories(
+  input: { status?: ReviewStatus; targetLang?: string; limit?: number } = {},
+  signal?: AbortSignal
+): Promise<ReviewStorySummary[]> {
+  const params = new URLSearchParams();
+  if (input.status) params.set("status", input.status);
+  if (input.targetLang) params.set("targetLang", input.targetLang);
+  if (typeof input.limit === "number") params.set("limit", String(input.limit));
+  const qs = params.toString();
+  const data = await adminJsonFetch<{ stories: ReviewStorySummary[] }>(
+    `/api/lang/admin/stories${qs ? `?${qs}` : ""}`,
+    { method: "GET", signal }
+  );
+  return data.stories;
+}
+
+export async function fetchAdminStory(
+  storyId: string,
+  signal?: AbortSignal
+): Promise<ReviewStoryDetail | null> {
+  try {
+    return await adminJsonFetch<ReviewStoryDetail>(
+      `/api/lang/admin/stories/${encodeURIComponent(storyId)}`,
+      { method: "GET", signal }
+    );
+  } catch (err) {
+    if (err instanceof Error && /\b404\b/.test(err.message)) return null;
+    throw err;
+  }
+}
+
+export async function saveAdminStoryEdits(
+  storyId: string,
+  patch: {
+    title?: string;
+    titleTranslations?: Record<string, string>;
+    reviewerNotes?: string;
+    lines?: Array<{
+      id: string;
+      text?: string;
+      textReading?: string | null;
+      translations?: { en?: string; fr?: string } | null;
+      audioUrl?: string | null;
+      startMs?: number | null;
+      endMs?: number | null;
+    }>;
+  }
+): Promise<ReviewStoryDetail> {
+  return adminJsonFetch<ReviewStoryDetail>(
+    `/api/lang/admin/stories/${encodeURIComponent(storyId)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch)
+    }
+  );
+}
+
+export async function regenerateLineAudio(
+  lineId: string
+): Promise<RegenerateAudioResult> {
+  return adminJsonFetch<RegenerateAudioResult>(
+    `/api/lang/admin/lines/${encodeURIComponent(lineId)}/regenerate-audio`,
+    { method: "POST" }
+  );
+}
+
+export async function approveStory(storyId: string): Promise<ReviewStorySummary> {
+  return adminJsonFetch<ReviewStorySummary>(
+    `/api/lang/admin/stories/${encodeURIComponent(storyId)}/approve`,
+    { method: "POST" }
+  );
+}
+
+export async function rejectStory(
+  storyId: string,
+  notes: string
+): Promise<ReviewStorySummary> {
+  return adminJsonFetch<ReviewStorySummary>(
+    `/api/lang/admin/stories/${encodeURIComponent(storyId)}/reject`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes })
+    }
+  );
+}

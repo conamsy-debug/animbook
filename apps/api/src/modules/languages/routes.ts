@@ -34,6 +34,12 @@ import {
   enqueueAdaptation,
   getAdaptationJob,
   runAdaptationJob,
+  listStoriesForReview,
+  getStoryForReview,
+  editStory,
+  regenerateLineAudio,
+  approveStory,
+  rejectStory,
   type CardSnapshot,
   type CardRating,
   REVIEW_BATCH_SIZE
@@ -114,15 +120,22 @@ router.get("/stories/:storyId", authMiddleware, async (req: Request, res: Respon
 
   // Read the story's existence + the master_story slug up front so
   // we can return a clean 404 without a full subtree query.
+  // Patch 12: only approved stories appear to learners. The admin
+  // review screen uses /admin/stories/:id which has no gate.
   const storyMeta = await prisma.story.findUnique({
     where: { id: storyId },
     select: {
       id: true,
       targetLang: true,
+      isPublished: true,
       masterStory: { select: { slug: true } }
     }
   });
   if (!storyMeta) {
+    res.status(404).json({ error: "story not found", storyId });
+    return;
+  }
+  if (!storyMeta.isPublished) {
     res.status(404).json({ error: "story not found", storyId });
     return;
   }
@@ -2081,5 +2094,198 @@ router.post("/admin/jobs/:jobId/run", authMiddleware, async (req: Request, res: 
     completedAt: after.completedAt ? after.completedAt.toISOString() : null
   });
 });
+
+/* --------------------------------------------------------------------- *
+ * Admin review screen + publishing (Patch 12)
+ * --------------------------------------------------------------------- *
+ * Spec § 11 admin endpoints:
+ *
+ *   GET  /admin/stories?status=in_review — list stories pending review
+ *   GET  /admin/stories/:id              — full story detail tree
+ *   PUT  /admin/stories/:id              — save edits (title, translations, lines)
+ *   POST /admin/lines/:id/regenerate-audio — regenerate line audio
+ *   POST /admin/stories/:id/approve      — flip reviewStatus=approved, isPublished=true
+ *   POST /admin/stories/:id/reject       — flip reviewStatus=rejected + notes
+ *
+ * Every admin route calls `requireAdmin()` after `authMiddleware` so
+ * an attacker with a stolen auth header still can't reach the review
+ * queue. Story + line edits are intentionally scoped — we don't
+ * expose a generic story PATCH because the review screen needs only
+ * a handful of fields, and a tighter shape is easier to validate.
+ * --------------------------------------------------------------------- */
+
+router.get("/admin/stories", authMiddleware, async (req: Request, res: Response) => {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+
+  const status = typeof req.query["status"] === "string" ? req.query["status"] : undefined;
+  const targetLang =
+    typeof req.query["targetLang"] === "string" ? req.query["targetLang"] : undefined;
+  const limit = Number(req.query["limit"] ?? 50);
+
+  // Validate status if supplied so the SQL query doesn't accept garbage.
+  if (status && !["draft", "in_review", "approved", "rejected"].includes(status)) {
+    res.status(400).json({
+      error: "status must be one of draft | in_review | approved | rejected"
+    });
+    return;
+  }
+
+  const stories = await listStoriesForReview({ status, targetLang, limit });
+  res.json({ stories });
+});
+
+router.get("/admin/stories/:storyId", authMiddleware, async (req: Request, res: Response) => {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+
+  const rawId = req.params["storyId"];
+  const storyId = Array.isArray(rawId) ? rawId[0] : rawId;
+  if (!storyId) {
+    res.status(400).json({ error: "storyId is required" });
+    return;
+  }
+
+  const detail = await getStoryForReview(storyId);
+  if (!detail) {
+    res.status(404).json({ error: "story not found", storyId });
+    return;
+  }
+
+  res.json(detail);
+});
+
+router.put("/admin/stories/:storyId", authMiddleware, async (req: Request, res: Response) => {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+
+  const rawId = req.params["storyId"];
+  const storyId = Array.isArray(rawId) ? rawId[0] : rawId;
+  if (!storyId) {
+    res.status(400).json({ error: "storyId is required" });
+    return;
+  }
+
+  const body = (req.body ?? {}) as {
+    title?: unknown;
+    titleTranslations?: unknown;
+    reviewerNotes?: unknown;
+    lines?: unknown;
+  };
+
+  if (body.title !== undefined && typeof body.title !== "string") {
+    res.status(400).json({ error: "title must be a string" });
+    return;
+  }
+  if (body.titleTranslations !== undefined) {
+    if (
+      typeof body.titleTranslations !== "object" ||
+      body.titleTranslations === null ||
+      Array.isArray(body.titleTranslations)
+    ) {
+      res.status(400).json({ error: "titleTranslations must be an object" });
+      return;
+    }
+  }
+  if (body.reviewerNotes !== undefined && typeof body.reviewerNotes !== "string") {
+    res.status(400).json({ error: "reviewerNotes must be a string" });
+    return;
+  }
+  if (body.lines !== undefined && !Array.isArray(body.lines)) {
+    res.status(400).json({ error: "lines must be an array" });
+    return;
+  }
+
+  const updated = await editStory(storyId, {
+    title: body.title as string | undefined,
+    titleTranslations: body.titleTranslations as Record<string, string> | undefined,
+    reviewerNotes: body.reviewerNotes as string | undefined,
+    lines: body.lines as Parameters<typeof editStory>[1]["lines"]
+  });
+  if (!updated) {
+    res.status(404).json({ error: "story not found", storyId });
+    return;
+  }
+
+  res.json(updated);
+});
+
+router.post(
+  "/admin/lines/:lineId/regenerate-audio",
+  authMiddleware,
+  async (req: Request, res: Response) => {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+
+    const rawId = req.params["lineId"];
+    const lineId = Array.isArray(rawId) ? rawId[0] : rawId;
+    if (!lineId) {
+      res.status(400).json({ error: "lineId is required" });
+      return;
+    }
+
+    const result = await regenerateLineAudio(lineId);
+    if (!result) {
+      res.status(404).json({ error: "line not found", lineId });
+      return;
+    }
+
+    res.json(result);
+  }
+);
+
+router.post(
+  "/admin/stories/:storyId/approve",
+  authMiddleware,
+  async (req: Request, res: Response) => {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+
+    const rawId = req.params["storyId"];
+    const storyId = Array.isArray(rawId) ? rawId[0] : rawId;
+    if (!storyId) {
+      res.status(400).json({ error: "storyId is required" });
+      return;
+    }
+
+    const updated = await approveStory(storyId, admin.userId);
+    if (!updated) {
+      res.status(404).json({ error: "story not found", storyId });
+      return;
+    }
+
+    res.json(updated);
+  }
+);
+
+router.post(
+  "/admin/stories/:storyId/reject",
+  authMiddleware,
+  async (req: Request, res: Response) => {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+
+    const rawId = req.params["storyId"];
+    const storyId = Array.isArray(rawId) ? rawId[0] : rawId;
+    if (!storyId) {
+      res.status(400).json({ error: "storyId is required" });
+      return;
+    }
+
+    const body = (req.body ?? {}) as { notes?: unknown };
+    if (typeof body.notes !== "string" || body.notes.length === 0) {
+      res.status(400).json({ error: "notes (string, non-empty) is required" });
+      return;
+    }
+
+    const updated = await rejectStory(storyId, admin.userId, body.notes);
+    if (!updated) {
+      res.status(404).json({ error: "story not found", storyId });
+      return;
+    }
+
+    res.json(updated);
+  }
+);
 
 export default router;

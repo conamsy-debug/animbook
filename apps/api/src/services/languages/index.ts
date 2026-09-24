@@ -78,6 +78,33 @@ export {
 export {
   enqueueAdaptation,
   getAdaptationJob,
-  runAdaptationJob,
-  rederiveStatus
+  runAdaptationJob
 } from "./adaptation.js";
+
+// Patch 12 — TTS provider seam (audio regeneration in admin review).
+// The narration worker + the admin "regenerate audio" route both
+// call through this so a future XTTS swap is a one-file change.
+export {
+  type TtsProvider,
+  type TtsSynthesizeInput,
+  type TtsSynthesizeResult,
+  resolveTtsProvider,
+  pickVoiceForSpeaker
+} from "./tts.js";
+
+// Patch 12 — admin review service (list / edit / regen-audio / approve / reject).
+// Routes call through this so the routes file stays focused on auth +
+// serialization.
+export {
+  type ReviewStorySummary,
+  type ReviewStoryDetail,
+  type ListStoriesOptions,
+  type EditStoryInput,
+  type RegenerateAudioResult,
+  listStoriesForReview,
+  getStoryForReview,
+  editStory,
+  regenerateLineAudio,
+  approveStory,
+  rejectStory
+} from "./adminReview.js";

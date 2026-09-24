@@ -58,13 +58,21 @@ test("languages router exposes the Patches 01 + 04 + 05 + 06 routes (no leaks)",
   // Patch 11 adds /admin/master-stories,
   // /admin/master-stories/:masterStoryId/adapt,
   // /admin/jobs/:jobId, /admin/jobs/:jobId/run.
+  // Patch 12 adds /admin/stories, /admin/stories/:storyId,
+  // /admin/stories/:storyId/approve, /admin/stories/:storyId/reject,
+  // /admin/lines/:lineId/regenerate-audio.
   // This guard prevents the module from silently growing routes
   // without updating the spec + the route catalogue.
   const expected = [
     "/admin/jobs/:jobId",
     "/admin/jobs/:jobId/run",
+    "/admin/lines/:lineId/regenerate-audio",
     "/admin/master-stories",
     "/admin/master-stories/:masterStoryId/adapt",
+    "/admin/stories",
+    "/admin/stories/:storyId",
+    "/admin/stories/:storyId/approve",
+    "/admin/stories/:storyId/reject",
     "/courses",
     "/courses/:courseId",
     "/enrollments",

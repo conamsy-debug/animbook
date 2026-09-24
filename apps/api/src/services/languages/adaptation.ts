@@ -87,17 +87,6 @@ export async function getAdaptationJob(jobId: string): Promise<{
   });
 }
 
-/** Re-derive a job's `status` against `now` so a learner/admin who
- *  hasn't checked in for a while sees the right value. We don't
- *  write this — the next activity call will reconcile. */
-export function rederiveStatus(
-  status: string,
-  completedAt: Date | null
-): string {
-  if (status === "completed" || status === "failed") return status;
-  return status;
-}
-
 /* --------------------------------------------------------------------- *
  * runAdaptationJob — sync orchestrator
  * --------------------------------------------------------------------- *
@@ -215,6 +204,14 @@ export async function runAdaptationJob(
     );
     return;
   }
+
+  // Story lands in `draft` (default from importLesson); the admin
+  // review screen picks it up from `in_review`. We flip here so the
+  // creator doesn't have to manually toggle the status.
+  await prisma.story.update({
+    where: { id: storyId },
+    data: { reviewStatus: "in_review" }
+  });
 
   await prisma.languagesAdaptationJob.update({
     where: { id: jobId },
