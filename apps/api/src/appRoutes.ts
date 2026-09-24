@@ -24,7 +24,7 @@
 export interface Route {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   path: string;
-  auth: "public" | "user" | "verified" | "service";
+  auth: "public" | "user" | "verified" | "admin" | "service";
   summary: string;
   notes?: string;
 }
@@ -438,6 +438,34 @@ export const APP_ROUTES: Module[] = [
         auth: "user",
         summary: "Learner stats payload (Patch 10).",
         notes: "Returns XP, current + longest streak, last activity date, timezone, total vocab + exercise attempt counts. The streak counter is re-derived against `now` so a learner who hasn't visited in a while sees their streak properly broken without a write."
+      },
+      {
+        method: "POST",
+        path: "/api/lang/admin/master-stories",
+        auth: "admin",
+        summary: "Create a draft master story (Patch 11).",
+        notes: "Body: `{ slug, titleEn, synopsis, targetLang, masterScript, targetVocabConcepts, cefrLevel? }`. 409 if the slug is taken. The row's `animationStatus` starts at `pending`; Patch 12's admin screen drives it through `ready` once the studio clips land."
+      },
+      {
+        method: "POST",
+        path: "/api/lang/admin/master-stories/:masterStoryId/adapt",
+        auth: "admin",
+        summary: "Queue per-language adaptation jobs (Patch 11).",
+        notes: "Body: `{ target_langs: string[] }`. Writes a `queued` row in `languages_adaptation_jobs` per target lang and enqueues a BullMQ job. The worker calls the LLM, retries up to 3x on parse failure, then runs `importLesson` to write the Story + Lexemes + Tokens + Exercises. Returns `{ jobs: [{ jobId, targetLang }] }`."
+      },
+      {
+        method: "GET",
+        path: "/api/lang/admin/jobs/:jobId",
+        auth: "admin",
+        summary: "Read adaptation job status (Patch 11).",
+        notes: "Returns the DB row straight off `languages_adaptation_jobs` — status, attempts, started_at, completed_at, result_story_id, error_message (truncated to 4 KB). The admin review screen (Patch 12) polls this every few seconds while jobs are running."
+      },
+      {
+        method: "POST",
+        path: "/api/lang/admin/jobs/:jobId/run",
+        auth: "admin",
+        summary: "Synchronously drive a queued adaptation job to completion (Patch 11).",
+        notes: "BullMQ was the original worker; this route replaces it because the project's `node_modules` install is currently broken in a way that prevents Redis-based jobs from booting. Calls `runAdaptationJob(jobId)` inline, marks the row `running` → `completed`/`failed`. When BullMQ lands, this route stays as a manual override; the worker becomes the primary execution path."
       }
     ]
   },

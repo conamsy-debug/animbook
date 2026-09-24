@@ -57,3 +57,27 @@ export {
   daysBetween,
   resolveTz
 } from "./streaks.js";
+
+// Patch 11 — content pipeline: LLM adaptation + orchestrator.
+// BullMQ + Redis worker was the original plan; we ship the
+// orchestrator as a synchronous `runAdaptationJob` because the
+// project's `node_modules` install is broken in ways that prevent
+// BullMQ from booting in tests. The DB row is the source of truth
+// for status; a BullMQ worker can plug in later without changing
+// the routes.
+export {
+  type LlmProvider,
+  type MasterScript,
+  type AdaptResult,
+  AnthropicLlmProvider,
+  LessonAdaptationError,
+  promptFor,
+  adaptWithRetry,
+  resolveLlmProvider
+} from "./llm.js";
+export {
+  enqueueAdaptation,
+  getAdaptationJob,
+  runAdaptationJob,
+  rederiveStatus
+} from "./adaptation.js";

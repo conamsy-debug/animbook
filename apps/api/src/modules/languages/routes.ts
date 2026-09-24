@@ -31,6 +31,9 @@ import {
   bumpStreak,
   resolveTz,
   daysBetween,
+  enqueueAdaptation,
+  getAdaptationJob,
+  runAdaptationJob,
   type CardSnapshot,
   type CardRating,
   REVIEW_BATCH_SIZE
@@ -1838,5 +1841,245 @@ router.get("/stats", authMiddleware, async (req: Request, res: Response) => {
 function daysBetweenStrings(a: string, b: string, tz: string): number {
   return daysBetween(a, b, tz);
 }
+
+/* --------------------------------------------------------------------- *
+ * Admin routes (Patch 11)
+ * --------------------------------------------------------------------- *
+ * Spec § 11 admin endpoints. Four new routes:
+ *
+ *   POST /admin/master-stories            — create a draft master
+ *                                          story from a JSON body
+ *                                          (or 409 if the slug exists)
+ *   POST /admin/master-stories/:id/adapt  — kick off per-language
+ *                                          adaptation jobs (writes
+ *                                          `queued` rows; BullMQ was
+ *                                          dropped, see below)
+ *   GET  /admin/jobs/:jobId              — read job status (the
+ *                                          DB row + result_story_id)
+ *   POST /admin/jobs/:jobId/run          — synchronously drive a
+ *                                          queued job to completion
+ *                                          (replaces BullMQ worker)
+ *
+ * Auth: every admin route requires an authenticated user whose
+ * `roles` include `"platform_admin"`. The auth middleware resolves
+ * the user + `userId`; we re-query `users.roles` here so a
+ * compromise of the auth header still can't reach the pipeline.
+ *
+ * Why no BullMQ: the project's `node_modules` install is broken in
+ * a way that prevents Redis-based jobs from booting in tests, and
+ * reinstalling brings in half-installed modules. The synchronous
+ * orchestrator in `services/languages/adaptation.ts` is the
+ * fallback; `POST /admin/jobs/:jobId/run` is the new primary
+ * execution path. When BullMQ lands, this route stays as a manual
+ * override; the worker becomes the primary execution path.
+ * --------------------------------------------------------------------- */
+
+interface AdminAuthedRequest extends Request {
+  userId: string;
+}
+
+async function requireAdmin(req: Request, res: Response): Promise<AdminAuthedRequest | null> {
+  const userId = requireUserId(req as Parameters<typeof requireUserId>[0]);
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { roles: true }
+  });
+  if (!user?.roles?.includes("platform_admin")) {
+    res.status(403).json({ error: "Admin access required" });
+    return null;
+  }
+  return req as AdminAuthedRequest;
+}
+
+router.post("/admin/master-stories", authMiddleware, async (req: Request, res: Response) => {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+
+  const body = (req.body ?? {}) as {
+    slug?: string;
+    titleEn?: string;
+    cefrLevel?: string;
+    synopsis?: string;
+    masterScript?: unknown;
+    targetVocabConcepts?: unknown;
+    targetLang?: string;
+  };
+
+  if (
+    typeof body.slug !== "string" ||
+    typeof body.titleEn !== "string" ||
+    typeof body.synopsis !== "string" ||
+    typeof body.targetLang !== "string" ||
+    !body.masterScript ||
+    !Array.isArray(body.targetVocabConcepts)
+  ) {
+    res.status(400).json({
+      error:
+        "Body must include slug, titleEn, synopsis, targetLang (BCP-47), masterScript, targetVocabConcepts[]"
+    });
+    return;
+  }
+
+  const existing = await prisma.masterStory.findUnique({
+    where: { slug: body.slug },
+    select: { id: true }
+  });
+  if (existing) {
+    res.status(409).json({ error: "slug already exists", slug: body.slug });
+    return;
+  }
+
+  const created = await prisma.masterStory.create({
+    data: {
+      slug: body.slug,
+      titleEn: body.titleEn,
+      cefrLevel: typeof body.cefrLevel === "string" ? body.cefrLevel : "A1",
+      synopsis: body.synopsis,
+      masterScript: body.masterScript as object,
+      targetVocabConcepts: body.targetVocabConcepts as object,
+      targetLang: body.targetLang,
+      animationStatus: "pending"
+    }
+  });
+
+  res.status(201).json({
+    masterStoryId: created.id,
+    slug: created.slug,
+    titleEn: created.titleEn,
+    targetLang: created.targetLang,
+    animationStatus: created.animationStatus
+  });
+});
+
+router.post(
+  "/admin/master-stories/:masterStoryId/adapt",
+  authMiddleware,
+  async (req: Request, res: Response) => {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+
+    const rawId = req.params["masterStoryId"];
+    const masterStoryId = Array.isArray(rawId) ? rawId[0] : rawId;
+    if (!masterStoryId) {
+      res.status(400).json({ error: "masterStoryId is required" });
+      return;
+    }
+
+    const body = (req.body ?? {}) as { target_langs?: unknown };
+    if (
+      !Array.isArray(body.target_langs) ||
+      body.target_langs.length === 0 ||
+      !body.target_langs.every((x) => typeof x === "string")
+    ) {
+      res.status(400).json({
+        error: "Body must include `target_langs: string[]` (non-empty)"
+      });
+      return;
+    }
+
+    const masterStory = await prisma.masterStory.findUnique({
+      where: { id: masterStoryId },
+      select: { id: true }
+    });
+    if (!masterStory) {
+      res.status(404).json({ error: "master story not found", masterStoryId });
+      return;
+    }
+
+    const targetLangs = body.target_langs as string[];
+    const jobIds = await enqueueAdaptation({
+      masterStoryId,
+      targetLangs
+    });
+
+    res.status(202).json({
+      masterStoryId,
+      jobs: jobIds.map((id, i) => ({
+        jobId: id,
+        targetLang: targetLangs[i]
+      }))
+    });
+  }
+);
+
+router.get("/admin/jobs/:jobId", authMiddleware, async (req: Request, res: Response) => {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+
+  const rawId = req.params["jobId"];
+  const jobId = Array.isArray(rawId) ? rawId[0] : rawId;
+  if (!jobId) {
+    res.status(400).json({ error: "jobId is required" });
+    return;
+  }
+
+  const job = await getAdaptationJob(jobId);
+  if (!job) {
+    res.status(404).json({ error: "job not found", jobId });
+    return;
+  }
+
+  res.json({
+    jobId: job.id,
+    masterStoryId: job.masterStoryId,
+    targetLang: job.targetLang,
+    status: job.status,
+    resultStoryId: job.resultStoryId,
+    errorMessage: job.errorMessage,
+    attempts: job.attempts,
+    startedAt: job.startedAt ? job.startedAt.toISOString() : null,
+    completedAt: job.completedAt ? job.completedAt.toISOString() : null,
+    createdAt: job.createdAt.toISOString(),
+    updatedAt: job.updatedAt.toISOString()
+  });
+});
+
+/**
+ * POST /admin/jobs/:jobId/run — synchronous trigger.
+ *
+ * Patch 11 ships without BullMQ (see Patch 11 commit notes).
+ * The admin UI calls this endpoint to drive a queued job to
+ * completion. When BullMQ lands, this route stays as a manual
+ * override; the worker becomes the primary execution path.
+ */
+router.post("/admin/jobs/:jobId/run", authMiddleware, async (req: Request, res: Response) => {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+
+  const rawId = req.params["jobId"];
+  const jobId = Array.isArray(rawId) ? rawId[0] : rawId;
+  if (!jobId) {
+    res.status(400).json({ error: "jobId is required" });
+    return;
+  }
+
+  try {
+    await runAdaptationJob(jobId);
+  } catch (err) {
+    // The orchestrator already wrote the failure to the DB row;
+    // we surface a 500 so the admin UI shows the toast.
+    res.status(500).json({
+      error: err instanceof Error ? err.message : "runAdaptationJob crashed",
+      jobId
+    });
+    return;
+  }
+
+  const after = await getAdaptationJob(jobId);
+  if (!after) {
+    res.status(500).json({ error: "job disappeared during run", jobId });
+    return;
+  }
+
+  res.status(200).json({
+    jobId,
+    status: after.status,
+    resultStoryId: after.resultStoryId,
+    errorMessage: after.errorMessage,
+    attempts: after.attempts,
+    startedAt: after.startedAt ? after.startedAt.toISOString() : null,
+    completedAt: after.completedAt ? after.completedAt.toISOString() : null
+  });
+});
 
 export default router;

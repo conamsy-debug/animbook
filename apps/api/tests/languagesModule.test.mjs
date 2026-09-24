@@ -55,9 +55,16 @@ test("languages router exposes the Patches 01 + 04 + 05 + 06 routes (no leaks)",
   // Patch 08 adds /pronunciation.
   // Patch 09 adds /review/due, /review/:userVocabId.
   // Patch 10 adds /stats.
+  // Patch 11 adds /admin/master-stories,
+  // /admin/master-stories/:masterStoryId/adapt,
+  // /admin/jobs/:jobId, /admin/jobs/:jobId/run.
   // This guard prevents the module from silently growing routes
   // without updating the spec + the route catalogue.
   const expected = [
+    "/admin/jobs/:jobId",
+    "/admin/jobs/:jobId/run",
+    "/admin/master-stories",
+    "/admin/master-stories/:masterStoryId/adapt",
     "/courses",
     "/courses/:courseId",
     "/enrollments",

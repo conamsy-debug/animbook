@@ -1771,6 +1771,36 @@ model ReviewLog {
   @@map("review_logs")
 }
 
+/// Patch 11 — one row per language adaptation BullMQ job kicked off
+/// by POST /api/lang/admin/master-stories/:id/adapt. The route writes
+/// a `queued` row synchronously and the worker flips it through
+/// `running → completed | failed`. The admin screen (Patch 12) reads
+/// this table to render job status + the produced Story id.
+model LanguagesAdaptationJob {
+  id              String    @id @default(cuid())
+  masterStoryId   String    @map("master_story_id")
+  /// BCP-47 target code (one job per language per adapt call so a
+  /// failure on `he` doesn't abort `es`).
+  targetLang      String    @map("target_lang")
+  /// queued | running | completed | failed
+  status          String    @default("queued")
+  /// The Story row this job created, set when status=completed.
+  resultStoryId   String?   @map("result_story_id")
+  errorMessage    String?   @map("error_message") @db.Text
+  /// How many LLM attempts we burned. 0..3 per spec; >3 means Patch 11
+  /// exhausted the retry budget.
+  attempts        Int       @default(0)
+  startedAt       DateTime? @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([masterStoryId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("languages_adaptation_jobs")
+}
+
 /// Per-user aggregate for streaks + XP. userId IS the primary key
 /// (the spec calls this out) � there is exactly one stats row per
 /// learner, ever. lastActivityDate is a calendar date (not a
