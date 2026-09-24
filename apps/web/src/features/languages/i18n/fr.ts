@@ -118,6 +118,34 @@ export const fr = {
   "pronunciation.ariaDifferent": "différent",
   "pronunciation.colouringAria": "Détail mot par mot de la prononciation",
 
+  // Review session (Patch 09 — Section 7.5 screen 5 + Section 10)
+  "review.title": "Révise tes mots",
+  "review.subtitle":
+    "Touche la carte pour la retourner, puis note à quel point tu t'en souviens. Sois honnête — l'algorithme apprend de tes notes.",
+  "review.cardFrontAria": "Recto de la carte. Touche pour retourner.",
+  "review.cardBackAria": "Verso de la carte. Sens et phrase d'exemple.",
+  "review.flip": "Touche la carte pour la retourner",
+  "review.nextIn": "Prochain rappel dans {when}",
+  "review.again": "Encore",
+  "review.hard": "Difficile",
+  "review.good": "Bon",
+  "review.easy": "Facile",
+  "review.againHint": "Vu il y a moins d'une seconde.",
+  "review.hardHint": "Retrouvé avec beaucoup de difficulté.",
+  "review.goodHint": "Retrouvé avec un peu d'effort.",
+  "review.easyHint": "Retrouvé sans effort.",
+  "review.complete": "Terminé pour aujourd'hui",
+  "review.completeBody":
+    "Bien joué — ces mots reviendront au moment parfait pour ta mémoire.",
+  "review.countdown": "{count} restant(s)",
+  "review.empty": "Rien à réviser pour l'instant.",
+  "review.emptyBody": "Enregistre un mot depuis une histoire pour commencer à réviser.",
+  "review.errorLoad": "Impossible de charger ta file de révision. Réessaie.",
+  "review.errorRate": "Impossible d'enregistrer cette note. Réessaie.",
+  "review.back": "Retour au cours",
+  "review.glossesLabel": "Sens",
+  "review.exampleLabel": "Exemple",
+
   // Word popup (Patch 06 — Section 7.5 screen 5)
   "popup.loading": "Chargement du mot…",
   "popup.notFound": "Mot introuvable.",

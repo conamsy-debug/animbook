@@ -35,3 +35,16 @@ export {
   alignTokens,
   scoreFromAlignment
 } from "./stt.js";
+
+// Patch 09 — FSRS spaced repetition (spec § 10 + § 11).
+export {
+  type CardState,
+  type CardRating,
+  type CardSnapshot,
+  type RateCardResult,
+  type ReviewLogMeta,
+  rateCard,
+  newCardSnapshot,
+  ratingName,
+  REVIEW_BATCH_SIZE
+} from "./fsrs.js";

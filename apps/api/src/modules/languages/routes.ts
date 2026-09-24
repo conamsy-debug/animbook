@@ -26,7 +26,11 @@ import {
   normaliseForCompare,
   tokenise,
   alignTokens,
-  scoreFromAlignment
+  scoreFromAlignment,
+  rateCard,
+  type CardSnapshot,
+  type CardRating,
+  REVIEW_BATCH_SIZE
 } from "../../services/languages/index.js";
 
 const prisma = new PrismaClient();
@@ -528,6 +532,18 @@ router.get("/courses/:courseId", authMiddleware, async (req: Request, res: Respo
   });
   const stats = await prisma.learnerStats.findUnique({ where: { userId } });
 
+  // Patch 09 — due card count for this course's target_lang.
+  // Counted outside the stories include so a deck with hundreds of
+  // cards doesn't bloat the stories payload.
+  const dueNow = new Date();
+  const dueCount = await prisma.userVocab.count({
+    where: {
+      userId,
+      due: { lte: dueNow },
+      lexeme: { targetLang: course.targetLang }
+    }
+  });
+
   // Map StoryProgress rows by storyId for O(1) lookup.
   const progressByStory = new Map<string, { status: string; lastSceneOrder: number; scorePct: number; completedAt: string | null }>();
   for (const p of enrollment ? stories.flatMap((s) => s.progressRows) : []) {
@@ -563,6 +579,10 @@ router.get("/courses/:courseId", authMiddleware, async (req: Request, res: Respo
           lastActivityDate: stats.lastActivityDate ? stats.lastActivityDate.toISOString().slice(0, 10) : null
         }
       : null,
+    // Patch 09 — number of cards due now for this course. The home
+    // page renders "Review 12 words" as the primary CTA when this is
+    // > 0; Patch 10 will reuse this value for streak nudges.
+    dueCount,
     stories: stories.map((s) => {
       const progress = progressByStory.get(s.id) ?? null;
       return {
@@ -1400,5 +1420,249 @@ router.post(
     });
   }
 );
+
+/* --------------------------------------------------------------------- *
+ * GET /review/due?course=:courseId — list due cards (Patch 09)
+ * Spec § 10 + § 11. Returns up to REVIEW_BATCH_SIZE cards that are
+ * due now or earlier, scoped to the learner's enrolled course. Each
+ * row includes the lexeme's surface + glosses so the review UI can
+ * render without an N+1 fetch.
+ *
+ * Scope:
+ *   - `?course=` filters by enrollment's course (via target_lang).
+ *     The course must be one the learner is enrolled in.
+ *   - No `?course=` returns cards across ALL of the learner's
+ *     enrollments (used by the global "review" CTA on the home page).
+ *
+ * Limit:
+ *   - Default REVIEW_BATCH_SIZE (20). Caller can lower with `?limit=`
+ *     but cannot raise (the deck page stays predictable).
+ * --------------------------------------------------------------------- */
+
+router.get("/review/due", authMiddleware, async (req: Request, res: Response) => {
+  const userId = requireUserId(req as Parameters<typeof requireUserId>[0]);
+
+  const rawCourse = req.query["course"];
+  const courseIdParam = typeof rawCourse === "string" && rawCourse.length > 0 ? rawCourse : null;
+
+  const rawLimit = req.query["limit"];
+  const limitParam =
+    typeof rawLimit === "string" ? parseInt(rawLimit, 10) : NaN;
+  const limit =
+    Number.isFinite(limitParam) && limitParam > 0
+      ? Math.min(limitParam, REVIEW_BATCH_SIZE)
+      : REVIEW_BATCH_SIZE;
+
+  // Resolve target_lang filter from the course. We don't require
+  // enrollment — a learner can preview a course's deck the same way
+  // they can preview the course home (Patch 05 pattern). A bad
+  // course id surfaces 404.
+  let targetLangFilter: string | undefined;
+  if (courseIdParam) {
+    const course = await prisma.course.findUnique({
+      where: { id: courseIdParam },
+      select: { targetLang: true }
+    });
+    if (!course) {
+      res.status(404).json({ error: "course not found", courseId: courseIdParam });
+      return;
+    }
+    targetLangFilter = course.targetLang;
+  }
+
+  // The vocab card carries the FK to lexeme; we join through lexeme
+  // for target_lang. Using a single query keeps the page render to
+  // one round-trip.
+  const now = new Date();
+  const cards = await prisma.userVocab.findMany({
+    where: {
+      userId,
+      due: { lte: now },
+      ...(targetLangFilter ? { lexeme: { targetLang: targetLangFilter } } : {})
+    },
+    include: {
+      lexeme: {
+        select: {
+          id: true,
+          targetLang: true,
+          lemma: true,
+          reading: true,
+          partOfSpeech: true,
+          gender: true,
+          glosses: true,
+          audioUrl: true
+        }
+      }
+    },
+    orderBy: { due: "asc" },
+    take: limit
+  });
+
+  // Also surface the total due count (ignoring the `limit` cap) so
+  // the course home can show "37 cards due" without a second query.
+  const totalDue = await prisma.userVocab.count({
+    where: {
+      userId,
+      due: { lte: now },
+      ...(targetLangFilter ? { lexeme: { targetLang: targetLangFilter } } : {})
+    }
+  });
+
+  res.json({
+    count: cards.length,
+    totalDue,
+    limit,
+    cards: cards.map((c) => ({
+      userVocabId: c.id,
+      lexemeId: c.lexemeId,
+      sourceLineId: c.sourceLineId,
+      state: c.state,
+      due: c.due.toISOString(),
+      lastReview: c.lastReview ? c.lastReview.toISOString() : null,
+      reps: c.reps,
+      lapses: c.lapses,
+      // Lexeme fields the UI needs to render the card without a
+      // second round-trip. Surface comes from the source line token
+      // (the lemma is the dictionary form; the surface is what the
+      // learner saw on screen). Patch 09 ships lemma only — the
+      // review screen renders the lemma + reading + glosses.
+      lexeme: {
+        ...c.lexeme,
+        // Mirror + source glosses stay as their JSON shape from the
+        // lexeme table; the UI picks the requested base lang and
+        // falls back to "en" if missing (Patch 06 pattern).
+        glosses: c.lexeme.glosses
+      }
+    }))
+  });
+});
+
+/* --------------------------------------------------------------------- *
+ * POST /review/:userVocabId — record a learner's FSRS rating (Patch 09)
+ * Spec § 10 + § 11. Body: `{ rating: 1|2|3|4 }` where:
+ *   1 = Again  (lapse)
+ *   2 = Hard
+ *   3 = Good
+ *   4 = Easy
+ *
+ * The route computes the next card state via the FSRS scheduler,
+ * persists the new user_vocab row + a review_logs row in a single
+ * transaction (so the admin screen can never see one without the
+ * other), and awards 1 XP per rating (spec § 8 — "5 XP per speak_line
+ * review, 1 XP per FSRS review" intent). Wrong / invalid ratings
+ * return 400 — the page retries without a refetch.
+ * --------------------------------------------------------------------- */
+
+interface ReviewBody {
+  rating?: number;
+}
+
+const ALLOWED_RATINGS = new Set<CardRating>([1, 2, 3, 4]);
+
+router.post("/review/:userVocabId", authMiddleware, async (req: Request, res: Response) => {
+  const rawId = req.params["userVocabId"];
+  const userVocabId = Array.isArray(rawId) ? rawId[0] : rawId;
+  if (!userVocabId) {
+    res.status(400).json({ error: "userVocabId is required" });
+    return;
+  }
+
+  const userId = requireUserId(req as Parameters<typeof requireUserId>[0]);
+  const body = (req.body ?? {}) as ReviewBody;
+  const ratingNum = Number(body.rating);
+  if (!Number.isInteger(ratingNum) || !ALLOWED_RATINGS.has(ratingNum as CardRating)) {
+    res.status(400).json({ error: "rating must be 1..4 (Again|Hard|Good|Easy)" });
+    return;
+  }
+  const rating = ratingNum as CardRating;
+
+  // Load the card + assert ownership. We don't gate on enrollment —
+  // a learner can rate any card they own (their deck survives even
+  // if an enrollment is removed).
+  const card = await prisma.userVocab.findUnique({ where: { id: userVocabId } });
+  if (!card) {
+    res.status(404).json({ error: "card not found", userVocabId });
+    return;
+  }
+  if (card.userId !== userId) {
+    // Don't leak the existence of other users' cards.
+    res.status(404).json({ error: "card not found", userVocabId });
+    return;
+  }
+
+  // Build the snapshot, run the FSRS scheduler, and write both rows
+  // in a transaction. We call `tx.userVocab.update` (not `updateMany`)
+  // so the `where: { id }` is the primary key — safe inside $tx.
+  const snapshot: CardSnapshot = {
+    due: card.due,
+    stability: card.stability,
+    difficulty: card.difficulty,
+    elapsedDays: card.elapsedDays,
+    scheduledDays: card.scheduledDays,
+    reps: card.reps,
+    lapses: card.lapses,
+    state: card.state as CardSnapshot["state"],
+    lastReview: card.lastReview
+  };
+  const now = new Date();
+  const result = rateCard(snapshot, rating, now);
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.userVocab.update({
+        where: { id: userVocabId },
+        data: {
+          due: result.card.due,
+          stability: result.card.stability,
+          difficulty: result.card.difficulty,
+          elapsedDays: result.card.elapsedDays,
+          scheduledDays: result.card.scheduledDays,
+          reps: result.card.reps,
+          lapses: result.card.lapses,
+          state: result.card.state,
+          lastReview: result.card.lastReview
+        }
+      });
+      await tx.reviewLog.create({
+        data: {
+          userId,
+          userVocabId,
+          rating,
+          reviewAt: now,
+          // The route's payload is a plain JS object (no tuples),
+          // so passing it directly satisfies Prisma's InputJsonValue.
+          meta: result.log as unknown as object
+        }
+      });
+      // +1 XP per rating (spec § 8 — light feedback signal; the
+      // bigger XP awards live on the MC + speak_line paths).
+      await tx.learnerStats.upsert({
+        where: { userId },
+        update: { xpTotal: { increment: 1 } },
+        create: { userId, xpTotal: 1 }
+      });
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: err instanceof Error ? err.message : "failed to record rating"
+    });
+    return;
+  }
+
+  res.status(200).json({
+    userVocabId,
+    rating,
+    next: {
+      state: result.card.state,
+      due: result.card.due.toISOString(),
+      stability: result.card.stability,
+      difficulty: result.card.difficulty,
+      scheduledDays: result.card.scheduledDays,
+      reps: result.card.reps,
+      lapses: result.card.lapses
+    },
+    log: result.log
+  });
+});
 
 export default router;

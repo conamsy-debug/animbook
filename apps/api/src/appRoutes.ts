@@ -417,6 +417,20 @@ export const APP_ROUTES: Module[] = [
         auth: "user",
         summary: "Speak_line audio scoring (Patch 08).",
         notes: "Raw audio body (`audio/webm` / `audio/ogg` / `audio/mp4`) with `X-Line-Id` + `X-Stt-Code` headers. Runs Whisper transcription, normalises + tokenises both sides, emits a 0..100 score + per-word colouring. Awards 5 XP for ≥ 60. 503 when OPENAI_API_KEY is unset."
+      },
+      {
+        method: "GET",
+        path: "/api/lang/review/due",
+        auth: "user",
+        summary: "List due FSRS cards (Patch 09).",
+        notes: "Optional `?course=:courseId` filters by enrollment's target_lang. Optional `?limit=` (max 20, default 20) trims the response. Returns `cards[]` (lexeme + card state) + `totalDue` (uncapped count) + `count` (rows in this response)."
+      },
+      {
+        method: "POST",
+        path: "/api/lang/review/:userVocabId",
+        auth: "user",
+        summary: "Record an FSRS rating (Patch 09).",
+        notes: "Body: `{ rating: 1|2|3|4 }` (Again|Hard|Good|Easy). Runs ts-fsrs to compute the next card state, writes both the `user_vocab` update + `review_logs` insert in a transaction, awards +1 XP. Returns the next card state + the FSRS log payload."
       }
     ]
   },

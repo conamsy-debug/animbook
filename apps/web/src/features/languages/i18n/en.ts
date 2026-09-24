@@ -121,6 +121,34 @@ export const en = {
   "pronunciation.ariaDifferent": "different",
   "pronunciation.colouringAria": "Per-word pronunciation breakdown",
 
+  // Review session (Patch 09 — Section 7.5 screen 5 + Section 10)
+  "review.title": "Review your words",
+  "review.subtitle":
+    "Tap the card to flip it, then rate how well you remembered. Be honest — the algorithm learns from your ratings.",
+  "review.cardFrontAria": "Word front. Tap to flip.",
+  "review.cardBackAria": "Word back. Meaning and example sentence.",
+  "review.flip": "Tap card to flip",
+  "review.nextIn": "Next review in {when}",
+  "review.again": "Again",
+  "review.hard": "Hard",
+  "review.good": "Good",
+  "review.easy": "Easy",
+  "review.againHint": "Saw it less than a second ago.",
+  "review.hardHint": "Recalled with serious difficulty.",
+  "review.goodHint": "Recalled with some effort.",
+  "review.easyHint": "Recalled effortlessly.",
+  "review.complete": "All done for today",
+  "review.completeBody":
+    "Nice work — these words will resurface at the perfect interval for your memory.",
+  "review.countdown": "{count} left",
+  "review.empty": "Nothing due right now.",
+  "review.emptyBody": "Save a word from a story to start reviewing.",
+  "review.errorLoad": "Couldn't load your review queue. Try again.",
+  "review.errorRate": "Couldn't record that rating. Try again.",
+  "review.back": "Back to course",
+  "review.glossesLabel": "Meaning",
+  "review.exampleLabel": "Example",
+
   // Word popup (Patch 06 — Section 7.5 screen 5)
   "popup.loading": "Loading word…",
   "popup.notFound": "Word not found.",

@@ -96,6 +96,10 @@ export interface CourseHomePayload {
     currentStoryId: string | null;
   } | null;
   stats: LearnerStatsLite | null;
+  /** Patch 09 — number of cards due now for this course's target_lang.
+   *  When > 0 the course home surfaces a "Review N words" CTA at the
+   *  top of the page. */
+  dueCount?: number;
   stories: CourseStoryRow[];
 }
 
@@ -574,4 +578,121 @@ export async function submitPronunciation(input: PronunciationInput): Promise<Pr
     );
   }
   return (await res.json()) as PronunciationResult;
+}
+
+/* --------------------------------------------------------------------- *
+ * Patch 09 — FSRS spaced repetition
+ * --------------------------------------------------------------------- *
+ * Spec § 10 + § 11. The review session fetches due cards, walks the
+ * learner through them one at a time, then POSTs each rating. The
+ * backend returns the next card state + the FSRS log payload so the
+ * UI can show "see you in 4 days" hints inline.
+ * */
+
+/** A card returned by GET /api/lang/review/due. */
+export interface DueCard {
+  userVocabId: string;
+  lexemeId: string;
+  sourceLineId: string | null;
+  /** "new" | "learning" | "review" | "relearning" — the card's
+   *  current FSRS state at the moment of fetch. */
+  state: string;
+  due: string;
+  lastReview: string | null;
+  reps: number;
+  lapses: number;
+  lexeme: {
+    id: string;
+    targetLang: string;
+    lemma: string;
+    reading: string | null;
+    partOfSpeech: string;
+    gender: string | null;
+    glosses: unknown;
+    audioUrl: string | null;
+  };
+}
+
+/** Response shape of GET /api/lang/review/due. */
+export interface ReviewDueResponse {
+  count: number;
+  /** Uncapped due count for the same scope — used by the course home
+   *  to render "Review 37 words" when the session only returned 20. */
+  totalDue: number;
+  limit: number;
+  cards: DueCard[];
+}
+
+/** Rating names the UI surfaces. The wire format is the number. */
+export type ReviewRating = 1 | 2 | 3 | 4;
+
+/** Response shape of POST /api/lang/review/:userVocabId. */
+export interface ReviewPostResult {
+  userVocabId: string;
+  rating: ReviewRating;
+  next: {
+    state: string;
+    due: string;
+    stability: number;
+    difficulty: number;
+    scheduledDays: number;
+    reps: number;
+    lapses: number;
+  };
+  log: {
+    rating: ReviewRating;
+    state: string;
+    due: string;
+    stability: number;
+    difficulty: number;
+    scheduledDays: number;
+    review: string;
+  };
+}
+
+/**
+ * GET /api/lang/review/due — fetch up to 20 due cards for the learner.
+ * Pass `courseId` to scope to one course's target_lang.
+ */
+export async function fetchReviewDue(courseId?: string): Promise<ReviewDueResponse> {
+  const qs = courseId ? `?course=${encodeURIComponent(courseId)}` : "";
+  const res = await fetch(`/api/lang/review/due${qs}`, {
+    method: "GET",
+    credentials: "include"
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(
+      `GET /api/lang/review/due: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
+    );
+  }
+  return (await res.json()) as ReviewDueResponse;
+}
+
+/**
+ * POST /api/lang/review/:userVocabId — record a single FSRS rating.
+ * The backend returns the next card state + the FSRS log payload.
+ */
+export async function submitReviewRating(input: {
+  userVocabId: string;
+  rating: ReviewRating;
+  signal?: AbortSignal;
+}): Promise<ReviewPostResult> {
+  const res = await fetch(
+    `/api/lang/review/${encodeURIComponent(input.userVocabId)}`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rating: input.rating }),
+      signal: input.signal
+    }
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(
+      `POST /api/lang/review: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
+    );
+  }
+  return (await res.json()) as ReviewPostResult;
 }
