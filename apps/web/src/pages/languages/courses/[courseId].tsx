@@ -91,6 +91,9 @@ function CourseHomeInner() {
   const enrolled = data.enrollment !== null;
   const streak = data.stats?.currentStreakDays ?? 0;
   const xp = data.stats?.xpTotal ?? 0;
+  // Patch 09 — the review CTA links to `/courses/:id/review?base=…`.
+  // Reuse the course's base_lang so the URL is shareable.
+  const base = data.course.baseLang;
 
   const onEnroll = async () => {
     setEnrolling(true);
@@ -175,6 +178,18 @@ function CourseHomeInner() {
             the home flow (read story → tap word → save) is the
             primary action, but always reachable in one tap. */}
         <section className="lang-course-extra-links" aria-label="Course shortcuts">
+          {/* Patch 09 — review CTA. The due count from /courses/:id
+              drives the badge. When dueCount > 0 the link is the
+              page's primary action; otherwise it fades back into a
+              secondary shortcut row. */}
+          {data.dueCount && data.dueCount > 0 ? (
+            <Link
+              href={`/languages/courses/${encodeURIComponent(courseId)}/review?base=${base}`}
+              className="lang-course-review-cta"
+            >
+              {t("review.title", locale)} · <strong>{data.dueCount}</strong> due →
+            </Link>
+          ) : null}
           <Link
             href={`/languages/courses/${encodeURIComponent(courseId)}/words`}
             className="lang-course-extra-link"

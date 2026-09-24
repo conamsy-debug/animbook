@@ -105,7 +105,19 @@ const en = {
   "pronunciation.tryAgainHint": "Close — listen to the native audio and try once more.",
   "pronunciation.transcriptHeard": "We heard:",
   "pronunciation.colouringAria": "Per-word pronunciation breakdown",
-  "pronunciation.practiceScore": "Practice score: {count}"
+  "pronunciation.practiceScore": "Practice score: {count}",
+  // Patch 09 — review session (Section 7.5 screen 5 + Section 10).
+  "review.title": "Review your words",
+  "review.flip": "Tap card to flip",
+  "review.again": "Again",
+  "review.hard": "Hard",
+  "review.good": "Good",
+  "review.easy": "Easy",
+  "review.complete": "All done for today",
+  "review.empty": "Nothing due right now.",
+  "review.back": "Back to course",
+  "review.glossesLabel": "Meaning",
+  "review.exampleLabel": "Example"
 };
 const fr = {
   "landing.title": "Apprends une langue à travers des histoires animées.",
@@ -189,7 +201,19 @@ const fr = {
   "pronunciation.tryAgainHint": "Presque — écoute l'audio natif et réessaie.",
   "pronunciation.transcriptHeard": "On a entendu :",
   "pronunciation.colouringAria": "Détail mot par mot de la prononciation",
-  "pronunciation.practiceScore": "Score d'entraînement : {count}"
+  "pronunciation.practiceScore": "Score d'entraînement : {count}",
+  // Patch 09 — review session.
+  "review.title": "Révise tes mots",
+  "review.flip": "Touche la carte pour la retourner",
+  "review.again": "Encore",
+  "review.hard": "Difficile",
+  "review.good": "Bon",
+  "review.easy": "Facile",
+  "review.complete": "Terminé pour aujourd'hui",
+  "review.empty": "Rien à réviser pour l'instant.",
+  "review.back": "Retour au cours",
+  "review.glossesLabel": "Sens",
+  "review.exampleLabel": "Exemple"
 };
 const dicts = { en, fr };
 
@@ -518,4 +542,36 @@ test("t interpolates the practice-score {count} placeholder", () => {
     t("pronunciation.practiceScore", "fr", undefined, 42),
     "Score d'entraînement : 42"
   );
+});
+
+/* --------------------------------------------------------------------- *
+ * Patch 09 — review session
+ * --------------------------------------------------------------------- */
+
+test("t renders the review title + rating buttons in both locales", () => {
+  assert.equal(t("review.title", "en"), "Review your words");
+  assert.equal(t("review.title", "fr"), "Révise tes mots");
+  assert.equal(t("review.flip", "en"), "Tap card to flip");
+  assert.equal(t("review.flip", "fr"), "Touche la carte pour la retourner");
+  assert.equal(t("review.again", "en"), "Again");
+  assert.equal(t("review.again", "fr"), "Encore");
+  assert.equal(t("review.hard", "en"), "Hard");
+  assert.equal(t("review.hard", "fr"), "Difficile");
+  assert.equal(t("review.good", "en"), "Good");
+  assert.equal(t("review.good", "fr"), "Bon");
+  assert.equal(t("review.easy", "en"), "Easy");
+  assert.equal(t("review.easy", "fr"), "Facile");
+});
+
+test("t renders the review complete + empty + back-link copy in both locales", () => {
+  assert.equal(t("review.complete", "en"), "All done for today");
+  assert.equal(t("review.complete", "fr"), "Terminé pour aujourd'hui");
+  assert.equal(t("review.empty", "en"), "Nothing due right now.");
+  assert.equal(t("review.empty", "fr"), "Rien à réviser pour l'instant.");
+  assert.equal(t("review.back", "en"), "Back to course");
+  assert.equal(t("review.back", "fr"), "Retour au cours");
+  assert.equal(t("review.glossesLabel", "en"), "Meaning");
+  assert.equal(t("review.glossesLabel", "fr"), "Sens");
+  assert.equal(t("review.exampleLabel", "en"), "Example");
+  assert.equal(t("review.exampleLabel", "fr"), "Exemple");
 });
