@@ -66,6 +66,31 @@ router.get("/health", (_req: Request, res: Response) => {
 });
 
 /* --------------------------------------------------------------------- *
+ * GET /me — current Languages user's basic profile + roles.
+ *
+ * Used by the web's AccountMenu to decide whether to surface the
+ * "Languages admin" link (roles.includes("platform_admin")). The
+ * payload is intentionally tiny: id + email + roles. The full
+ * profile (Clerk-side metadata) stays on the user record Clerk
+ * already exposes.
+ * --------------------------------------------------------------------- */
+router.get("/me", authMiddleware, async (req: AuthedRequest, res: Response) => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.userId },
+    select: { id: true, email: true, roles: true }
+  });
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  res.json({
+    id: user.id,
+    email: user.email,
+    roles: user.roles ?? []
+  });
+});
+
+/* --------------------------------------------------------------------- *
  * GET /stories/:storyId?base=fr
  * Patch 04 — Story player payload.
  *

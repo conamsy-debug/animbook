@@ -199,20 +199,20 @@ export default function LanguagesAdminStoryDetailPage() {
               </p>
             ) : null}
             <div className="lang-admin-actions">
-              <button type="button" onClick={handleSaveEdits}>
+              <button type="button" className="btn ghost" onClick={handleSaveEdits}>
                 Save edits
               </button>
               <button
                 type="button"
+                className="btn primary"
                 onClick={handleApprove}
-                className="is-primary"
                 disabled={
                   detail.reviewStatus === "approved" && detail.isPublished
                 }
               >
                 Approve + publish
               </button>
-              <button type="button" onClick={handleReject}>
+              <button type="button" className="btn danger" onClick={handleReject}>
                 Reject…
               </button>
             </div>
@@ -286,6 +286,7 @@ export default function LanguagesAdminStoryDetailPage() {
                         </div>
                         <button
                           type="button"
+                          className="btn line-action"
                           onClick={() => handleRegenerate(line.id)}
                         >
                           Regenerate audio

@@ -11,7 +11,7 @@ import {
 } from "@/features/languages/api";
 
 /**
- * /languages/admin/stories — Patch 12 admin review queue.
+ * /languages/admin/stories — AnimBook Languages admin review queue.
  *
  * Lists every Story with `reviewStatus` matching the active filter,
  * newest-updated first. Default filter is `in_review` so the landing
@@ -67,9 +67,9 @@ export default function LanguagesAdminStoriesPage() {
           <header className="lang-admin-header">
             <h1>Story review queue</h1>
             <p>
-              Patch 12 — review, edit, regenerate audio, and approve or
-              reject every language version. Approved stories appear to
-              learners immediately.
+              Review, edit and regenerate audio for each language
+              version, then approve or reject it. Approved stories appear
+              to learners immediately.
             </p>
           </header>
 
@@ -97,9 +97,17 @@ export default function LanguagesAdminStoriesPage() {
           ) : stories === null ? (
             <p className="lang-admin-loading">Loading…</p>
           ) : stories.length === 0 ? (
-            <p className="lang-admin-empty">
-              No stories in <strong>{labelForStatus(status)}</strong>.
-            </p>
+            <div className="lang-admin-empty">
+              <p className="lang-admin-empty-eyebrow">All clear</p>
+              <p className="lang-admin-empty-title">
+                No stories in <strong>{labelForStatus(status)}</strong>.
+              </p>
+              <p className="lang-admin-empty-hint">
+                Nothing to review right now. Approved stories appear to
+                learners immediately; drafts need a content job before
+                they can be reviewed.
+              </p>
+            </div>
           ) : (
             <ul className="lang-admin-list">
               {stories.map((s) => (
