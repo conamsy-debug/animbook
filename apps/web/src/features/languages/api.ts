@@ -127,31 +127,37 @@ export interface StoryProgressWriteResult {
 /* --------------------------------------------------------------------- *
  * Fetch helpers
  *
- * IMPORTANT: must use absolute URLs (apiUrl from @/lib/api), not
- * relative paths. Production has the web on animbook.com and the API
- * on api.animbook.com — relative paths resolve to animbook.com/api/lang/*
- * which has no Next.js rewrite and 404s, leaving the picker empty.
+ * MUST go through the shared `apiFetch` from `@/lib/api`, not raw
+ * `fetch()`. Reasons:
+ *
+ *  1. Origin split in production — web at animbook.com, API at
+ *     api.animbook.com. apiFetch prepends NEXT_PUBLIC_API_URL via
+ *     apiUrl(); raw relative paths 404 against animbook.com.
+ *
+ *  2. Auth split in production — Clerk's session cookie is set on
+ *     animbook.com and does not cross origins. apiFetch calls
+ *     getAuthToken() and adds `Authorization: Bearer <token>`. Without
+ *     that, every protected Languages route 401s on production (which
+ *     is what users saw on the signed-in onboarding page).
+ *
+ * The two thin wrappers below preserve the file's existing null-on-404
+ * contract so callers don't need to change. They do not implement any
+ * auth or URL logic of their own.
  * --------------------------------------------------------------------- */
 
-import { apiUrl } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
 
 async function jsonFetch<T>(
   path: string,
   init: RequestInit & { signal?: AbortSignal } = {}
 ): Promise<T | null> {
-  const res = await fetch(apiUrl(path), {
-    credentials: "include",
-    headers: { Accept: "application/json", ...(init.headers ?? {}) },
-    ...init
-  });
-  if (res.status === 404) return null;
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `${init.method ?? "GET"} ${path}: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
+  try {
+    const { signal, method, headers, body } = init;
+    return await apiFetch<T>(path, { method, headers, body, signal });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
   }
-  return (await res.json()) as T;
 }
 
 /**
@@ -218,23 +224,14 @@ export async function enrollInCourse(input: {
   /** Accepted but not yet persisted (lands with Patch 10 stats). */
   dailyGoal?: number;
 }): Promise<EnrollmentCreateResult> {
-  const res = await fetch(apiUrl("/api/lang/enrollments"), {
+  return await apiFetch<EnrollmentCreateResult>("/api/lang/enrollments", {
     method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({
+    json: {
       target_lang: input.targetLang,
       base_lang: input.baseLang,
       daily_goal: input.dailyGoal
-    })
+    }
   });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `POST /api/lang/enrollments: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
-  }
-  return (await res.json()) as EnrollmentCreateResult;
 }
 
 /**
@@ -275,26 +272,17 @@ export async function saveStoryProgress(input: {
   scorePct?: number;
   completed?: boolean;
 }): Promise<StoryProgressWriteResult> {
-  const res = await fetch(
-    apiUrl(`/api/lang/stories/${encodeURIComponent(input.storyId)}/progress`),
+  return await apiFetch<StoryProgressWriteResult>(
+    `/api/lang/stories/${encodeURIComponent(input.storyId)}/progress`,
     {
       method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
+      json: {
         last_scene_order: input.lastSceneOrder,
         score_pct: input.scorePct ?? 0,
         completed: input.completed ?? false
-      })
+      }
     }
   );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `POST /api/lang/stories/.../progress: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
-  }
-  return (await res.json()) as StoryProgressWriteResult;
 }
 
 /* --------------------------------------------------------------------- *
@@ -396,38 +384,21 @@ export async function saveVocab(input: {
   lexemeId: string;
   sourceLineId?: string | null;
 }): Promise<SaveVocabResult> {
-  const res = await fetch(apiUrl("/api/lang/vocab"), {
+  return await apiFetch<SaveVocabResult>("/api/lang/vocab", {
     method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({
+    json: {
       lexeme_id: input.lexemeId,
       source_line_id: input.sourceLineId ?? null
-    })
+    }
   });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `POST /api/lang/vocab: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
-  }
-  return (await res.json()) as SaveVocabResult;
 }
 
 /** DELETE /api/lang/vocab/:userVocabId — remove a word from the deck. */
 export async function unsaveVocab(userVocabId: string): Promise<{ removed: boolean }> {
-  const res = await fetch(apiUrl(`/api/lang/vocab/${encodeURIComponent(userVocabId)}`), {
-    method: "DELETE",
-    credentials: "include",
-    headers: { Accept: "application/json" }
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `DELETE /api/lang/vocab/${userVocabId}: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
-  }
-  return (await res.json()) as { removed: boolean };
+  return await apiFetch<{ removed: boolean }>(
+    `/api/lang/vocab/${encodeURIComponent(userVocabId)}`,
+    { method: "DELETE" }
+  );
 }
 
 /** GET /api/lang/vocab — list the learner's saved words (optionally scoped to a course). */
@@ -496,22 +467,13 @@ export async function submitExerciseAttempt(input: {
   // from the Exercise row, not from the body.
   const { type, ...rest } = input.body;
   void type;
-  const res = await fetch(
-    apiUrl(`/api/lang/exercises/${encodeURIComponent(input.exerciseId)}/attempts`),
+  return await apiFetch<ExerciseAttemptResult>(
+    `/api/lang/exercises/${encodeURIComponent(input.exerciseId)}/attempts`,
     {
       method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(rest)
+      json: rest
     }
   );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `POST /api/lang/exercises/.../attempts: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
-  }
-  return (await res.json()) as ExerciseAttemptResult;
 }
 
 /* --------------------------------------------------------------------- *
@@ -567,9 +529,8 @@ export interface PronunciationInput {
  * via headers. Returns the score + per-word colouring.
  */
 export async function submitPronunciation(input: PronunciationInput): Promise<PronunciationResult> {
-  const res = await fetch(apiUrl("/api/lang/pronunciation"), {
+  return await apiFetch<PronunciationResult>("/api/lang/pronunciation", {
     method: "POST",
-    credentials: "include",
     headers: {
       "Content-Type": input.audio.type || "audio/webm",
       "X-Line-Id": input.lineId,
@@ -578,13 +539,6 @@ export async function submitPronunciation(input: PronunciationInput): Promise<Pr
     body: input.audio,
     signal: input.signal
   });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `POST /api/lang/pronunciation: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
-  }
-  return (await res.json()) as PronunciationResult;
 }
 
 /* --------------------------------------------------------------------- *
@@ -663,17 +617,7 @@ export interface ReviewPostResult {
  */
 export async function fetchReviewDue(courseId?: string): Promise<ReviewDueResponse> {
   const qs = courseId ? `?course=${encodeURIComponent(courseId)}` : "";
-  const res = await fetch(apiUrl(`/api/lang/review/due${qs}`), {
-    method: "GET",
-    credentials: "include"
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `GET /api/lang/review/due: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
-  }
-  return (await res.json()) as ReviewDueResponse;
+  return await apiFetch<ReviewDueResponse>(`/api/lang/review/due${qs}`, { method: "GET" });
 }
 
 /**
@@ -685,23 +629,14 @@ export async function submitReviewRating(input: {
   rating: ReviewRating;
   signal?: AbortSignal;
 }): Promise<ReviewPostResult> {
-  const res = await fetch(
-    apiUrl(`/api/lang/review/${encodeURIComponent(input.userVocabId)}`),
+  return await apiFetch<ReviewPostResult>(
+    `/api/lang/review/${encodeURIComponent(input.userVocabId)}`,
     {
       method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rating: input.rating }),
+      json: { rating: input.rating },
       signal: input.signal
     }
   );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `POST /api/lang/review: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
-  }
-  return (await res.json()) as ReviewPostResult;
 }
 
 /* --------------------------------------------------------------------- *
@@ -736,17 +671,7 @@ export interface LearnerStats {
  * GET /api/lang/stats — full learner stats payload.
  */
 export async function fetchLearnerStats(): Promise<LearnerStats> {
-  const res = await fetch(apiUrl("/api/lang/stats"), {
-    method: "GET",
-    credentials: "include"
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `GET /api/lang/stats: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
-  }
-  return (await res.json()) as LearnerStats;
+  return await apiFetch<LearnerStats>("/api/lang/stats", { method: "GET" });
 }
 
 /* --------------------------------------------------------------------- *
@@ -815,18 +740,8 @@ async function adminJsonFetch<T>(
   path: string,
   init: RequestInit & { signal?: AbortSignal } = {}
 ): Promise<T> {
-  const res = await fetch(apiUrl(path), {
-    credentials: "include",
-    headers: { Accept: "application/json", ...(init.headers ?? {}) },
-    ...init
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `${init.method ?? "GET"} ${path}: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
-  }
-  return (await res.json()) as T;
+  const { signal, method, headers, body } = init;
+  return await apiFetch<T>(path, { method, headers, body, signal });
 }
 
 export async function fetchAdminStories(
