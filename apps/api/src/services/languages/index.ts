@@ -19,7 +19,7 @@ export type {
   Phase1LangCode,
   ImportResult
 } from "./types.js";
-export { parseLesson, tryParseLesson, LessonValidationError } from "./schema.js";
+export { parseLesson, tryParseLesson, normaliseLessonShape, LessonValidationError } from "./schema.js";
 export { importLesson, type ImportOptions } from "./importer.js";
 export { exportStory, type ExportOptions } from "./exporter.js";
 
@@ -67,6 +67,8 @@ export {
 // the routes.
 export {
   type LlmProvider,
+  type LlmUsage,
+  type LlmResult,
   type MasterScript,
   type AdaptResult,
   AnthropicLlmProvider,

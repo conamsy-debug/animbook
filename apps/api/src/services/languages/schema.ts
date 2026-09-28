@@ -202,6 +202,138 @@ export class LessonValidationError extends Error {
   }
 }
 
+/* --------------------------------------------------------------------- *
+ * Normaliser — flatten-shape fallback
+ * --------------------------------------------------------------------- *
+ * Claude (and every other LLM we will swap in) sometimes emits the
+ * exercise fields at the TOP level of each exercise instead of
+ * nested under `payload`. We've also seen `choices` where the schema
+ * wants `options`, and `expected_text` / `text` where `speak_line`
+ * expects just `payload: { line_id }`. The schema stays strict so
+ * the importer sees the canonical shape, but `parseLesson` (and the
+ * orchestrator's retry loop) accept the common drift shapes by
+ * lifting flat fields into `payload` BEFORE the Zod check runs.
+ *
+ * Returns the (possibly modified) input — never throws on
+ * normalisation. Validation errors still come from Zod.
+ *
+ * Normalisations:
+ *   comprehension_mc / word_meaning_mc / listen_select:
+ *     top-level `question`  → payload.question
+ *     top-level `options` or `choices` → payload.options
+ *   word_meaning_mc:
+ *     top-level `lexeme_id` → payload.lexeme_id
+ *   sentence_builder:
+ *     top-level `tokens`    → payload.tokens
+ *     top-level `line_id`   → payload.line_id
+ *   listen_select:
+ *     top-level `audio_url` → payload.audio_url
+ *   speak_line:
+ *     top-level `line_id` or `expected_text` or `text` → payload.line_id
+ *
+ * Anything already nested is left alone. Unknown keys are kept (Zod
+ * will strip them via `.strip()` semantics, but we don't need to
+ * touch them here).
+ */
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function normaliseExerciseShape(ex: unknown): unknown {
+  if (!isRecord(ex)) return ex;
+  const type = ex["type"];
+  if (typeof type !== "string") return ex;
+  // Already has a populated payload — assume canonical, don't touch.
+  const existingPayload = ex["payload"];
+  const hasPayload = isRecord(existingPayload);
+  const out: Record<string, unknown> = { ...ex };
+
+  switch (type) {
+    case "comprehension_mc": {
+      const payload: Record<string, unknown> = hasPayload ? { ...existingPayload } : {};
+      if (!("question" in payload) && "question" in ex) payload["question"] = ex["question"];
+      if (!("options" in payload)) {
+        if ("options" in ex) payload["options"] = ex["options"];
+        else if ("choices" in ex) payload["options"] = ex["choices"];
+      }
+      out["payload"] = payload;
+      break;
+    }
+    case "word_meaning_mc": {
+      const payload: Record<string, unknown> = hasPayload ? { ...existingPayload } : {};
+      if (!("lexeme_id" in payload) && "lexeme_id" in ex)
+        payload["lexeme_id"] = ex["lexeme_id"];
+      if (!("options" in payload)) {
+        if ("options" in ex) payload["options"] = ex["options"];
+        else if ("choices" in ex) payload["options"] = ex["choices"];
+      }
+      out["payload"] = payload;
+      break;
+    }
+    case "sentence_builder": {
+      const payload: Record<string, unknown> = hasPayload ? { ...existingPayload } : {};
+      if (!("line_id" in payload) && "line_id" in ex)
+        payload["line_id"] = ex["line_id"];
+      if (!("tokens" in payload) && "tokens" in ex)
+        payload["tokens"] = ex["tokens"];
+      out["payload"] = payload;
+      break;
+    }
+    case "listen_select": {
+      const payload: Record<string, unknown> = hasPayload ? { ...existingPayload } : {};
+      if (!("audio_url" in payload) && "audio_url" in ex)
+        payload["audio_url"] = ex["audio_url"];
+      if (!("options" in payload)) {
+        if ("options" in ex) payload["options"] = ex["options"];
+        else if ("choices" in ex) payload["options"] = ex["choices"];
+      }
+      out["payload"] = payload;
+      break;
+    }
+    case "speak_line": {
+      const payload: Record<string, unknown> = hasPayload ? { ...existingPayload } : {};
+      if (!("line_id" in payload)) {
+        if ("line_id" in ex) payload["line_id"] = ex["line_id"];
+        else if ("expected_text" in ex) payload["line_id"] = ex["expected_text"];
+        else if ("text" in ex) payload["line_id"] = ex["text"];
+      }
+      out["payload"] = payload;
+      break;
+    }
+    default:
+      return ex;
+  }
+  return out;
+}
+
+/**
+ * Walk every scene's `exercises[]` and lift flat exercise fields into
+ * `payload` before Zod parses the lesson. Returns a (possibly
+ * modified) copy of the lesson — never mutates the input.
+ */
+export function normaliseLessonShape(input: unknown): unknown {
+  if (!isRecord(input)) return input;
+  const scenes = input["scenes"];
+  if (!Array.isArray(scenes)) return input;
+  let touched = false;
+  const newScenes = scenes.map((scene) => {
+    if (!isRecord(scene)) return scene;
+    const exercises = scene["exercises"];
+    if (!Array.isArray(exercises)) return scene;
+    let sceneTouched = false;
+    const newExercises = exercises.map((ex) => {
+      const normalised = normaliseExerciseShape(ex);
+      if (normalised !== ex) sceneTouched = true;
+      return normalised;
+    });
+    if (!sceneTouched) return scene;
+    touched = true;
+    return { ...scene, exercises: newExercises };
+  });
+  if (!touched) return input;
+  return { ...input, scenes: newScenes };
+}
+
 /**
  * Validate + coerce a lesson. Returns the parsed object on success
  * or throws `LessonValidationError` with a flat, sorted list of
@@ -209,7 +341,8 @@ export class LessonValidationError extends Error {
  * both rely on this throwing on invalid input.
  */
 export function parseLesson(input: unknown): ParsedLesson {
-  const result = lessonSchema.safeParse(input);
+  const normalised = normaliseLessonShape(input);
+  const result = lessonSchema.safeParse(normalised);
   if (result.success) return result.data;
   const issues = result.error.issues
     .map((i) => ({
@@ -227,7 +360,8 @@ export function tryParseLesson(
 ):
   | { ok: true; data: ParsedLesson }
   | { ok: false; issues: Array<{ path: string; message: string }> } {
-  const result = lessonSchema.safeParse(input);
+  const normalised = normaliseLessonShape(input);
+  const result = lessonSchema.safeParse(normalised);
   if (result.success) return { ok: true, data: result.data };
   const issues = result.error.issues
     .map((i) => ({

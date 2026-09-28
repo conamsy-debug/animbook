@@ -135,7 +135,10 @@ test("adaptWithRetry: returns the validated lesson on first attempt", async () =
   const fakeAdapter = {
     name: "stub",
     isConfigured: () => true,
-    adaptMasterStory: async () => JSON.stringify(validLesson)
+    adaptMasterStory: async () => ({
+      text: JSON.stringify(validLesson),
+      usage: { inputTokens: 1200, outputTokens: 800 }
+    })
   };
   const out = await adaptWithRetry(fakeAdapter, {
     masterScript: { scenes: [] },
@@ -144,6 +147,7 @@ test("adaptWithRetry: returns the validated lesson on first attempt", async () =
   }, { maxAttempts: 3 });
   assert.equal(out.attempts, 1);
   assert.equal(out.lesson.target_lang, "es");
+  assert.deepEqual(out.usage, { inputTokens: 1200, outputTokens: 800 });
   void AnthropicLlmProvider; // unused but referenced for tree-shaking
 });
 
@@ -156,8 +160,16 @@ test("adaptWithRetry: retries on parse failure + succeeds on attempt 2", async (
     isConfigured: () => true,
     adaptMasterStory: async () => {
       calls++;
-      if (calls === 1) return "{ not json";
-      return JSON.stringify(validLesson);
+      if (calls === 1) {
+        return {
+          text: "{ not json",
+          usage: { inputTokens: 1100, outputTokens: 5 }
+        };
+      }
+      return {
+        text: JSON.stringify(validLesson),
+        usage: { inputTokens: 1200, outputTokens: 850 }
+      };
     }
   };
   const out = await adaptWithRetry(stub, {
@@ -167,14 +179,24 @@ test("adaptWithRetry: retries on parse failure + succeeds on attempt 2", async (
   }, { maxAttempts: 3 });
   assert.equal(out.attempts, 2);
   assert.equal(calls, 2);
+  // Usage from both attempts is summed (we pay for the failed parse attempt too).
+  assert.equal(out.usage.inputTokens, 2300);
+  assert.equal(out.usage.outputTokens, 855);
 });
 
 test("adaptWithRetry: throws LessonAdaptationError after maxAttempts", async () => {
   const { adaptWithRetry, LessonAdaptationError } = await loadLlm();
+  let calls = 0;
   const stub = {
     name: "broken",
     isConfigured: () => true,
-    adaptMasterStory: async () => "{ still not json"
+    adaptMasterStory: async () => {
+      calls++;
+      return {
+        text: "{ still not json",
+        usage: { inputTokens: 999 + calls, outputTokens: 7 }
+      };
+    }
   };
   await assert.rejects(
     adaptWithRetry(stub, {
@@ -182,8 +204,223 @@ test("adaptWithRetry: throws LessonAdaptationError after maxAttempts", async () 
       targetLang: "es",
       baseLang: "en"
     }, { maxAttempts: 2 }),
-    (err) => err instanceof LessonAdaptationError && err.rawText === "{ still not json"
+    (err) => {
+      return (
+        err instanceof LessonAdaptationError &&
+        err.rawText === "{ still not json" &&
+        err.usage.inputTokens === (999 + 1) + (999 + 2) &&
+        err.lastAttemptUsage.inputTokens === 999 + 2
+      );
+    }
   );
+});
+
+/* --------------------------------------------------------------------- *
+ * Part 1b — Normaliser (lesson JSON shape drift)
+ * --------------------------------------------------------------------- *
+ * Claude (and every other LLM) sometimes emits exercise fields at the
+ * top level instead of nested under `payload`. The parser accepts the
+ * common drift shapes by lifting flat fields into `payload` BEFORE the
+ * Zod check runs. These tests pin the behaviour for every one of the
+ * 5 exercise types — they feed the exact flat shape the production
+ * adaptation failed on (`comprehension_mc` with `question`, `choices`
+ * at the top level) and confirm the lesson validates + imports.
+ */
+
+function buildFlatLesson(overrides = {}) {
+  // Minimal lesson scaffold with one comprehension_mc exercise at the
+  // top level (FLAT shape — what Claude produced on the failed run).
+  return {
+    master_story_slug: "crossroads-s1e1-welcome-to-number-7",
+    target_lang: "fr",
+    cefr_level: "A1",
+    title: "Numéro Sept",
+    title_translations: { en: "Number Seven", fr: "Numéro Sept" },
+    synopsis: "Three roommates open a tiny guesthouse.",
+    target_vocab_concepts: ["family", "home", "greetings"],
+    scenes: [
+      {
+        master_scene_order: 1,
+        lines: [
+          {
+            speaker: "Amara",
+            text: "Bienvenue au numéro sept.",
+            translations: { en: "Welcome to number seven.", fr: "Bienvenue au numéro sept." },
+            tokens: [
+              {
+                surface: "Bienvenue",
+                lemma: "bienvenue",
+                pos: "noun",
+                glosses: { en: ["welcome"], fr: ["bienvenue"] },
+                is_new: true
+              },
+              {
+                surface: "au",
+                lemma: "à",
+                pos: "preposition",
+                glosses: { en: ["at", "to"], fr: ["à"] },
+                is_new: false
+              },
+              {
+                surface: "numéro",
+                lemma: "numéro",
+                pos: "noun",
+                glosses: { en: ["number"], fr: ["numéro"] },
+                is_new: true
+              },
+              {
+                surface: "sept",
+                lemma: "sept",
+                pos: "numeral",
+                glosses: { en: ["seven"], fr: ["sept"] },
+                is_new: true
+              },
+              {
+                surface: ".",
+                lemma: null
+              }
+            ]
+          }
+        ],
+        exercises: [
+          {
+            type: "comprehension_mc",
+            question: { en: "Where are they?", fr: "Où sont-ils ?" },
+            choices: ["À la maison", "Au marché", "À l'école", "Au travail"],
+            answer: { index: 0 }
+          },
+          ...(overrides.extraExercises ?? [])
+        ]
+      }
+    ]
+  };
+}
+
+test("normaliseLessonShape: comprehension_mc — lifts question + choices into payload", async () => {
+  const { normaliseLessonShape, parseLesson } = await loadLlm();
+  const flat = buildFlatLesson();
+  // Confirm the input is genuinely flat (no payload key on the exercise).
+  assert.equal(flat.scenes[0].exercises[0].payload, undefined);
+  assert.ok("question" in flat.scenes[0].exercises[0]);
+  assert.ok("choices" in flat.scenes[0].exercises[0]);
+
+  const normalised = normaliseLessonShape(flat);
+  const ex = normalised.scenes[0].exercises[0];
+  assert.equal(ex.type, "comprehension_mc");
+  assert.deepEqual(ex.payload.question, { en: "Where are they?", fr: "Où sont-ils ?" });
+  assert.deepEqual(ex.payload.options, ["À la maison", "Au marché", "À l'école", "Au travail"]);
+  assert.deepEqual(ex.answer, { index: 0 });
+
+  // And parseLesson accepts it as a whole.
+  const parsed = parseLesson(normalised);
+  assert.equal(parsed.scenes[0].exercises[0].type, "comprehension_mc");
+  assert.equal(parsed.scenes[0].exercises[0].payload.options.length, 4);
+});
+
+test("normaliseLessonShape: word_meaning_mc — lifts options into payload.options", async () => {
+  const { normaliseLessonShape, parseLesson } = await loadLlm();
+  const flat = buildFlatLesson({
+    extraExercises: [
+      {
+        type: "word_meaning_mc",
+        lexeme_id: "lexeme-numero",
+        options: {
+          en: ["number", "letter", "picture", "sound"],
+          fr: ["nombre", "lettre", "image", "son"]
+        },
+        answer: { index: 0 }
+      }
+    ]
+  });
+  const normalised = normaliseLessonShape(flat);
+  const ex = normalised.scenes[0].exercises[1];
+  assert.equal(ex.payload.lexeme_id, "lexeme-numero");
+  assert.deepEqual(ex.payload.options.en, ["number", "letter", "picture", "sound"]);
+  const parsed = parseLesson(normalised);
+  assert.equal(parsed.scenes[0].exercises[1].type, "word_meaning_mc");
+});
+
+test("normaliseLessonShape: sentence_builder — lifts tokens + line_id into payload", async () => {
+  const { normaliseLessonShape, parseLesson } = await loadLlm();
+  const flat = buildFlatLesson({
+    extraExercises: [
+      {
+        type: "sentence_builder",
+        line_id: "1:1",
+        tokens: ["Bienvenue", "au", "numéro", "sept"],
+        answer: { order: [0, 1, 2, 3] }
+      }
+    ]
+  });
+  const normalised = normaliseLessonShape(flat);
+  const ex = normalised.scenes[0].exercises[1];
+  assert.equal(ex.payload.line_id, "1:1");
+  assert.deepEqual(ex.payload.tokens, ["Bienvenue", "au", "numéro", "sept"]);
+  const parsed = parseLesson(normalised);
+  assert.equal(parsed.scenes[0].exercises[1].type, "sentence_builder");
+});
+
+test("normaliseLessonShape: listen_select — lifts options + audio_url into payload", async () => {
+  const { normaliseLessonShape, parseLesson } = await loadLlm();
+  const flat = buildFlatLesson({
+    extraExercises: [
+      {
+        type: "listen_select",
+        audio_url: "placeholder://1:1",
+        options: ["Bienvenue au marché", "Bienvenue à la maison", "Bienvenue à l'école"],
+        answer: { index: 1 }
+      }
+    ]
+  });
+  const normalised = normaliseLessonShape(flat);
+  const ex = normalised.scenes[0].exercises[1];
+  assert.equal(ex.payload.audio_url, "placeholder://1:1");
+  assert.equal(ex.payload.options.length, 3);
+  const parsed = parseLesson(normalised);
+  assert.equal(parsed.scenes[0].exercises[1].type, "listen_select");
+});
+
+test("normaliseLessonShape: speak_line — accepts expected_text as line_id fallback", async () => {
+  const { normaliseLessonShape, parseLesson } = await loadLlm();
+  const flat = buildFlatLesson({
+    extraExercises: [
+      {
+        type: "speak_line",
+        expected_text: "1:1",
+        answer: null
+      }
+    ]
+  });
+  const normalised = normaliseLessonShape(flat);
+  const ex = normalised.scenes[0].exercises[1];
+  assert.equal(ex.payload.line_id, "1:1");
+  const parsed = parseLesson(normalised);
+  assert.equal(parsed.scenes[0].exercises[1].type, "speak_line");
+});
+
+test("parseLesson: original flat shape (the exact failure) imports end-to-end", async () => {
+  const { parseLesson } = await loadLlm();
+  // This is the raw shape Claude emitted on the failed production run.
+  const flat = buildFlatLesson();
+  const parsed = parseLesson(flat);
+  assert.equal(parsed.target_lang, "fr");
+  assert.equal(parsed.scenes[0].exercises[0].type, "comprehension_mc");
+  // Canonical shape (nested) is what downstream consumers see.
+  assert.ok(parsed.scenes[0].exercises[0].payload, "payload should be present after normalisation");
+  assert.ok(parsed.scenes[0].exercises[0].payload.options, "options should be present");
+  assert.equal(parsed.scenes[0].exercises[0].payload.options[0], "À la maison");
+});
+
+test("normaliseLessonShape: leaves canonical (already-nested) lessons untouched", async () => {
+  const { normaliseLessonShape } = await loadLlm();
+  const fixture = readJson(path.join(fixturesDir, "es-market-morning.json"));
+  const out = normaliseLessonShape(fixture);
+  // The canonical fixture has no flat fields, so the normalised
+  // shape is structurally identical. We deep-equal rather than
+  // identity-check because the normaliser may rebuild the
+  // intermediate object graph as it walks scenes (no fields change,
+  // but the wrapper object can be a fresh copy).
+  assert.deepEqual(out, fixture);
 });
 
 test("resolveLlmProvider: returns the noop provider when no API key", async () => {
@@ -436,7 +673,10 @@ dbSuite("runAdaptationJob: stubbed LLM writes a Story + flips the job to complet
   const stubProvider = {
     name: "stub",
     isConfigured: () => true,
-    adaptMasterStory: async () => JSON.stringify(spanishFixture)
+    adaptMasterStory: async () => ({
+      text: JSON.stringify(spanishFixture),
+      usage: { inputTokens: 1500, outputTokens: 900 }
+    })
   };
 
   await runAdaptationJob(job.id, { provider: stubProvider });

@@ -50,6 +50,16 @@ const STYLE_GUIDE: Record<string, string> = {
  * Provider interface
  * --------------------------------------------------------------------- */
 
+export interface LlmUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface LlmResult {
+  text: string;
+  usage: LlmUsage;
+}
+
 export interface LlmProvider {
   readonly name: string;
   isConfigured(): boolean;
@@ -57,7 +67,7 @@ export interface LlmProvider {
     masterScript: MasterScript;
     targetLang: string;
     baseLang: "en" | "fr";
-  }): Promise<string>;
+  }): Promise<LlmResult>;
 }
 
 /* --------------------------------------------------------------------- *
@@ -92,7 +102,7 @@ export class AnthropicLlmProvider implements LlmProvider {
     masterScript: MasterScript;
     targetLang: string;
     baseLang: "en" | "fr";
-  }): Promise<string> {
+  }): Promise<LlmResult> {
     if (!this.apiKey) {
       throw new Error("AnthropicLlmProvider: ANTHROPIC_API_KEY is not set");
     }
@@ -117,7 +127,7 @@ class AnthropicLlmClient {
     this.fetchImpl = fetchImpl;
   }
 
-  async generate(prompt: string): Promise<string> {
+  async generate(prompt: string): Promise<{ text: string; usage: LlmUsage }> {
     const res = await this.fetchImpl("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -139,12 +149,19 @@ class AnthropicLlmClient {
     }
     const data = (await res.json()) as {
       content?: Array<{ type?: string; text?: string }>;
+      usage?: { input_tokens?: number; output_tokens?: number };
     };
     const text = data.content?.find((c) => c.type === "text")?.text;
     if (!text) {
       throw new Error("AnthropicLlmProvider: response had no text block");
     }
-    return text;
+    return {
+      text,
+      usage: {
+        inputTokens: data.usage?.input_tokens ?? 0,
+        outputTokens: data.usage?.output_tokens ?? 0
+      }
+    };
   }
 }
 
@@ -197,7 +214,7 @@ export function promptFor(input: {
   return [
     "You are an AnimBook story adapter. Given the English master script below,",
     `produce a target-language (${input.targetLang}) version that follows the Lesson`,
-    "JSON schema. Output ONLY the JSON object — no prose, no code fences.",
+    "JSON schema EXACTLY — every field MUST live where the schema places it.",
     "",
     `Style guide: ${style}`,
     `Translations base language: ${input.baseLang}. Use this base for both the`,
@@ -207,17 +224,41 @@ export function promptFor(input: {
     "(including diacritics + niqqud where applicable). Glosses go in `glosses`",
     "as `{ en: [...], fr: [...] }` arrays.",
     "",
-    "Each scene has 1–2 short exercises (comprehension_mc, word_meaning_mc,",
-    "sentence_builder, listen_select, or speak_line). The `answer` shape per",
-    "type matches:",
-    "  comprehension_mc / word_meaning_mc / listen_select → `{ index: number }`",
-    "  sentence_builder → `{ order: number[] }` (token indices in the right order)",
-    "  speak_line → `{ expected_text: string }`",
+    "────────────────────────────────────────────────────────────────────────",
+    "EXERCISE SHAPE — every exercise MUST nest its content fields under",
+    "`payload`. NEVER put `question`, `choices`, `options`, `tokens`,",
+    "`audio_url`, `line_id`, `expected_text`, or `lexeme_id` at the top",
+    "level. They belong INSIDE `payload`. The validator is strict —",
+    "top-level fields WILL fail validation.",
+    "────────────────────────────────────────────────────────────────────────",
     "",
-    "Schema (exact keys, all required):",
+    "The 5 exercise types, each with the exact shape required:",
+    "",
+    "1. comprehension_mc",
+    '{ "type": "comprehension_mc", "payload": { "question": { "en": "...", "fr": "..." }, "options": ["a", "b", "c", "d"] }, "answer": { "index": 2 } }',
+    "",
+    "2. word_meaning_mc",
+    '{ "type": "word_meaning_mc", "payload": { "lexeme_id": "<placeholder-id>", "options": { "en": ["a", "b"], "fr": ["c", "d"] } }, "answer": { "index": 0 } }',
+    "",
+    "3. sentence_builder",
+    '{ "type": "sentence_builder", "payload": { "line_id": "<scene>:<order>", "tokens": ["Je", "vais", "au", "marché"] }, "answer": { "order": [0, 1, 2, 3] } }',
+    "",
+    "4. listen_select",
+    '{ "type": "listen_select", "payload": { "audio_url": "placeholder://<line-id>", "options": ["Option A", "Option B", "Option C"] }, "answer": { "index": 0 } }',
+    "",
+    "5. speak_line",
+    '{ "type": "speak_line", "payload": { "line_id": "<scene>:<order>" }, "answer": null }',
+    "",
+    "NOTE: there is NO `expected_text` field. speak_line's `answer` is null.",
+    "There is NO `choices` field anywhere — it's always `options` (string[]).",
+    "There is NO `correct_index` field — it's always `answer: { index: number }`",
+    "(or `answer: { order: number[] }` for sentence_builder).",
+    "",
+    "────────────────────────────────────────────────────────────────────────",
+    "FULL LESSON SCHEMA (exact keys, all required unless marked optional):",
     "{",
     '  "master_story_slug": string,',
-    '  "target_lang": "<code>",',
+    `  "target_lang": "${input.targetLang}",`,
     '  "cefr_level": "A1",',
     '  "title": string,',
     '  "title_translations": { "en": string, "fr": string },',
@@ -235,10 +276,14 @@ export function promptFor(input: {
     '          "tokens": [{ "surface": string, "lemma": string | null, "pos": string | null, "glosses": { "en": string[], "fr": string[] }, "is_new": boolean }]',
     "        }",
     "      ],",
-    '      "exercises": [<any of the 5 types above>]',
+    '      "exercises": [<one of the 5 shapes above>]',
     "    }",
     "  ]",
     "}",
+    "",
+    "OUTPUT FORMAT: emit a single JSON object exactly matching the schema.",
+    "No prose, no code fences, no commentary. The first character of your",
+    "response must be `{`.",
     "",
     "Master script:",
     "```json",
@@ -264,11 +309,16 @@ export interface AdaptResult {
   lesson: ParsedLesson;
   rawText: string;
   attempts: number;
+  /** Accumulated token usage across all attempts (we sum them so the
+   *  caller sees the real cost; partial usage from failed attempts
+   *  isn't refundable, so counting it is the honest number). */
+  usage: LlmUsage;
 }
 
 /**
  * Drive the LLM + retry loop. Returns the validated `Lesson` plus
- * the raw text + attempt count for the worker's audit log.
+ * the raw text + attempt count + accumulated token usage for the
+ * worker's audit log.
  *
  * Throws `LessonAdaptationError` when the budget is exhausted.
  */
@@ -286,13 +336,21 @@ export async function adaptWithRetry(
 
   let lastError: Error | null = null;
   let lastText = "";
+  let lastUsage: LlmUsage = { inputTokens: 0, outputTokens: 0 };
+  let totalUsage: LlmUsage = { inputTokens: 0, outputTokens: 0 };
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    lastText = await provider.adaptMasterStory(input);
+    const out = await provider.adaptMasterStory(input);
+    lastText = out.text;
+    lastUsage = out.usage;
+    totalUsage = {
+      inputTokens: totalUsage.inputTokens + out.usage.inputTokens,
+      outputTokens: totalUsage.outputTokens + out.usage.outputTokens
+    };
     const candidate = stripFences(lastText);
     try {
       const lesson = parseLesson(JSON.parse(candidate));
-      return { lesson, rawText: lastText, attempts: attempt };
+      return { lesson, rawText: lastText, attempts: attempt, usage: totalUsage };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
       // Bumping temperature isn't possible at this layer (the
@@ -308,7 +366,9 @@ export async function adaptWithRetry(
 
   throw new LessonAdaptationError(
     `LLM adaptation failed after ${maxAttempts} attempts: ${lastError?.message ?? "unknown error"}`,
-    lastText
+    lastText,
+    totalUsage,
+    lastUsage
   );
 }
 
@@ -316,9 +376,18 @@ export async function adaptWithRetry(
  *  the admin review screen (Patch 12). */
 export class LessonAdaptationError extends Error {
   readonly rawText: string;
-  constructor(message: string, rawText: string) {
+  readonly usage: LlmUsage;
+  readonly lastAttemptUsage: LlmUsage;
+  constructor(
+    message: string,
+    rawText: string,
+    usage: LlmUsage = { inputTokens: 0, outputTokens: 0 },
+    lastAttemptUsage: LlmUsage = { inputTokens: 0, outputTokens: 0 }
+  ) {
     super(message);
     this.name = "LessonAdaptationError";
     this.rawText = rawText;
+    this.usage = usage;
+    this.lastAttemptUsage = lastAttemptUsage;
   }
 }

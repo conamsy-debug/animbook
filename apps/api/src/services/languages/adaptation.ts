@@ -23,7 +23,7 @@
 import { prisma } from "../../db.js";
 import { importLesson } from "./importer.js";
 import { adaptWithRetry, LessonAdaptationError, resolveLlmProvider } from "./llm.js";
-import type { LlmProvider, MasterScript } from "./llm.js";
+import type { LlmProvider, LlmUsage, MasterScript } from "./llm.js";
 
 /**
  * Enqueue one adaptation job per requested target language. The
@@ -63,6 +63,11 @@ export async function getAdaptationJob(jobId: string): Promise<{
   status: string;
   resultStoryId: string | null;
   errorMessage: string | null;
+  fullRawOutput: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  lastAttemptInputTokens: number | null;
+  lastAttemptOutputTokens: number | null;
   attempts: number;
   startedAt: Date | null;
   completedAt: Date | null;
@@ -78,6 +83,11 @@ export async function getAdaptationJob(jobId: string): Promise<{
       status: true,
       resultStoryId: true,
       errorMessage: true,
+      fullRawOutput: true,
+      inputTokens: true,
+      outputTokens: true,
+      lastAttemptInputTokens: true,
+      lastAttemptOutputTokens: true,
       attempts: true,
       startedAt: true,
       completedAt: true,
@@ -135,7 +145,13 @@ export async function runAdaptationJob(
     select: { masterScript: true, slug: true }
   });
   if (!masterStory) {
-    await markFailed(jobId, "master story was deleted before the job ran");
+    await markFailed(
+      jobId,
+      "master story was deleted before the job ran",
+      null,
+      { inputTokens: 0, outputTokens: 0 },
+      { inputTokens: 0, outputTokens: 0 }
+    );
     return;
   }
 
@@ -155,7 +171,10 @@ export async function runAdaptationJob(
   if (!provider.isConfigured()) {
     await markFailed(
       jobId,
-      "No LlmProvider configured (set ANTHROPIC_API_KEY)."
+      "No LlmProvider configured (set ANTHROPIC_API_KEY).",
+      null,
+      { inputTokens: 0, outputTokens: 0 },
+      { inputTokens: 0, outputTokens: 0 }
     );
     return;
   }
@@ -163,26 +182,38 @@ export async function runAdaptationJob(
   const masterScript = masterStory.masterScript as unknown as MasterScript;
 
   let lesson;
+  let totalUsage: LlmUsage = { inputTokens: 0, outputTokens: 0 };
+  let lastAttemptUsage: LlmUsage = { inputTokens: 0, outputTokens: 0 };
   try {
-    lesson = (
-      await adaptWithRetry(
-        provider,
-        {
-          masterScript,
-          targetLang: job.targetLang,
-          baseLang: "en"
-        },
-        { maxAttempts: 3 }
-      )
-    ).lesson;
+    const result = await adaptWithRetry(
+      provider,
+      {
+        masterScript,
+        targetLang: job.targetLang,
+        baseLang: "en"
+      },
+      { maxAttempts: 3 }
+    );
+    lesson = result.lesson;
+    totalUsage = result.usage;
+    // Last attempt is the successful one here; record it.
+    lastAttemptUsage = result.usage;
   } catch (err) {
+    const usage: LlmUsage =
+      err instanceof LessonAdaptationError
+        ? err.usage
+        : { inputTokens: 0, outputTokens: 0 };
+    const lastUsage: LlmUsage =
+      err instanceof LessonAdaptationError
+        ? err.lastAttemptUsage
+        : { inputTokens: 0, outputTokens: 0 };
     const raw =
       err instanceof LessonAdaptationError
         ? err.rawText
         : err instanceof Error
           ? err.message
           : String(err);
-    await markFailed(jobId, raw);
+    await markFailed(jobId, raw, raw, usage, lastUsage);
     return;
   }
 
@@ -200,7 +231,10 @@ export async function runAdaptationJob(
   } catch (err) {
     await markFailed(
       jobId,
-      err instanceof Error ? err.message : "importLesson failed"
+      err instanceof Error ? err.message : "importLesson failed",
+      null,
+      totalUsage,
+      lastAttemptUsage
     );
     return;
   }
@@ -219,18 +253,34 @@ export async function runAdaptationJob(
       status: "completed",
       completedAt: new Date(),
       resultStoryId: storyId,
-      errorMessage: null
+      errorMessage: null,
+      fullRawOutput: null,
+      inputTokens: totalUsage.inputTokens,
+      outputTokens: totalUsage.outputTokens,
+      lastAttemptInputTokens: lastAttemptUsage.inputTokens,
+      lastAttemptOutputTokens: lastAttemptUsage.outputTokens
     }
   });
 }
 
-async function markFailed(jobId: string, message: string): Promise<void> {
+async function markFailed(
+  jobId: string,
+  message: string,
+  fullRawOutput: string | null,
+  usage: LlmUsage,
+  lastAttemptUsage: LlmUsage
+): Promise<void> {
   await prisma.languagesAdaptationJob.update({
     where: { id: jobId },
     data: {
       status: "failed",
       completedAt: new Date(),
-      errorMessage: message.slice(0, 4000)
+      errorMessage: message.slice(0, 4000),
+      fullRawOutput,
+      inputTokens: usage.inputTokens || null,
+      outputTokens: usage.outputTokens || null,
+      lastAttemptInputTokens: lastAttemptUsage.inputTokens || null,
+      lastAttemptOutputTokens: lastAttemptUsage.outputTokens || null
     }
   });
 }
