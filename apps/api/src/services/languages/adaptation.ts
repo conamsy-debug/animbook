@@ -226,7 +226,11 @@ export async function runAdaptationJob(
 
   let storyId: string;
   try {
-    const result = await importLesson(prisma, adaptedLesson);
+    // Bump the interactive-transaction timeout to 30s. Prisma's
+    // default is 5s, which trips on a slow Neon link when the
+    // importer writes ~30 rows (Story + Scenes + Lines + Tokens +
+    // Lexemes + Exercises) inside one transaction.
+    const result = await importLesson(prisma, adaptedLesson, { transactionTimeoutMs: 30000 });
     storyId = result.storyId;
   } catch (err) {
     await markFailed(

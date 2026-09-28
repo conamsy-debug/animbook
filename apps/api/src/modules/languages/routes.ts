@@ -2068,7 +2068,12 @@ router.get("/admin/jobs/:jobId", authMiddleware, async (req: Request, res: Respo
     startedAt: job.startedAt ? job.startedAt.toISOString() : null,
     completedAt: job.completedAt ? job.completedAt.toISOString() : null,
     createdAt: job.createdAt.toISOString(),
-    updatedAt: job.updatedAt.toISOString()
+    updatedAt: job.updatedAt.toISOString(),
+    fullRawOutput: job.fullRawOutput,
+    inputTokens: job.inputTokens,
+    outputTokens: job.outputTokens,
+    lastAttemptInputTokens: job.lastAttemptInputTokens,
+    lastAttemptOutputTokens: job.lastAttemptOutputTokens
   });
 });
 
@@ -2116,7 +2121,12 @@ router.post("/admin/jobs/:jobId/run", authMiddleware, async (req: Request, res: 
     errorMessage: after.errorMessage,
     attempts: after.attempts,
     startedAt: after.startedAt ? after.startedAt.toISOString() : null,
-    completedAt: after.completedAt ? after.completedAt.toISOString() : null
+    completedAt: after.completedAt ? after.completedAt.toISOString() : null,
+    fullRawOutput: after.fullRawOutput,
+    inputTokens: after.inputTokens,
+    outputTokens: after.outputTokens,
+    lastAttemptInputTokens: after.lastAttemptInputTokens,
+    lastAttemptOutputTokens: after.lastAttemptOutputTokens
   });
 });
 
