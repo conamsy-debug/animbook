@@ -184,6 +184,7 @@ export async function runAdaptationJob(
   let lesson;
   let totalUsage: LlmUsage = { inputTokens: 0, outputTokens: 0 };
   let lastAttemptUsage: LlmUsage = { inputTokens: 0, outputTokens: 0 };
+  let rawText = "";
   try {
     const result = await adaptWithRetry(
       provider,
@@ -195,6 +196,7 @@ export async function runAdaptationJob(
       { maxAttempts: 3 }
     );
     lesson = result.lesson;
+    rawText = result.rawText;
     totalUsage = result.usage;
     // Last attempt is the successful one here; record it.
     lastAttemptUsage = result.usage;
@@ -236,7 +238,10 @@ export async function runAdaptationJob(
     await markFailed(
       jobId,
       err instanceof Error ? err.message : "importLesson failed",
-      null,
+      // Persist the untruncated LLM response so an admin can see
+      // what Claude produced even when the importer crashes AFTER
+      // parseLesson succeeded.
+      rawText || null,
       totalUsage,
       lastAttemptUsage
     );
