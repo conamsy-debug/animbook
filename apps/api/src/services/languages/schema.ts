@@ -38,15 +38,18 @@ const cefrLevel = z.enum(CEFR_LEVELS);
 const exerciseType = z.enum(EXERCISE_TYPES);
 const gender = z.enum(["m", "f", "n"]).nullable().optional();
 
-/** Per-base-language object used by translations + glosses. */
-const bilingualStringArray = z
-  .object({
-    en: z.array(z.string()).optional(),
-    fr: z.array(z.string()).optional()
-  })
-  .refine((v) => Boolean(v.en?.length) || Boolean(v.fr?.length), {
-    message: "at least one of {en, fr} must be present and non-empty"
-  });
+/**
+ * Per-base-language object used by translations + glosses.
+ *
+ * Note: we don't bake the "at least one of {en, fr}" refine here —
+ * the parent (lessonTokenSchema) needs to accept empty arrays on
+ * punctuation tokens (lemma=null). Word-token gloss validation lives
+ * on the token schema, which knows whether the lemma is set.
+ */
+const bilingualStringArray = z.object({
+  en: z.array(z.string()).optional(),
+  fr: z.array(z.string()).optional()
+});
 
 const bilingualString = z.object({
   en: z.string().min(1),
@@ -61,7 +64,11 @@ const lessonTokenSchema = z
   .object({
     surface: z.string().min(1, "token surface must be a non-empty string"),
     lemma: z.string().nullable(),
-    pos: z.string().optional(),
+    // `pos` must accept `null` so Claude's punctuation tokens
+    // (".", "!", "?", "," etc.) — which carry `lemma: null` — still
+    // validate when the model emits `pos: null` instead of omitting
+    // the key.
+    pos: z.string().nullable().optional(),
     gender,
     glosses: bilingualStringArray.optional(),
     reading: z.string().nullable().optional(),
@@ -75,6 +82,19 @@ const lessonTokenSchema = z
       return Boolean(t.pos);
     },
     { message: "tokens with a lemma must include `pos`", path: ["pos"] }
+  )
+  .refine(
+    (t) => {
+      // Punctuation tokens (lemma=null) are allowed to carry empty
+      // gloss arrays. Claude emits `{"en": [], "fr": []}` for "." so
+      // the bilingual refine fails otherwise. The pre-conditions on
+      // word tokens (at least one gloss populated) are still enforced
+      // because `lemma !== null` here.
+      if (t.lemma === null) return true;
+      const g = t.glosses as { en?: string[]; fr?: string[] } | undefined;
+      return Boolean(g?.en?.length) || Boolean(g?.fr?.length);
+    },
+    { message: "tokens with a lemma must include non-empty glosses.en or glosses.fr", path: ["glosses"] }
   )
   .refine(
     (t) => {
