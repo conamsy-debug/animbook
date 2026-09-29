@@ -97,12 +97,19 @@ export default function App({ Component, pageProps }: AppProps) {
   const [messages] = useLocaleMessages(locale);
   useApplyLocaleDocument(locale);
 
-  // hreflang alternates — pre-compute them here so the Head can emit
-  // them on every render without re-deriving. Empty during the
-  // static prerender pass because the router isn't mounted there.
+  // hreflang alternates — server-rendered so search engine crawlers
+  // see them on first fetch (not deferred until after hydration).
+  // `router.pathname` is the route pattern; for static routes it
+  // matches `router.asPath`. For dynamic routes the locale matrix
+  // is still correct because every locale gets the same path with
+  // its own prefix. Falls back to "/" when neither is set yet
+  // (which only happens before the router context mounts).
+  const currentPath = (typeof router.asPath === "string" && router.asPath) ||
+    (typeof router.pathname === "string" && router.pathname) ||
+    "/";
   const alternates = useMemo(
-    () => hreflangAlternates(router.asPath || router.pathname),
-    [router.asPath, router.pathname]
+    () => hreflangAlternates(currentPath),
+    [currentPath]
   );
 
   const head = (

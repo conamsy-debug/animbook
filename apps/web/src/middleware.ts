@@ -115,7 +115,13 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Match everything except Next internals + static. The function above
-  // does finer-grained filtering so we keep the matcher minimal here.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)"]
+  // Match the bare root path AND every other page path (except Next
+  // internals + static assets). Two matchers because Next.js's
+  // default matcher compiles to a regex that requires at least one
+  // path segment, so bare `/` slips through unless we list it
+  // explicitly.
+  matcher: [
+    "/",
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)"
+  ]
 };
