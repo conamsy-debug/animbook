@@ -42,6 +42,14 @@ export interface NarrationResult {
   characters: number;
   source: "elevenlabs" | "stub";
   /**
+   * When `source === "stub"`, a short human-readable reason
+   * ("ElevenLabs or R2 is not configured", "ElevenLabs 401: quota_exceeded",
+   * "voice ... orphaned", etc.). Empty string on the success path.
+   * Carried up so admin callers (e.g. Languages TTS regenerate) can
+   * surface the real failure instead of guessing "not configured".
+   */
+  error: string;
+  /**
    * Set when synthesizeSpeech threw VoiceOrphanedError. The caller
    * (audio narration worker / route) should update users.voiceStatus to
    * REMOVED and clear narratorVoiceId so subsequent narrations fall
@@ -145,15 +153,18 @@ export async function generateNarration(input: {
 }): Promise<NarrationResult> {
   const text = input.text.trim();
   if (!isFeatureEnabled("ELEVENLABS") || !isFeatureEnabled("CLOUDFLARE") || !text) {
-    if (input.strict) throw new Error("ElevenLabs or R2 is not configured");
-    return { audioUrl: null, vttUrl: null, characters: 0, source: "stub" };
+    const reason = !isFeatureEnabled("ELEVENLABS") || !isFeatureEnabled("CLOUDFLARE")
+      ? "ElevenLabs or R2 is not configured"
+      : "Line text is empty";
+    if (input.strict) throw new Error(reason);
+    return { audioUrl: null, vttUrl: null, characters: 0, source: "stub", error: reason };
   }
   const requestedVoice = input.voiceId ?? null;
   try {
     const audio = await synthesizeSpeech(text, input.voiceId);
     const storageKey = input.storageKey ?? `narration/misc/${Date.now().toString(36)}.mp3`;
     const stored = await uploadAsset({ key: storageKey, body: audio, contentType: "audio/mpeg" });
-    return { audioUrl: stored.url, vttUrl: null, characters: text.length, source: "elevenlabs" };
+    return { audioUrl: stored.url, vttUrl: null, characters: text.length, source: "elevenlabs", error: "" };
   } catch (err) {
     if (err instanceof VoiceOrphanedError) {
       // The voice we tried is gone on ElevenLabs. Surface it to the caller
@@ -166,7 +177,7 @@ export async function generateNarration(input: {
         // Already tried the fallback — give up.
         if (input.strict) throw err;
         console.warn(`[elevenlabs] fallback voice ${fallback} also missing for ${err.voiceId}`);
-        return { audioUrl: null, vttUrl: null, characters: 0, source: "stub", orphanedVoiceId: err.voiceId };
+        return { audioUrl: null, vttUrl: null, characters: 0, source: "stub", orphanedVoiceId: err.voiceId, error: `Voice ${err.voiceId} orphaned and fallback ${fallback} also missing` };
       }
       try {
         const audio = await synthesizeSpeech(text, fallback);
@@ -178,7 +189,8 @@ export async function generateNarration(input: {
           vttUrl: null,
           characters: text.length,
           source: "elevenlabs",
-          orphanedVoiceId: err.voiceId
+          orphanedVoiceId: err.voiceId,
+          error: ""
         };
       } catch (fallbackErr) {
         if (input.strict) throw fallbackErr;
@@ -188,13 +200,14 @@ export async function generateNarration(input: {
           vttUrl: null,
           characters: 0,
           source: "stub",
-          orphanedVoiceId: err.voiceId
+          orphanedVoiceId: err.voiceId,
+          error: `Voice ${err.voiceId} orphaned; fallback ${fallback} failed: ${(fallbackErr as Error).message}`
         };
       }
     }
     if (input.strict) throw err;
     console.warn(`[elevenlabs] ${(err as Error).message}, no narration stored`);
-    return { audioUrl: null, vttUrl: null, characters: 0, source: "stub" };
+    return { audioUrl: null, vttUrl: null, characters: 0, source: "stub", error: (err as Error).message };
   }
 }
 

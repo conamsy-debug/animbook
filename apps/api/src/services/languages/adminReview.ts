@@ -307,6 +307,14 @@ export interface RegenerateAudioResult {
   source: "elevenlabs" | "stub";
   characters: number;
   voiceId: string | null;
+  /**
+   * Populated when `source === "stub"` — the real failure reason from
+   * ElevenLabs / R2 (HTTP status + body for 4xx, network error, env
+   * missing, etc.). Empty string on success. The admin UI uses this
+   * to render a red error toast instead of the misleading "TTS
+   * provider not configured".
+   */
+  error: string;
 }
 
 export async function regenerateLineAudio(
@@ -354,7 +362,8 @@ export async function regenerateLineAudio(
     audioUrl: result.audioUrl,
     source: result.source,
     characters: result.characters,
-    voiceId
+    voiceId,
+    error: result.error ?? ""
   };
 }
 

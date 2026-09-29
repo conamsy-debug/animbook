@@ -42,6 +42,13 @@ export interface TtsSynthesizeResult {
   wordTimings: Array<{ token: string; startMs: number; endMs: number }> | null;
   characters: number;
   source: "elevenlabs" | "stub";
+  /**
+   * When `source === "stub"`, a short reason ("ElevenLabs not configured",
+   * "ElevenLabs 401: ...", "ElevenLabs or R2 is not configured", ...).
+   * Empty string on the success path. Carried up so admin callers can
+   * show the real failure instead of guessing.
+   */
+  error: string;
 }
 
 export interface TtsProvider {
@@ -64,7 +71,13 @@ class ElevenLabsTtsProvider implements TtsProvider {
   async synthesize(input: TtsSynthesizeInput): Promise<TtsSynthesizeResult> {
     if (!this.isConfigured()) {
       if (input.strict) throw new Error("ElevenLabs is not configured (set ELEVENLABS_API_KEY).");
-      return { audioUrl: null, wordTimings: null, characters: 0, source: "stub" };
+      return {
+        audioUrl: null,
+        wordTimings: null,
+        characters: 0,
+        source: "stub",
+        error: "ElevenLabs is not configured (set ELEVENLABS_API_KEY)"
+      };
     }
     const result = await generateNarration({
       text: input.text,
@@ -76,7 +89,8 @@ class ElevenLabsTtsProvider implements TtsProvider {
       audioUrl: result.audioUrl,
       wordTimings: null,
       characters: result.characters,
-      source: result.source === "elevenlabs" ? "elevenlabs" : "stub"
+      source: result.source === "elevenlabs" ? "elevenlabs" : "stub",
+      error: result.error
     };
   }
 }
@@ -98,7 +112,8 @@ export function resolveTtsProvider(): TtsProvider {
       audioUrl: null,
       wordTimings: null,
       characters: 0,
-      source: "stub"
+      source: "stub",
+      error: "ElevenLabs is not configured (set ELEVENLABS_API_KEY)"
     })
   };
 }

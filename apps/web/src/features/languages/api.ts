@@ -734,6 +734,8 @@ export interface RegenerateAudioResult {
   source: "elevenlabs" | "stub";
   characters: number;
   voiceId: string | null;
+  /** Real failure reason when `source === "stub"`. Empty string on success. */
+  error: string;
 }
 
 async function adminJsonFetch<T>(

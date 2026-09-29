@@ -68,13 +68,20 @@ export default function LanguagesAdminStoryDetailPage() {
     setActionToast(null);
     try {
       const result = await regenerateLineAudio(lineId);
-      setActionToast({
-        kind: "ok",
-        msg:
-          result.source === "elevenlabs"
-            ? `Audio regenerated (${result.characters} chars).`
-            : "TTS provider not configured — audio unchanged."
-      });
+      if (result.source === "elevenlabs") {
+        setActionToast({
+          kind: "ok",
+          msg: `Audio regenerated (${result.characters} chars).`
+        });
+      } else {
+        // Stub source — surface the real reason ElevenLabs / R2 returned
+        // so the admin can fix it (refill quota, add the env var, etc.).
+        // Only fall back to the generic "not configured" string when the
+        // server genuinely didn't include one (older deploy).
+        const reason = result.error?.trim() ||
+          "TTS provider not configured — audio unchanged.";
+        setActionToast({ kind: "err", msg: reason });
+      }
       if (storyId) await reload(storyId);
     } catch (err) {
       setActionToast({
