@@ -8583,10 +8583,20 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 
 .lang-admin-actions {
   display: flex;
-  gap: 10px;
-  margin: 16px 0;
+  gap: 14px;
+  margin: 20px 0 12px;
   flex-wrap: wrap;
   align-items: center;
+}
+
+/* Give the action buttons real breathing room — the default `.btn`
+   padding (10px 20px) is correct, but the actions container needs
+   vertical slack and the buttons need a touch more internal padding
+   so the three actions don't feel crammed. */
+.lang-admin-actions .btn {
+  padding: 10px 22px;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
 }
 
 /* Every action on the admin editor goes through the site's own button
@@ -8729,6 +8739,18 @@ a.vertical-tile .vertical-count { color: var(--accent); }
   flex-wrap: wrap;
 }
 
+.lang-admin-line-audio-meta {
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+.lang-admin-line-audio-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .lang-admin-line-audio code {
   font-family: var(--font-mono, 'JetBrains Mono', monospace);
   font-size: 11px;
@@ -8751,6 +8773,37 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 
 .lang-admin-line-audio button:hover {
   background: rgba(107, 140, 255, 0.28);
+}
+
+/* Compact icon-only play / pause button on the audio row. Sits
+   inline next to "Regenerate audio" so the reviewer can audition
+   without leaving the editor. Gold-accented icon mirrors the rest of
+   the .lang-page chrome but stays secondary in weight. */
+.lang-admin-play {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  border-radius: 8px;
+  background: rgba(196, 154, 28, 0.18);
+  color: #f5ecd2;
+  border: 1px solid rgba(196, 154, 28, 0.45);
+}
+
+.lang-admin-play:hover:not(:disabled) {
+  background: rgba(196, 154, 28, 0.32);
+  border-color: rgba(196, 154, 28, 0.7);
+}
+
+.lang-admin-play[aria-pressed="true"] {
+  background: rgba(196, 154, 28, 0.42);
+  border-color: var(--accent-2, #b58b27);
+  color: #fff;
 }
 
 

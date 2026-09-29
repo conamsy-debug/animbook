@@ -1,7 +1,7 @@
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Topbar } from "@/components/Topbar";
 import { ErrorBoundary, ErrorState } from "@/components/ErrorBoundary";
 import { LANGUAGES_ENABLED } from "@/features/languages/config";
@@ -46,11 +46,31 @@ export default function LanguagesAdminStoryDetailPage() {
     Record<string, { text?: string; textReading?: string | null; audioUrl?: string | null }>
   >({});
 
+  // Audio playback — one shared <audio> element so only one line
+  // ever plays. `playingLineId` tracks which line is currently
+  // emitting sound; `currentLineIdRef` carries the latest chosen
+  // lineId from the click handler so onPlay / onPause / onEnded can
+  // resolve it without depending on DOM dataset attributes.
+  // `audioVersions` is a per-line cache-bust counter that gets bumped
+  // every time the row's audio is regenerated so the browser
+  // refetches even when the URL path is the same.
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const currentLineIdRef = useRef<string | null>(null);
+  const [playingLineId, setPlayingLineId] = useState<string | null>(null);
+  const [audioVersions, setAudioVersions] = useState<Record<string, number>>({});
+
   const reload = useCallback(async (id: string, signal?: AbortSignal) => {
     setLoadError(null);
     const d = await fetchAdminStory(id, signal);
     setDetail(d);
     setLocalEdits({});
+    setAudioVersions({});
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = "";
+    }
+    setPlayingLineId(null);
+    currentLineIdRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -64,6 +84,47 @@ export default function LanguagesAdminStoryDetailPage() {
     return () => controller.abort();
   }, [reload, storyId]);
 
+  /**
+   * Play (or pause) the audio for one line. Single shared element so
+   * starting a different line always stops the previous one. The
+   * `?v=` query string is the cache-bust counter — bumped after each
+   * successful regenerate so the browser doesn't reuse the cached
+   * mp3 from before the swap.
+   *
+   * State is updated imperatively here instead of via audio DOM
+   * events, because a src swap mid-play causes the browser to fire
+   * a brief `pause` event that would race the icon flip.
+   */
+  const handlePlayLine = useCallback(
+    (lineId: string, audioUrl: string) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      const version = audioVersions[lineId] ?? 0;
+      const src = `${audioUrl}${audioUrl.includes("?") ? "&" : "?"}v=${version}`;
+      // Same line clicked while playing → toggle pause.
+      if (currentLineIdRef.current === lineId && !audio.paused) {
+        audio.pause();
+        setPlayingLineId(null);
+        return;
+      }
+      // Different line (or the same one paused) — switch.
+      currentLineIdRef.current = lineId;
+      setPlayingLineId(lineId);
+      audio.src = src;
+      audio.currentTime = 0;
+      const playPromise = audio.play();
+      if (playPromise && typeof playPromise.catch === "function") {
+        playPromise.catch(() => {
+          // Autoplay rejected or network error — drop the playing
+          // marker so the icon flips back.
+          setPlayingLineId(null);
+          currentLineIdRef.current = null;
+        });
+      }
+    },
+    [audioVersions]
+  );
+
   const handleRegenerate = async (lineId: string) => {
     setActionToast(null);
     try {
@@ -73,6 +134,9 @@ export default function LanguagesAdminStoryDetailPage() {
           kind: "ok",
           msg: `Audio regenerated (${result.characters} chars).`
         });
+        // Bump the cache-bust version for this line so the next play
+        // refetches the new file even when the URL path is identical.
+        setAudioVersions((prev) => ({ ...prev, [lineId]: Date.now() }));
       } else {
         // Stub source — surface the real reason ElevenLabs / R2 returned
         // so the admin can fix it (refill quota, add the env var, etc.).
@@ -148,6 +212,14 @@ export default function LanguagesAdminStoryDetailPage() {
     }
   };
 
+  // Reading aid is only meaningful for languages with a non-Latin script
+  // (pinyin for zh-Hans, niqqud for he). Hide it everywhere else so the
+  // form doesn't carry a confusing empty box for, say, French or German.
+  const showReadingAid = useMemo(() => {
+    if (!detail) return false;
+    return detail.targetLang === "zh-Hans" || detail.targetLang === "he";
+  }, [detail]);
+
   if (!LANGUAGES_ENABLED) return <NotAvailable />;
   if (!storyId) return <LoadingShell />;
 
@@ -180,6 +252,21 @@ export default function LanguagesAdminStoryDetailPage() {
       </Head>
       <Topbar variant="cinematic" />
       <main className="container lang-page lang-admin">
+        {/* Single shared audio element — keeps "only one line plays at a
+            time" honest regardless of how many rows the story has.
+            playingLineId is driven imperatively from the click handler
+            (see handlePlayLine) so DOM pause/emptied events during a
+            src swap don't race the icon. onEnded is the only event we
+            listen to — it clears state when the audio finishes on its
+            own. */}
+        <audio
+          ref={audioRef}
+          preload="none"
+          onEnded={() => {
+            setPlayingLineId(null);
+            currentLineIdRef.current = null;
+          }}
+        />
         <ErrorBoundary
           fallback={(err, reset) => (
             <ErrorState
@@ -206,6 +293,9 @@ export default function LanguagesAdminStoryDetailPage() {
               </p>
             ) : null}
             <div className="lang-admin-actions">
+              {/* Save edits = secondary (ghost chrome). Approve = primary
+                  gold. Reject = danger red. The flex container handles
+                  spacing; the per-button padding sits inside .btn. */}
               <button type="button" className="btn ghost" onClick={handleSaveEdits}>
                 Save edits
               </button>
@@ -247,6 +337,7 @@ export default function LanguagesAdminStoryDetailPage() {
                     overrides.text !== undefined ||
                     overrides.textReading !== undefined ||
                     overrides.audioUrl !== undefined;
+                  const isPlaying = playingLineId === line.id;
                   return (
                     <li key={line.id} className="lang-admin-line">
                       <header className="lang-admin-line-header">
@@ -269,35 +360,52 @@ export default function LanguagesAdminStoryDetailPage() {
                           }
                         />
                       </label>
-                      <label className="lang-admin-label">
-                        <span>Reading aid (pinyin / niqqud)</span>
-                        <input
-                          type="text"
-                          value={textReading ?? ""}
-                          onChange={(e) =>
-                            setLocalEdits((prev) => ({
-                              ...prev,
-                              [line.id]: {
-                                ...prev[line.id],
-                                textReading:
-                                  e.target.value === "" ? null : e.target.value
-                              }
-                            }))
-                          }
-                        />
-                      </label>
+                      {showReadingAid ? (
+                        <label className="lang-admin-label">
+                          <span>Reading aid (pinyin / niqqud)</span>
+                          <input
+                            type="text"
+                            value={textReading ?? ""}
+                            onChange={(e) =>
+                              setLocalEdits((prev) => ({
+                                ...prev,
+                                [line.id]: {
+                                  ...prev[line.id],
+                                  textReading:
+                                    e.target.value === "" ? null : e.target.value
+                                }
+                              }))
+                            }
+                          />
+                        </label>
+                      ) : null}
                       <div className="lang-admin-line-audio">
-                        <div>
+                        <div className="lang-admin-line-audio-meta">
                           <strong>Audio URL:</strong>{" "}
                           <code>{audioUrl ?? "(none)"}</code>
                         </div>
-                        <button
-                          type="button"
-                          className="btn line-action"
-                          onClick={() => handleRegenerate(line.id)}
-                        >
-                          Regenerate audio
-                        </button>
+                        <div className="lang-admin-line-audio-actions">
+                          {audioUrl ? (
+                            <button
+                              type="button"
+                              className="btn line-action lang-admin-play"
+                              data-line-id={line.id}
+                              onClick={() => handlePlayLine(line.id, audioUrl)}
+                              aria-label={isPlaying ? `Pause line ${line.order}` : `Play line ${line.order}`}
+                              aria-pressed={isPlaying}
+                              title={isPlaying ? "Pause" : "Play"}
+                            >
+                              {isPlaying ? "❚❚" : "▶"}
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="btn line-action"
+                            onClick={() => handleRegenerate(line.id)}
+                          >
+                            Regenerate audio
+                          </button>
+                        </div>
                       </div>
                     </li>
                   );
