@@ -1,18 +1,25 @@
 import { Html, Head, Main, NextScript } from "next/document";
+import type { DocumentContext, DocumentInitialProps } from "next/document";
 
 /**
- * The Pages Router document. AnimBook used to rely solely on
- * client-side effects to set `<html dir>` for RTL languages
- * (Arabic), but crawlers and progressive enhancement need it
- * server-rendered too. Next.js exposes the active locale via
- * `__NEXT_DATA__.locale` — we read that here and stamp `dir`
- * on `<html>` directly. Client-side `useApplyLocaleDocument`
- * in `_app.tsx` still updates it on navigation so a runtime
- * locale switch is reflected immediately.
+ * Per-request `<html dir>` + `<html lang>`. AnimBook's built-in
+ * i18n routing knows the active locale per request — we read it
+ * via `ctx.locale` (set by Next.js's i18n config) and stamp the
+ * right direction on `<Html>` so crawlers + screen readers see
+ * it on the very first byte, with no client-side hydration
+ * required.
  */
-export default function Document() {
+const RTL_LOCALES = new Set(["ar"]);
+const ALLOWED = new Set(["ar", "fr", "es", "pt-BR", "sw", "hi", "zh-CN", "de", "en"]);
+
+interface Props extends DocumentInitialProps {
+  htmlLang: string;
+  htmlDir: "ltr" | "rtl";
+}
+
+export default function Document({ htmlLang, htmlDir }: Props) {
   return (
-    <Html lang="en" dir="ltr">
+    <Html lang={htmlLang} dir={htmlDir}>
       <Head />
       <body>
         <Main />
@@ -21,3 +28,16 @@ export default function Document() {
     </Html>
   );
 }
+
+Document.getInitialProps = async (ctx: DocumentContext): Promise<Props> => {
+  const initialProps = await ctx.defaultGetInitialProps(ctx);
+  const rawLocale =
+    (ctx as DocumentContext & { locale?: string }).locale || "en";
+  const safeLocale = ALLOWED.has(rawLocale) ? rawLocale : "en";
+  const dir: "ltr" | "rtl" = RTL_LOCALES.has(safeLocale) ? "rtl" : "ltr";
+  return {
+    ...initialProps,
+    htmlLang: safeLocale,
+    htmlDir: dir
+  };
+};
