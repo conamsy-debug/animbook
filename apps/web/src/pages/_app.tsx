@@ -130,6 +130,19 @@ export default function App({ Component, pageProps }: AppProps) {
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
       <link href={FONTS_HREF} rel="stylesheet" />
+      {/* Synchronous inline script — runs before first paint so
+          crawlers + screen readers see the right `<html dir>` on
+          static prerender (where React can't have set it yet).
+          Reads the active locale from the URL prefix and stamps
+          `dir` on `<html>`. The client-side effect in
+          useApplyLocaleDocument will keep it correct on
+          navigation. */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html:
+            "(function(){var p=location.pathname.split('/')[1];var rtl=['ar'].indexOf(p)!==-1;document.documentElement.dir=rtl?'rtl':'ltr';})();"
+        }}
+      />
       {/* hreflang alternates — emitted on every page so search engines
           can map the locale matrix. We compute the alternates for the
           current pathname; default-locale URLs omit the prefix.
