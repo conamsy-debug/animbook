@@ -52,6 +52,7 @@ import share, { sharePublicRouter } from "./modules/share/routes.js";
 import accountVoice from "./modules/account-voice/routes.js";
 import docs from "./modules/docs/routes.js";
 import languages from "./modules/languages/routes.js";
+import me from "./modules/me/routes.js";
 import { startPipelineWorker, startPipelineEvents } from "./services/pipeline.js";
 import { startSplitWorkers, shutdownSplitPipeline } from "./services/splitPipeline.js";
 
@@ -124,6 +125,7 @@ app.use("/api/studio-pro", studioProPublicRouter);
 app.use("/api", legal);
 app.use("/api/docs", docs);
 app.use("/api", networkPublicRouter);
+app.use("/api", me);
 
 // AnimBook Languages (Phase 1) — mounted only when LANGUAGES_ENABLED=true
 // so the feature ships dark by default. The full router catalogue is in

@@ -244,6 +244,11 @@ model User {
   voiceConsentIp           String?               @map("voice_consent_ip")
   /// Last upload error from ElevenLabs (rate limit, safety, format).
   voiceFailureReason       String?               @map("voice_failure_reason")
+  /// User's preferred UI locale (e.g. "en", "fr", "ar"). Set when
+  /// the visitor picks a language from the header switcher; the next
+  /// time they sign in (or sync across devices) we read this so they
+  /// land on the right language without a cookie round-trip.
+  preferredLocale          String?               @map("preferred_locale")
   roles                    String[]              @default([])
   subscriptionStatus       SubscriptionStatus?   @map("subscription_status")
   stripeCustomerId         String?               @unique @map("stripe_customer_id")

@@ -1,0 +1,292 @@
+{
+  "common": {
+    "appName": "AnimBook",
+    "tagline": "a book that moves",
+    "loading": "Loading…",
+    "opening": "Opening…",
+    "error": "Something went wrong",
+    "retry": "Try again",
+    "snagTitle": "AnimBook ran into a snag",
+    "keepBrowsing": "Keep browsing",
+    "learnMore": "Learn more",
+    "primaryNav": "Primary navigation",
+    "accountMenu": "Account menu"
+  },
+  "topbar": {
+    "searchLibrary": "Search the library",
+    "openSearch": "Open search",
+    "closeSearch": "Close search",
+    "searchPlaceholder": "Search titles, authors…",
+    "more": "More"
+  },
+  "nav": {
+    "home": "Home",
+    "library": "Library",
+    "worlds": "Worlds",
+    "live": "Live",
+    "companion": "Companion",
+    "dream": "Dream",
+    "signal": "Signal",
+    "studio": "Studio",
+    "edu": "EDU",
+    "network": "Network",
+    "memory": "Memory",
+    "languages": "Languages",
+    "circles": "Circles",
+    "messages": "Messages",
+    "profile": "Profile",
+    "pricing": "Pricing",
+    "docs": "Docs",
+    "archive": "Archive",
+    "school": "School",
+    "signIn": "Sign in",
+    "signUp": "Sign up",
+    "signOut": "Sign out",
+    "account": "Account",
+    "menu": "Menu",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "getStarted": "Get Started",
+    "createAccount": "Create account"
+  },
+  "languageSwitcher": {
+    "label": "Language",
+    "currentLanguage": "Current language",
+    "switchTo": "Switch to {locale}"
+  },
+  "home": {
+    "heroEyebrow": "An animated book in your hand",
+    "heroTitle": "Stories that move, narrate and remember you",
+    "heroSubtitle": "Every page is a living scene — narrated, animated, and adapted to the language you choose to learn.",
+    "heroCta": "Start reading",
+    "heroSecondary": "Browse the library",
+    "heroBadge": "Languages · Books · Stories",
+    "verticalsTitle": "Twelve worlds, one library",
+    "verticalsSubtitle": "Pick the room that fits you today.",
+    "nextGenTitle": "What comes next",
+    "nextGenSubtitle": "AnimBook keeps moving. Here's what's new this season.",
+    "rotatorTitle": "Featured this week",
+    "rotatorSubtitle": "Tap a book to open it.",
+    "splashTagline": "A book that moves."
+  },
+  "verticals": {
+    "edu": {
+      "name": "Education",
+      "tagline": "Classroom-ready, expert-reviewed."
+    },
+    "faith": {
+      "name": "Faith",
+      "tagline": "Scripture with the reverence it deserves."
+    },
+    "kids": {
+      "name": "Kids",
+      "tagline": "Bedtime stories that come alive."
+    },
+    "consumer": {
+      "name": "Fiction",
+      "tagline": "Bestsellers, indies and originals."
+    },
+    "business": {
+      "name": "Business",
+      "tagline": "Books that explain the world you work in."
+    },
+    "verse": {
+      "name": "Verse",
+      "tagline": "Poetry that breathes."
+    },
+    "wellness": {
+      "name": "Wellness",
+      "tagline": "Slow reading for hard weeks."
+    },
+    "travel": {
+      "name": "Travel",
+      "tagline": "Take the place with you."
+    },
+    "docs": {
+      "name": "Docs",
+      "tagline": "Reference, made readable."
+    },
+    "law": {
+      "name": "Law",
+      "tagline": "Plain-language explainers."
+    },
+    "comics": {
+      "name": "Comics",
+      "tagline": "Pages that draw themselves."
+    },
+    "originals": {
+      "name": "Originals",
+      "tagline": "Born on AnimBook, nowhere else."
+    }
+  },
+  "nextGen": {
+    "oracle": {
+      "name": "Oracle",
+      "tagline": "Ask the book a question. Get a passage back."
+    },
+    "constellation": {
+      "name": "Constellation",
+      "tagline": "See your library as a galaxy."
+    },
+    "marquee": {
+      "name": "Marquee",
+      "tagline": "Books you didn't know you needed."
+    },
+    "liveSessions": {
+      "name": "Live",
+      "tagline": "Authors reading tonight."
+    },
+    "checkpoint": {
+      "name": "Checkpoint",
+      "tagline": "Pause mid-page, save where you stopped."
+    },
+    "splitBrain": {
+      "name": "Split",
+      "tagline": "Long books, released on a schedule."
+    },
+    "achievements": {
+      "name": "Achievements",
+      "tagline": "Quiet milestones for the long reader."
+    },
+    "ambient": {
+      "name": "Ambient",
+      "tagline": "Quiet soundscapes for late nights."
+    },
+    "bedtime": {
+      "name": "Bedtime",
+      "tagline": "Pages fade, narrator softens."
+    },
+    "fullscreen": {
+      "name": "Fullscreen",
+      "tagline": "No chrome, just the book."
+    },
+    "translation": {
+      "name": "Translation",
+      "tagline": "Tap a line for the original."
+    },
+    "memory": {
+      "name": "Memory",
+      "tagline": "Yesterday's page, in your hands."
+    }
+  },
+  "library": {
+    "title": "Library",
+    "subtitle": "Your books, sorted the way you read.",
+    "search": "Search the library",
+    "filterAll": "All",
+    "filterFeatured": "Featured",
+    "emptyTitle": "Nothing here yet",
+    "emptySubtitle": "Books you start will live here.",
+    "cinematicTop": "AnimBook Library",
+    "cinematicTagline": "Every page is a scene."
+  },
+  "reader": {
+    "previous": "Previous page",
+    "next": "Next page",
+    "play": "Play narration",
+    "pause": "Pause narration",
+    "stop": "Stop",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit fullscreen",
+    "settings": "Reader settings",
+    "translation": "Show translation",
+    "translationHide": "Hide translation",
+    "notes": "Notes",
+    "closeNotes": "Close notes",
+    "page": "Page {page}",
+    "ofPages": "of {total}",
+    "turnDirection": "Page turn direction",
+    "ltr": "Left → Right",
+    "rtl": "Right → Left"
+  },
+  "gate": {
+    "label": "Free account needed",
+    "title": "Create your free account to continue.",
+    "body": "Browsing the library is open to everyone. To read, watch and listen to AnimBooks — and to use Worlds, Dream, Memory, Live and Studio — sign up. It takes a minute.",
+    "point1": "Every page animated and narrated",
+    "point2": "Choose your narrator and let pages turn by themselves",
+    "point3": "Your library and reading progress saved",
+    "createAccount": "Create free account",
+    "haveAccount": "I already have an account"
+  },
+  "signIn": {
+    "title": "Welcome back",
+    "subtitle": "Sign in to keep reading.",
+    "or": "or",
+    "noAccount": "Don't have an account?",
+    "createOne": "Create one",
+    "emailLabel": "Email",
+    "passwordLabel": "Password",
+    "submit": "Continue",
+    "socialTitle": "Or continue with",
+    "footer": "By signing in you agree to our Terms and Privacy Policy."
+  },
+  "signUp": {
+    "title": "Create your free account",
+    "subtitle": "Read, watch and listen — your library follows you across devices.",
+    "or": "or",
+    "haveAccount": "Already have an account?",
+    "signIn": "Sign in",
+    "emailLabel": "Email",
+    "passwordLabel": "Password",
+    "usernameLabel": "Pick a handle",
+    "submit": "Create account",
+    "socialTitle": "Or sign up with",
+    "footer": "By creating an account you agree to our Terms and Privacy Policy."
+  },
+  "footer": {
+    "copyright": "© {year} AnimBook. A book that moves.",
+    "privacy": "Privacy",
+    "terms": "Terms",
+    "refund": "Refund",
+    "docs": "Docs",
+    "languages": "Languages",
+    "company": "Company"
+  },
+  "community": {
+    "post": "Post",
+    "reply": "Reply",
+    "like": "Like",
+    "follow": "Follow",
+    "following": "Following",
+    "followers": "Followers",
+    "messages": "Messages",
+    "openMessage": "Send message",
+    "block": "Block",
+    "report": "Report",
+    "reportSent": "Thanks — we'll take a look.",
+    "commentPlaceholder": "Write a comment…",
+    "postPlaceholder": "Share a thought…"
+  },
+  "errors": {
+    "notFound": "We couldn't find that page.",
+    "serverError": "Something went wrong on our side.",
+    "offline": "You're offline. AnimBook works without a connection.",
+    "rateLimited": "Slow down a moment, then try again.",
+    "forbidden": "You don't have access to that.",
+    "generic": "Please try again in a moment."
+  },
+  "pwa": {
+    "installTitle": "Add AnimBook to your home screen",
+    "installBody": "Read offline, faster open, native feel.",
+    "installCta": "Install",
+    "dismissCta": "Not now"
+  },
+  "profile": {
+    "title": "Profile",
+    "edit": "Edit profile",
+    "library": "My library",
+    "achievements": "Achievements",
+    "following": "Following",
+    "followers": "Followers",
+    "joinDate": "Joined {date}",
+    "emptyLibrary": "You haven't started any books yet."
+  },
+  "languagesLanding": {
+    "title": "Learn a language inside the book",
+    "subtitle": "Pick a language, read a story, build vocabulary in the moment.",
+    "start": "Start learning",
+    "browse": "Browse courses",
+    "seeAll": "See all"
+  }
+}

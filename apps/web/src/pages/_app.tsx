@@ -1,16 +1,81 @@
 import type { AppProps } from "next/app";
 import Head from "next/head";
-import { useEffect } from "react";
+import { useRouter } from "next/router";
+import { useEffect, useMemo, useState } from "react";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ErrorBoundary, ErrorState } from "@/components/ErrorBoundary";
 import { AuthBridge } from "@/components/AuthBridge";
 import { AccessGate } from "@/components/AccessGate";
+import { LocaleProvider, EN_FALLBACK_MESSAGES } from "@/i18n/LocaleProvider";
+import { defaultLocale, dirFor, isLocale, type Locale } from "@/i18n/config";
+import { hreflangAlternates } from "@/i18n/hreflang";
+import { loadDictionary, type Dictionary } from "@/i18n/dictionaries";
 import "@/styles/globals.css";
 import { Toast } from "@/components/Toast";
 
 const PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
+/**
+ * Maps a pathname's locale prefix (if any) to our Locale union. Falls
+ * back to the default when Next.js's built-in i18n routes to the
+ * canonical English root.
+ */
+function localeFromRouter(router: ReturnType<typeof useRouter>): Locale {
+  if (isLocale(router.locale)) return router.locale;
+  return defaultLocale;
+}
+
+/**
+ * Pick the Google Fonts URL that covers every script a locale might
+ * render. We always include Latin (Inter/Cormorant) for the default
+ * font set, then layer Arabic (Tajawal), Devanagari (Noto Sans
+ * Devanagari) and Simplified Chinese (Noto Sans SC) on top so
+ * characters in those scripts never fall back to a missing-glyph
+ * box. One stylesheet per language cluster keeps the network cost
+ * predictable.
+ */
+const FONTS_HREF =
+  "https://fonts.googleapis.com/css2" +
+  "?family=Cormorant+Garamond:wght@400;500;600;700" +
+  "&family=DM+Mono:wght@400;500" +
+  "&family=Inter:wght@400;500;600;700" +
+  // Arabic — used when locale=ar
+  "&family=Tajawal:wght@400;500;700" +
+  // Devanagari — used when locale=hi
+  "&family=Noto+Sans+Devanagari:wght@400;500;600;700" +
+  // Simplified Chinese — used when locale=zh-CN
+  "&family=Noto+Sans+SC:wght@400;500;700" +
+  // Arabic display fallback — Amiri is the canonical Arabic reading font
+  "&family=Amiri:wght@400;700" +
+  "&display=swap";
+
+/**
+ * Tailored font-family stacks per locale. The browser picks the first
+ * family that has the glyphs we need, so Latin-script locales fall
+ * back to Inter for body + Cormorant for display, Arabic gets Tajawal
+ * (sans for UI) + Amiri (serif for body), Hindi gets the Devanagari
+ * Noto, Chinese gets Noto Sans SC, etc. Listing more than one script
+ * is intentional: a mixed-script line (e.g. a Chinese title with an
+ * English brand name) shouldn't break.
+ */
+const fontStackFor = (locale: Locale): string => {
+  const stacks: Record<Locale, string> = {
+    en: `"Inter", "Noto Sans SC", "Noto Sans Devanagari", "Tajawal", system-ui, sans-serif`,
+    fr: `"Inter", "Noto Sans SC", "Noto Sans Devanagari", "Tajawal", system-ui, sans-serif`,
+    es: `"Inter", "Noto Sans SC", "Noto Sans Devanagari", "Tajawal", system-ui, sans-serif`,
+    "pt-BR": `"Inter", "Noto Sans SC", "Noto Sans Devanagari", "Tajawal", system-ui, sans-serif`,
+    sw: `"Inter", "Noto Sans SC", "Noto Sans Devanagari", "Tajawal", system-ui, sans-serif`,
+    ar: `"Tajawal", "Amiri", "Noto Sans SC", "Noto Sans Devanagari", "Inter", system-ui, sans-serif`,
+    hi: `"Noto Sans Devanagari", "Inter", "Tajawal", "Noto Sans SC", system-ui, sans-serif`,
+    "zh-CN": `"Noto Sans SC", "Inter", "Tajawal", "Noto Sans Devanagari", system-ui, sans-serif`,
+    de: `"Inter", "Noto Sans SC", "Noto Sans Devanagari", "Tajawal", system-ui, sans-serif`
+  };
+  return stacks[locale];
+};
+
 export default function App({ Component, pageProps }: AppProps) {
+  // Register the service worker for offline support — purely a
+  // progressive enhancement, errors are swallowed.
   useEffect(() => {
     if (typeof window === "undefined") return;
     if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
@@ -21,44 +86,74 @@ export default function App({ Component, pageProps }: AppProps) {
         });
     }
   }, []);
-  // Clerk requires a publishable key. When it's missing (e.g. local smoke
-  // builds without Clerk wired up), fall back to rendering without the
-  // provider so the rest of the app still boots.
+
+  const router = useRouter();
+  const locale = localeFromRouter(router);
+
+  // Load the dictionary for the active locale client-side. next-intl
+  // does this server-side too, but the message map has to be ready
+  // on first paint to avoid a flash of untranslated content. We
+  // load on demand + memoize so the switcher doesn't re-fetch.
+  const [messages] = useLocaleMessages(locale);
+  useApplyLocaleDocument(locale);
+
+  // hreflang alternates — pre-compute them here so the Head can emit
+  // them on every render without re-deriving. Empty during the
+  // static prerender pass because the router isn't mounted there.
+  const alternates = useMemo(
+    () => hreflangAlternates(router.asPath || router.pathname),
+    [router.asPath, router.pathname]
+  );
+
+  const head = (
+    <Head>
+      <title>AnimBook — a book that moves</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+      <meta name="theme-color" content="#080C14" />
+      <meta name="application-name" content="AnimBook" />
+      <meta name="mobile-web-app-capable" content="yes" />
+      <meta name="apple-mobile-web-app-capable" content="yes" />
+      <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      <meta name="apple-mobile-web-app-title" content="AnimBook" />
+      <meta name="format-detection" content="telephone=no" />
+      <link rel="icon" href="/favicon.ico" sizes="any" />
+      <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+      <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+      <link rel="manifest" href="/site.webmanifest" />
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+      <link href={FONTS_HREF} rel="stylesheet" />
+      {/* hreflang alternates — emitted on every page so search engines
+          can map the locale matrix. We compute the alternates for the
+          current pathname; default-locale URLs omit the prefix.
+          During the static prerender pass the alternates array is
+          empty (the router isn't mounted yet) so we render nothing —
+          the hydration pass fills them in. */}
+      {alternates.map((alt) => (
+        <link key={alt.hrefLang} rel="alternate" hrefLang={alt.hrefLang} href={alt.href} />
+      ))}
+    </Head>
+  );
+
+  const tree = (
+    <ErrorBoundary
+      fallback={(err, reset) => (
+        <ErrorState error={err} onRetry={reset} title="AnimBook ran into a snag" />
+      )}
+    >
+      <Component {...pageProps} />
+    </ErrorBoundary>
+  );
+
   if (!PUBLISHABLE_KEY) {
     return (
       <>
-        <Head>
-          <title>AnimBook — a book that moves</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-          <meta name="theme-color" content="#080C14" />
-          <meta name="application-name" content="AnimBook" />
-          <meta name="mobile-web-app-capable" content="yes" />
-          <meta name="apple-mobile-web-app-capable" content="yes" />
-          <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-          <meta name="apple-mobile-web-app-title" content="AnimBook" />
-          <meta name="format-detection" content="telephone=no" />
-          <link rel="icon" href="/favicon.ico" sizes="any" />
-          <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-          <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-          <link rel="manifest" href="/site.webmanifest" />
-          <link rel="preconnect" href="https://fonts.googleapis.com" />
-          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-          <link
-            href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap"
-            rel="stylesheet"
-          />
-        </Head>
-        <ErrorBoundary
-          fallback={(err, reset) => (
-            <ErrorState error={err} onRetry={reset} title="AnimBook ran into a snag" />
-          )}
-        >
-          <Component {...pageProps} />
-        </ErrorBoundary>
-        <Toast />
+        {head}
+        {tree}
       </>
     );
   }
+
   return (
     <ClerkProvider
       publishableKey={PUBLISHABLE_KEY}
@@ -76,10 +171,6 @@ export default function App({ Component, pageProps }: AppProps) {
         },
         elements: {
           card: { background: "#0F1422", border: "1px solid rgba(196, 154, 28, 0.3)" },
-          // Social buttons (Google, GitHub, etc.) need an explicit
-          // background because Clerk's default falls back to a
-          // transparent outline on dark themes, which blends with the
-          // modal card and makes the button invisible.
           socialButtonsBlockButton: {
             background: "#1A2030",
             border: "1px solid rgba(242, 238, 230, 0.18)",
@@ -96,38 +187,58 @@ export default function App({ Component, pageProps }: AppProps) {
         }
       }}
     >
-      <Head>
-        <title>AnimBook — a book that moves</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-        <meta name="theme-color" content="#080C14" />
-        <meta name="application-name" content="AnimBook" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="AnimBook" />
-        <meta name="format-detection" content="telephone=no" />
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        <link rel="manifest" href="/site.webmanifest" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
-      </Head>
+      {head}
       <AuthBridge />
-      <ErrorBoundary
-        fallback={(err, reset) => (
-          <ErrorState error={err} onRetry={reset} title="AnimBook ran into a snag" />
-        )}
+      {/* LocaleProvider must wrap AccessGate because AccessGate calls
+          `useTranslations("common" | "gate")` and would throw without
+          an IntlContext above it. The LocaleProvider also wraps the
+          topbar's LanguageSwitcher so its `useTranslations("languageSwitcher")`
+          call resolves. */}
+      <LocaleProvider
+        locale={locale}
+        messages={messages as never}
+        fallback={EN_FALLBACK_MESSAGES}
       >
-        <AccessGate>
-          <Component {...pageProps} />
-        </AccessGate>
-      </ErrorBoundary>
-      <Toast />
+        <AccessGate>{tree}</AccessGate>
+        <Toast />
+      </LocaleProvider>
     </ClerkProvider>
   );
+}
+
+/**
+ * Set `<html lang>` + `<html dir>` so screen readers and CSS
+ * logical-property fallbacks pick the right writing mode.
+ */
+function useApplyLocaleDocument(locale: Locale) {
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.documentElement.lang = locale;
+    document.documentElement.dir = dirFor(locale);
+    // Apply the per-locale font stack to the root so every element
+    // inherits it without each component re-declaring.
+    document.documentElement.style.setProperty("--animbook-font", fontStackFor(locale));
+  }, [locale]);
+}
+
+/**
+ * Load the dictionary for the active locale on the client. next-intl
+ * also wires server-side resolution via `getRequestConfig`; this
+ * cache prevents a refetch when the user toggles locales.
+ */
+function useLocaleMessages(locale: Locale): [Dictionary] {
+  const [cache, setCache] = useState<Record<string, Dictionary>>({});
+  useEffect(() => {
+    let cancelled = false;
+    async function go() {
+      const dict = await loadDictionary(locale);
+      if (cancelled) return;
+      setCache((prev) => ({ ...prev, [locale]: dict }));
+    }
+    void go();
+    return () => {
+      cancelled = true;
+    };
+  }, [locale]);
+  return [cache[locale] || {}];
 }
