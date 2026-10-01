@@ -16,28 +16,43 @@ const nextConfig = {
   // Standalone output is required for the production Docker image.
   // `next build` will emit a self-contained server in .next/standalone.
   output: "standalone",
-  // Built-in i18n routing: every URL is locale-prefixed except English,
-  // which stays at the root (`/library`, `/`, etc.). next-intl handles
-  // translations only; this config owns the URL → page mapping.
-  // We deliberately do NOT also wrap with `createNextIntlPlugin` here —
-  // the plugin is App-Router-flavoured and warns about i18n config
-  // conflicts. Pages Router uses Next.js's built-in routing directly.
-  i18n: {
-    locales: [
-      "en",
-      "fr",
-      "es",
-      "pt-BR",
-      "sw",
-      "ar",
-      "hi",
-      "zh-CN",
-      "de"
-    ],
-    defaultLocale: "en",
-    // We do our own Accept-Language negotiation in middleware so the
-    // cookie persistence + redirect chain stays predictable.
-    localeDetection: false
+  // Locale routing is handled entirely by apps/web/src/middleware.ts.
+  // We previously declared `i18n: { locales, defaultLocale,
+  // localeDetection: false }` here so Next.js would expose router.locale
+  // and locale-aware helpers, but Next.js's Pages Router also runs an
+  // internal locale rewrite for any `i18n.locales` URL — it normalises
+  // `/fr` to `/` BEFORE middleware executes, which (combined with our
+  // middleware trying to redirect bare `/` back to `/fr`) produced
+  // ERR_TOO_MANY_REDIRECTS at the edge. Removing the built-in i18n
+  // config makes the middleware the single source of truth.
+  // Trade-off: pages no longer get a built-in `locale` property on
+  // the router (we read `useRouter().locale` from the URL prefix in
+  // helpers that need it).
+  // We do need i18n.locales to get the `defaultLocale` rewriting out
+  // of Next.js's hands, so we serve the same page content regardless
+  // of locale prefix. Rewrites /<locale>/<path*> to /<path*> so
+  // /fr/library and /library render the same file. Next.js evaluates
+  // these AFTER middleware (so the cookie is already set and the
+  // request reaches us under its original /fr/library URL).
+  async rewrites() {
+    return [
+      {
+        source: "/fr/:path*",
+        destination: "/:path*"
+      },
+      {
+        source: "/fr",
+        destination: "/"
+      },
+      {
+        source: "/es/:path*",
+        destination: "/:path*"
+      },
+      {
+        source: "/es",
+        destination: "/"
+      }
+    ];
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
