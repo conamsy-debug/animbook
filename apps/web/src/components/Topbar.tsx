@@ -1,28 +1,26 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
-import { useTranslations } from "use-intl";
 import { useAuth } from "@clerk/nextjs";
 import { AccountMenu } from "@/components/AccountMenu";
 import { LogoMark } from "@/components/Logo";
 import { SearchIcon, MenuIcon } from "@/components/library/icons";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 // Public navigation. Account items (Profile / Creator / Publishers /
 // Pricing) live in the account menu on the right.
-const linkKeys = [
-  { href: "/library", key: "library" },
-  { href: "/worlds", key: "worlds" },
-  { href: "/studio", key: "studio" },
-  { href: "/edu", key: "edu" },
-  { href: "/signal", key: "signal" },
-  { href: "/memory", key: "memory" },
-  { href: "/live", key: "live" },
-  { href: "/dream", key: "dream" },
-  { href: "/companion", key: "companion" },
-  { href: "/archive", key: "archive" },
-  { href: "/school", key: "school" },
-  { href: "/network", key: "network" }
+const links = [
+  { href: "/library", label: "Library" },
+  { href: "/worlds", label: "Worlds" },
+  { href: "/studio", label: "Studio" },
+  { href: "/edu", label: "EDU" },
+  { href: "/signal", label: "Signal" },
+  { href: "/memory", label: "Memory" },
+  { href: "/live", label: "Live" },
+  { href: "/dream", label: "Dream" },
+  { href: "/companion", label: "Companion" },
+  { href: "/archive", label: "Archive" },
+  { href: "/school", label: "School" },
+  { href: "/network", label: "Network" }
 ];
 
 // AnimBook Languages (Phase 1). Hidden from the topbar until the LANGUAGES
@@ -33,11 +31,11 @@ const LANGUAGES_ENABLED = process.env.NEXT_PUBLIC_LANGUAGES_ENABLED === "true";
 if (LANGUAGES_ENABLED) {
   // Insert directly after "EDU" so Languages sits with the other learning
   // surfaces (Library, Worlds, Studio, EDU) rather than in the experimental
-  // section at the end. The matching `linkKeys.findIndex` keeps this stable
+  // section at the end. The matching `links.findIndex` keeps this stable
   // if the surrounding nav order shifts.
-  const eduIdx = linkKeys.findIndex((l) => l.href === "/edu");
-  const insertAt = eduIdx >= 0 ? eduIdx + 1 : linkKeys.length;
-  linkKeys.splice(insertAt, 0, { href: "/languages", key: "languages" });
+  const eduIdx = links.findIndex((l) => l.href === "/edu");
+  const insertAt = eduIdx >= 0 ? eduIdx + 1 : links.length;
+  links.splice(insertAt, 0, { href: "/languages", label: "Languages" });
 }
 
 const HAS_CLERK = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
@@ -68,34 +66,30 @@ export function Topbar({ variant = "default", searchValue, onSearchChange }: Top
 
 function DefaultTopbar() {
   const router = useRouter();
-  const t = useTranslations("nav");
-  const tCommon = useTranslations("common");
-  const tTopbar = useTranslations("topbar");
   return (
     <header className="topbar">
       <div className="container topbar-inner">
-        <Link href="/" className="brand" aria-label={tCommon("appName")}>
+        <Link href="/" className="brand" aria-label="AnimBook home">
           <LogoMark size={30} />
-          <span className="brand-word">{tCommon("appName")}</span>
+          <span className="brand-word">AnimBook</span>
         </Link>
-        <nav className="nav" aria-label={tCommon("primaryNav") ?? "Primary"}>
-          {linkKeys.map((link) => (
+        <nav className="nav" aria-label="Primary">
+          {links.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               className={router.pathname === link.href || (link.href !== "/" && router.pathname.startsWith(link.href)) ? "active" : ""}
             >
-              {t(link.key)}
+              {link.label}
             </Link>
           ))}
         </nav>
         <div className="topbar-actions">
-          <LanguageSwitcher className="topbar-lang" />
           {HAS_CLERK ? (
             <DefaultTopbarAuth />
           ) : (
-            <Link href="/pricing" className="btn primary" aria-label={t("createAccount")}>
-              {t("getStarted")}
+            <Link href="/pricing" className="btn primary" aria-label="Get started">
+              Get Started
             </Link>
           )}
         </div>
@@ -108,17 +102,16 @@ function DefaultTopbar() {
 function DefaultTopbarAuth() {
   const router = useRouter();
   const { isSignedIn } = useAuth();
-  const t = useTranslations("nav");
   if (isSignedIn) return <AccountMenu />;
   const onAuthPage = router.pathname.startsWith("/sign-");
   const back = encodeURIComponent(router.pathname === "/" || onAuthPage ? "/library" : router.asPath);
   return (
     <>
-      <Link href={`/sign-in?redirect_url=${back}`} className="btn ghost" aria-label={t("signIn")}>
-        {t("signIn")}
+      <Link href={`/sign-in?redirect_url=${back}`} className="btn ghost" aria-label="Sign in">
+        Sign in
       </Link>
-      <Link href={`/sign-up?redirect_url=${back}`} className="btn primary" aria-label={t("createAccount")}>
-        {t("getStarted")}
+      <Link href={`/sign-up?redirect_url=${back}`} className="btn primary" aria-label="Create account">
+        Get started
       </Link>
     </>
   );
@@ -136,9 +129,6 @@ function DefaultTopbarAuth() {
  */
 function CinematicTopbar({ searchValue, onSearchChange }: { searchValue: string; onSearchChange: (next: string) => void }) {
   const router = useRouter();
-  const t = useTranslations("nav");
-  const tCommon = useTranslations("common");
-  const tTopbar = useTranslations("topbar");
   const [searchOpen, setSearchOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -153,32 +143,31 @@ function CinematicTopbar({ searchValue, onSearchChange }: { searchValue: string;
   return (
     <header className="lib-nav">
       <div className="lib-nav-inner">
-        <Link href="/" className="lib-brand" aria-label={tCommon("appName")}>
+        <Link href="/" className="lib-brand" aria-label="AnimBook home">
           <LogoMark size={30} />
-          <span className="lib-brand-word">{tCommon("appName")}</span>
+          <span className="lib-brand-word">AnimBook</span>
         </Link>
-        <nav className="lib-navlinks" aria-label={tCommon("primaryNav") ?? "Primary"}>
-          {linkKeys.map((link) => {
+        <nav className="lib-navlinks" aria-label="Primary">
+          {links.map((link) => {
             const active = router.pathname === link.href || (link.href !== "/" && router.pathname.startsWith(link.href));
             return (
               <Link key={link.href} href={link.href} className={active ? "on" : undefined}>
-                {t(link.key)}
+                {link.label}
               </Link>
             );
           })}
         </nav>
         <div className="lib-navtools">
-          <LanguageSwitcher className="lib-nav-lang" />
           <form
             className={`lib-sform${searchOpen ? " open" : ""}`}
             onSubmit={(e) => e.preventDefault()}
             role="search"
-            aria-label={tTopbar("searchLibrary")}
+            aria-label="Search the library"
           >
             <button
               type="button"
               className="lib-navbtn"
-              aria-label={searchOpen ? tTopbar("closeSearch") : tTopbar("openSearch")}
+              aria-label={searchOpen ? "Close search" : "Open search"}
               onClick={() => setSearchOpen((o) => !o)}
             >
               <SearchIcon />
@@ -186,21 +175,21 @@ function CinematicTopbar({ searchValue, onSearchChange }: { searchValue: string;
             <input
               className="lib-sinput"
               type="search"
-              placeholder={tTopbar("searchPlaceholder")}
+              placeholder="Search titles, authors…"
               value={searchValue}
               onChange={(e) => onSearchChange(e.target.value)}
               tabIndex={searchOpen ? 0 : -1}
             />
           </form>
           {HAS_CLERK ? <CinematicTopbarAuth /> : (
-            <Link href="/pricing" className="lib-navbtn" aria-label={t("createAccount")}>
+            <Link href="/pricing" className="lib-navbtn" aria-label="Get started">
               <MenuIcon />
             </Link>
           )}
           <button
             type="button"
             className="lib-navbtn"
-            aria-label={tTopbar("more")}
+            aria-label="More"
             onClick={() => setMoreOpen((o) => !o)}
           >
             <MenuIcon />
@@ -208,9 +197,9 @@ function CinematicTopbar({ searchValue, onSearchChange }: { searchValue: string;
         </div>
         {moreOpen && (
           <div className="lib-navmore" role="menu">
-            {linkKeys.map((link) => (
+            {links.map((link) => (
               <Link key={link.href} href={link.href} className="lib-navmore-item" role="menuitem">
-                {t(link.key)}
+                {link.label}
               </Link>
             ))}
           </div>
