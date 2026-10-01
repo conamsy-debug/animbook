@@ -68,9 +68,12 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Path already starts with a known locale (Next.js's i18n config
-  // also handles this, but we want the cookie persisted even on
-  // locale-prefixed URLs).
+  // Path already starts with a known locale. We don't have separate
+  // /pages/<locale>/... files (translations are pending). Set the
+  // cookie so the locale preference is preserved, but let Next.js
+  // serve the canonical page via rewrites (configured in next.config
+  // — /fr/:path* maps to /:path*). If the rewrite doesn't match (e.g.
+  // bare /fr), Next.js will fall through to the 404 page.
   const firstSegment = pathname.split("/")[1];
   if (isLocale(firstSegment)) {
     const response = NextResponse.next();
