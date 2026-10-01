@@ -73,9 +73,27 @@ export function middleware(req: NextRequest) {
   // cookie so the locale preference is preserved, but let Next.js
   // serve the canonical page via rewrites (configured in next.config
   // — /fr/:path* maps to /:path*). If the rewrite doesn't match (e.g.
-  // bare /fr), Next.js will fall through to the 404 page.
+  // bare /fr with no trailing path), Next.js will fall through to the
+  // 404 page. Users landing on /fr from the language switcher still
+  // hit a working page (it pushes to "/" since we have no /fr page).
   const firstSegment = pathname.split("/")[1];
   if (isLocale(firstSegment)) {
+    // Bare /fr (or /es, /ar, …) — Next.js rewrites in next.config only
+    // cover the /<locale>/<path*> case. For the bare-locale URL we
+    // server-rewrite to / so the user lands on the same home page
+    // they would have seen without the locale prefix. Cookie still gets
+    // set so the preference is preserved.
+    if (pathname === `/${firstSegment}`) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/";
+      const response = NextResponse.rewrite(url);
+      response.cookies.set(COOKIE_NAME, shortLocale(firstSegment), {
+        path: "/",
+        maxAge: COOKIE_MAX_AGE,
+        sameSite: "lax"
+      });
+      return response;
+    }
     const response = NextResponse.next();
     response.cookies.set(COOKIE_NAME, shortLocale(firstSegment), {
       path: "/",
