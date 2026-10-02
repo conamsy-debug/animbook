@@ -1,59 +1,62 @@
 /**
- * AnimBook i18n middleware.
+ * AnimBook middleware (post-translations-pending).
  *
- * Responsibilities:
- *  1. Persist the locale picked by Next.js's built-in i18n routing
- *     (the URL prefix or default-root) into a cookie so the user's
- *     preference survives reloads + cross-device sync.
- *  2. On first visit, redirect a root request to the best matching
- *     locale via Accept-Language negotiation.
- *  3. Compose cleanly with Clerk's auth. The project does NOT use
- *     `clerkMiddleware` (auth is client-side via AccessGate + AuthBridge),
- *     but if Clerk middleware is added later it should be composed
- *     here via the standard `composeMiddleware` pattern.
- *  4. Skip API routes, Next.js internals, static assets, and the
- *     root health endpoint.
+ * Purpose: collapse any /<locale> or /<locale>/<path*> URL prefix back
+ * to the canonical (English) path so visitors can never land on a
+ * locale-routed page that would 404 or render half-translated content.
+ *
+ * Until the secondary locale dictionaries are actually populated
+ * (en.json has 206 entries today; fr/es/pt/sw/ar/hi/zh/de are all
+ * `{}`), the language switcher is hidden from the top bar and the
+ * i18n middleware should NOT preserve or restore any locale preference.
+ *
+ * For every locale-prefixed URL — /fr, /fr/library, /pt-BR, /zh-CN,
+ * /pt (short form), /zh (short form), etc. — we 307-redirect to the
+ * same path with the prefix stripped and clear the animbook_locale
+ * cookie so it can't trigger further redirects. No-loop guarantee:
+ * the canonical (post-strip) path never starts with a known locale
+ * segment, so this middleware returns NextResponse.next() for it and
+ * the redirect chain terminates in a single hop.
+ *
+ * The locale helpers (locales, isLocale, etc.) and the LanguageSwitcher
+ * component remain in the repo so the i18n code can be re-enabled
+ * wholesale when the dictionaries are filled in.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { match } from "@formatjs/intl-localematcher";
-import Negotiator from "negotiator";
-import { defaultLocale, locales, type Locale, isLocale, shortLocale } from "@/i18n/config";
 
 const COOKIE_NAME = "animbook_locale";
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 
-function pickLocale(req: NextRequest): Locale {
-  // 1. Explicit cookie set by an earlier visit
-  const cookieLocale = req.cookies.get(COOKIE_NAME)?.value;
-  if (cookieLocale) {
-    // The cookie stores the short form (`pt`, `zh`) so the round-trip
-    // works with raw Accept-Language tags. Map back to a full Locale.
-    const matched = locales.find((l) => shortLocale(l) === cookieLocale);
-    if (matched) return matched as Locale;
-  }
+/**
+ * Full BCP-47 tags that can appear as a URL prefix. We include both the
+ * full tags (`pt-BR`, `zh-CN`) AND the short forms (`pt`, `zh`) the
+ * language switcher could produce, so any variant collapses to the same
+ * canonical URL.
+ */
+const KNOWN_LOCALE_PREFIXES = new Set([
+  "en",
+  "fr",
+  "es",
+  "pt",     // short form of pt-BR
+  "pt-BR",
+  "sw",
+  "ar",
+  "hi",
+  "zh",     // short form of zh-CN
+  "zh-CN",
+  "de"
+]);
 
-  // 2. Accept-Language header from the browser
-  const headers: Record<string, string> = {};
-  req.headers.forEach((value, key) => {
-    if (key.toLowerCase() === "accept-language") headers["accept-language"] = value;
-  });
-  const requested = new Negotiator({ headers }).languages();
-  try {
-    const matched = match(requested, locales as unknown as string[], defaultLocale as unknown as string);
-    if (isLocale(matched)) return matched;
-  } catch {
-    // Negotiator/match can throw on exotic Accept-Language headers;
-    // we fall through to the default below.
-  }
-
-  // 3. Default
-  return defaultLocale;
+function getFirstSegment(pathname: string): string {
+  // pathname is always "/foo/bar/..." — split returns ["", "foo", "bar"]
+  const parts = pathname.split("/");
+  return parts[1] ?? "";
 }
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Skip internals + static + API + service workers
+  // Skip internals + static + API + service workers. None of these
+  // need locale handling.
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||
@@ -68,71 +71,20 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Path already starts with a known locale. We don't have separate
-  // /pages/<locale>/... files (translations are pending). Set the
-  // cookie so the locale preference is preserved, but let Next.js
-  // serve the canonical page via rewrites (configured in next.config
-  // — /fr/:path* maps to /:path*). If the rewrite doesn't match (e.g.
-  // bare /fr with no trailing path), Next.js will fall through to the
-  // 404 page. Users landing on /fr from the language switcher still
-  // hit a working page (it pushes to "/" since we have no /fr page).
-  const firstSegment = pathname.split("/")[1];
-  if (isLocale(firstSegment)) {
-    // Bare /fr (or /es, /ar, …) — Next.js rewrites in next.config only
-    // cover the /<locale>/<path*> case. For the bare-locale URL we
-    // server-rewrite to / so the user lands on the same home page
-    // they would have seen without the locale prefix. Cookie still gets
-    // set so the preference is preserved.
-    if (pathname === `/${firstSegment}`) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/";
-      const response = NextResponse.rewrite(url);
-      response.cookies.set(COOKIE_NAME, shortLocale(firstSegment), {
-        path: "/",
-        maxAge: COOKIE_MAX_AGE,
-        sameSite: "lax"
-      });
-      return response;
-    }
-    const response = NextResponse.next();
-    response.cookies.set(COOKIE_NAME, shortLocale(firstSegment), {
-      path: "/",
-      maxAge: COOKIE_MAX_AGE,
-      sameSite: "lax"
-    });
+  // Collapse /<locale> or /<locale>/<path> → <path> in one redirect.
+  // Clear the cookie so subsequent visits don't try to restore the
+  // preference and bounce back into a locale URL.
+  const firstSegment = getFirstSegment(pathname);
+  if (KNOWN_LOCALE_PREFIXES.has(firstSegment)) {
+    const stripped = pathname.replace(/^\/[^/]+/, "") || "/";
+    const url = req.nextUrl.clone();
+    url.pathname = stripped;
+    const response = NextResponse.redirect(url);
+    response.cookies.set(COOKIE_NAME, "", { path: "/", maxAge: 0 });
     return response;
   }
 
-  // Bare path (no locale prefix). Next.js's i18n config treats the
-  // default-locale URL as canonical (no redirect), but for a visitor
-  // whose browser prefers a non-default locale we redirect to the
-  // matching /<locale>/<path> so they land on their preferred
-  // language immediately.
-  const target = pickLocale(req);
-  if (target === defaultLocale) {
-    // Default locale is already at the root; just persist the cookie
-    // so we don't re-detect on every visit.
-    const response = NextResponse.next();
-    if (!req.cookies.get(COOKIE_NAME)) {
-      response.cookies.set(COOKIE_NAME, shortLocale(target), {
-        path: "/",
-        maxAge: COOKIE_MAX_AGE,
-        sameSite: "lax"
-      });
-    }
-    return response;
-  }
-
-  // Non-default locale → redirect to /<locale>/<path>
-  const url = req.nextUrl.clone();
-  url.pathname = `/${target}${pathname === "/" ? "" : pathname}`;
-  const response = NextResponse.redirect(url);
-  response.cookies.set(COOKIE_NAME, shortLocale(target), {
-    path: "/",
-    maxAge: COOKIE_MAX_AGE,
-    sameSite: "lax"
-  });
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {

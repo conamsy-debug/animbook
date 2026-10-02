@@ -6,7 +6,7 @@ import { useAuth } from "@clerk/nextjs";
 import { AccountMenu } from "@/components/AccountMenu";
 import { LogoMark } from "@/components/Logo";
 import { SearchIcon, MenuIcon } from "@/components/library/icons";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+// import { LanguageSwitcher } from "@/components/LanguageSwitcher"; // hidden until translations ship
 
 // Public navigation. Account items (Profile / Creator / Publishers /
 // Pricing) live in the account menu on the right.
@@ -90,7 +90,7 @@ function DefaultTopbar() {
           ))}
         </nav>
         <div className="topbar-actions">
-          <LanguageSwitcher className="topbar-lang" />
+          {/* <LanguageSwitcher className="topbar-lang" /> hidden until translations ship */}
           {HAS_CLERK ? (
             <DefaultTopbarAuth />
           ) : (
@@ -168,7 +168,7 @@ function CinematicTopbar({ searchValue, onSearchChange }: { searchValue: string;
           })}
         </nav>
         <div className="lib-navtools">
-          <LanguageSwitcher className="lib-nav-lang" />
+          {/* <LanguageSwitcher className="lib-nav-lang" /> hidden until translations ship */}
           <form
             className={`lib-sform${searchOpen ? " open" : ""}`}
             onSubmit={(e) => e.preventDefault()}
