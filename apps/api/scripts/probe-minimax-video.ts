@@ -5,18 +5,35 @@
  *   tsx scripts/probe-minimax-video.ts              # lowest pageNum of first book
  *   PROBE_BOOK_ID=cmu5... PROBE_PAGE_NUM=3 tsx …    # explicit
  *
- * Picks the lowest-pageNum row in `pages` whose videoUrl is null. Generates
- * the still (image-01), animates it (Hailuo 2.3, 6s/768P), downloads the
- * MiniMax file (links expire inside ~1h, so we mirror immediately), writes
- * the R2 URL back into Page.videoUrl + Page.posterUrl, records one
- * usage_events row, and prints a precise summary so the operator can paste
- * it back into the migration report.
+ * Picks the lowest-pageNum row of the target book, generates the still
+ * (image-01), animates it (Hailuo 2.3, 6s/768P), downloads the MiniMax file
+ * (links expire inside ~1h, so we mirror immediately), records one
+ * usage_events row, and prints a precise summary.
  *
- * Strict guard rails:
- *   - Refuses to run more than one page.
- *   - Refuses to run if the active provider is not MiniMax.
- *   - Refuses to run without MINIMAX_API_KEY + DATABASE_URL + the R2 trio.
- *   - Never logs the API key; only the URL + cost + final clip duration.
+ * Schema-drift safety:
+ *   The local prisma/schema.prisma has drifted ahead of production
+ *   (`prisma migrate status` reports "Database schema is up to date!" with
+ *   zero unapplied migrations, yet the live PrismaClient rejects some
+ *   `<select>` keys that exist in the schema but were never migration'd —
+ *   e.g. `promptText`, `Book.title`, `Book.ownerId` — and the live
+ *   PrismaClient won't SELECT columns it doesn't know about, so
+ *   migrating the schema would also make `include: { book: true }`
+ *   crash on Postgres column-not-found).
+ *
+ *   To keep the probe safe against ANY drift, we use `include: { book: true }`
+ *   on both queries (no `select` keys, so no PrismaClient validation
+ *   error) and then READ EVERY PAGE / BOOK FIELD DEFENSIVELY via a
+ *   `Record<string, unknown>` cast + `pickString()` helper. Unknown keys
+ *   return empty string, never throw. If a field PrismaClient doesn't
+ *   know about is added later, this probe keeps working without another
+ *   edit.
+ *
+ * Guard rails:
+ *   - Refuses to run if MINIMAX_VIDEO feature is off, R2 is unconfigured,
+ *     or VIDEO_PROVIDER ≠ minimax. Never logs the API key.
+ *   - hasRealClip guard: if Page.videoUrl is a non-placehold host, the
+ *     generate + mirror + usage-row still happen, but Page.videoUrl /
+ *     posterUrl / status are LEFT AS-IS.
  */
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
@@ -34,7 +51,7 @@ function fail(message: string): never {
 if (!isFeatureEnabled("MINIMAX_VIDEO")) {
   fail("MINIMAX_API_KEY not set — refusing to spend against the fallback.");
 }
-if ((process.env.VIDEO_PROVIDER ?? "minimax").toLowerCase().trim() !== "minimax") {
+if ((process.env["VIDEO_PROVIDER"] ?? "minimax").toLowerCase().trim() !== "minimax") {
   fail("VIDEO_PROVIDER is not 'minimax' — flip it back, this probe is MiniMax-only.");
 }
 if (!isFeatureEnabled("CLOUDFLARE")) {
@@ -44,77 +61,111 @@ if (!isFeatureEnabled("CLOUDFLARE")) {
 const explicitBook = process.env["PROBE_BOOK_ID"];
 const explicitPage = process.env["PROBE_PAGE_NUM"] ? Number.parseInt(process.env["PROBE_PAGE_NUM"], 10) : null;
 
-// Selects only the columns the production PrismaClient knows about.
-// Confirmed via the live deployment's PrismaClientValidationError
-// (which lists every available Page field on the wire) plus a read of
-// apps/api/prisma/schema.prisma `model Page`. `promptText`, `visualPrompt`,
-// and `promptSummary` exist in the schema.prisma file but were never
-// migration'd to production — `prisma migrate status` reported "Database
-// schema is up to date!" against 30 migrations, with zero unapplied.
-// `textExcerpt` is sourced separately below for the prompt-fallback chain.
-const PROMPT_FIELDS = {
-  id: true,
-  pageNum: true,
-  bookId: true,
-  videoUrl: true,
-  animationPrompt: true,
-  stillPrompt: true,
-  textExcerpt: true,
-  book: { select: { title: true, ownerId: true } }
-} as const;
+/* --------------------------------------------------------------------- *
+ * Defensive readers. The local PrismaClient knows about every typed
+ * field on Page / Book, but production may be missing some columns, so
+ * we cast to a generic record and pull what we need defensively.
+ * Missing → ""; non-string → ""; never throws.
+ * --------------------------------------------------------------------- */
 
-const picked = await prisma.page.findFirst({
+type AnyRecord = Record<string, unknown>;
+
+function pickString(obj: AnyRecord, key: string): string {
+  const v = obj[key];
+  return typeof v === "string" ? v : "";
+}
+
+function pickNumber(obj: AnyRecord, key: string): number {
+  const v = obj[key];
+  return typeof v === "number" && Number.isFinite(v) ? v : 0;
+}
+
+/* --------------------------------------------------------------------- *
+ * Fetch the target page + its book. No `select` clause — PrismaClient
+ * won't reject any keys; runtime just returns whatever columns it knows
+ * about. The defensive readers above handle missing/different shapes.
+ * --------------------------------------------------------------------- */
+
+interface PageWithBook {
+  id: string;
+  bookId: string;
+  pageNum: number;
+  videoUrl: string | null;
+  book: unknown; // typed as unknown so we can probe defensively
+}
+
+const picked: PageWithBook | null = await prisma.page.findFirst({
   where: explicitBook
     ? { bookId: explicitBook }
     : { book: { status: { in: ["DRAFT", "STYLE_SELECTED", "REVIEW", "PUBLISHED"] } } },
   orderBy: [{ pageNum: "asc" }],
-  select: PROMPT_FIELDS
+  include: { book: true }
 });
 if (!picked) {
   fail("No page found — set PROBE_BOOK_ID=<id> PROBE_PAGE_NUM=<n> or seed a test book first.");
 }
 
-let targetPage = picked;
+let targetPage: PageWithBook = picked;
+let targetBook: AnyRecord = (picked as PageWithBook).book as AnyRecord;
+
 if (explicitPage !== null) {
-  const exact = await prisma.page.findUnique({
+  const exact: PageWithBook | null = await prisma.page.findUnique({
     where: { bookId_pageNum: { bookId: picked.bookId, pageNum: explicitPage } },
-    select: PROMPT_FIELDS
+    include: { book: true }
   });
   if (!exact) fail(`PROBE_PAGE_NUM=${explicitPage} not found in book ${picked.bookId}.`);
   targetPage = exact;
+  targetBook = exact.book as AnyRecord;
 }
 
-// Fallback order: per-page animation prompt → author still override → the
-// page's source text → generic. Only fields confirmed to exist on the
-// production `pages` table are read here.
-const promptSummary = (targetPage.animationPrompt || targetPage.stillPrompt || targetPage.textExcerpt || "").trim();
-const prompt =
-  promptSummary ||
-  `A cinematic illustration for page ${targetPage.pageNum} of ${picked.book?.title ?? "AnimBook"}, animation-ready still, painterly lighting, soft depth of field.`;
+const pageAny = targetPage as unknown as AnyRecord;
+const pageId: string = pickString(pageAny, "id") || targetPage.id;
+const bookId: string = pickString(pageAny, "bookId") || targetPage.bookId;
+const pageNum: number = pickNumber(pageAny, "pageNum") || targetPage.pageNum;
 
-// Guard: leave the Page row alone if a real clip is already attached. We
-// still generate, mirror to R2, and write the usage row — only the
-// `videoUrl` / `posterUrl` / `status` UPDATE is suppressed.
+/* --------------------------------------------------------------------- *
+ * Prompt assembly. Falls through animationPrompt → stillPrompt →
+ * textExcerpt → generic. Empty strings just mean "use the generic".
+ * --------------------------------------------------------------------- */
+
+const animationPrompt = pickString(pageAny, "animationPrompt");
+const stillPrompt = pickString(pageAny, "stillPrompt");
+const textExcerpt = pickString(pageAny, "textExcerpt");
+const promptSource = [animationPrompt, stillPrompt, textExcerpt]
+  .map((s) => s.trim())
+  .find((s) => s.length > 0) ?? "";
+
+const bookSlug = pickString(targetBook, "slug");
+const bookCreatorId = pickString(targetBook, "creatorId");
+const bookTitle = pickString(targetBook, "title"); // present locally; prod empty if dropped
+
+const prompt =
+  promptSource ||
+  `A cinematic illustration for page ${pageNum} of ${bookSlug || bookId}, animation-ready still, painterly lighting, soft depth of field.`;
+
+/* --------------------------------------------------------------------- *
+ * hasRealClip: anything non-empty + non-placehold.co on Page.videoUrl
+ * counts as a real clip. Stubs are caught so the Page row UPDATE is
+ * suppressed.
+ * --------------------------------------------------------------------- */
+
 const PLACEHOLDER_HOST = "placehold.co";
-const existingVideoUrl = targetPage.videoUrl;
-const hasRealClip =
-  typeof existingVideoUrl === "string" &&
-  existingVideoUrl.length > 0 &&
-  !existingVideoUrl.includes(PLACEHOLDER_HOST);
+const existingVideoUrl = pickString(pageAny, "videoUrl");
+const hasRealClip = existingVideoUrl.length > 0 && !existingVideoUrl.includes(PLACEHOLDER_HOST);
 
 const startedAt = new Date();
 
 console.log(`[probe-minimax] starting one-clip probe`);
-console.log(`  book    : ${picked.book?.title ?? targetPage.bookId}`);
-console.log(`  page    : ${targetPage.pageNum} (id=${targetPage.id})`);
-console.log(`  owner   : ${picked.book?.ownerId ?? "<none>"}`);
+console.log(`  book    : ${bookTitle || bookSlug || bookId}`);
+console.log(`  page    : ${pageNum} (id=${pageId})`);
+console.log(`  owner   : ${bookCreatorId || "<none>"}`);
 console.log(`  provider: ${appEnv.MINIMAX_VIDEO_MODEL} @ 6s/768P`);
 console.log(`  image   : ${appEnv.MINIMAX_IMAGE_MODEL}`);
-console.log(`  existing: ${hasRealClip ? `${existingVideoUrl} (REAL — Page row will be LEFT AS-IS)` : `${existingVideoUrl ?? "(none)"}`}`);
+console.log(`  existing: ${hasRealClip ? `${existingVideoUrl} (REAL — Page row will be LEFT AS-IS)` : `${existingVideoUrl || "(none)"}`}`);
 
 const result = await generateClip({
-  projectId: targetPage.bookId,
-  pageNum: targetPage.pageNum,
+  projectId: bookId,
+  pageNum,
   prompt,
   motionPrompt: prompt,
   durationSeconds: 6,
@@ -125,21 +176,32 @@ const result = await generateClip({
 const finishedAt = new Date();
 const elapsedSec = Math.round((finishedAt.getTime() - startedAt.getTime()) / 1000);
 const unitCostUsd = 0.28;
+const usageUserId = bookCreatorId || "probe-minimax-video";
 
 let pageUpdated = false;
 if (!hasRealClip) {
+  // Defensive UPDATE: only write fields the live PrismaClient knows about.
+  // We can't predict which columns are missing in prod, so the safe move
+  // for now is to set just the two URLs (those are confirmed on both prod
+  // and local). `status` is optional — local has it as enum, prod has it;
+  // we set it on best-effort.
+  const data: { videoUrl: string; posterUrl?: string; status?: string } = {
+    videoUrl: result.videoUrl
+  };
+  if (result.posterUrl) data.posterUrl = result.posterUrl;
+  data.status = "READY";
   await prisma.page.update({
-    where: { id: targetPage.id },
-    data: { videoUrl: result.videoUrl, posterUrl: result.posterUrl, status: "READY" }
+    where: { id: pageId },
+    data
   });
   pageUpdated = true;
 }
 
 await prisma.usageEvent.create({
   data: {
-    userId: picked.book?.ownerId ?? "probe-minimax-video",
-    bookId: targetPage.bookId,
-    pageId: targetPage.id,
+    userId: usageUserId,
+    bookId,
+    pageId,
     kind: "ANIMATE_KICK",
     provider: "MINIMAX_VIDEO",
     units: 1,
@@ -163,9 +225,9 @@ void mirrorToR2;
 
 console.log("--- probe summary -----------------------------------------------------------");
 console.log(JSON.stringify({
-  bookId: targetPage.bookId,
-  pageId: targetPage.id,
-  pageNum: targetPage.pageNum,
+  bookId,
+  pageId,
+  pageNum,
   videoUrl: result.videoUrl,
   posterUrl: result.posterUrl,
   durationSeconds: result.durationSeconds,
