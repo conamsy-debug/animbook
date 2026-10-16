@@ -44,18 +44,14 @@ if (!isFeatureEnabled("CLOUDFLARE")) {
 const explicitBook = process.env["PROBE_BOOK_ID"];
 const explicitPage = process.env["PROBE_PAGE_NUM"] ? Number.parseInt(process.env["PROBE_PAGE_NUM"], 10) : null;
 
+const PROMPT_FIELDS = { id: true, pageNum: true, bookId: true, videoUrl: true, animationPrompt: true, stillPrompt: true, promptText: true, book: { select: { title: true, ownerId: true } } } as const;
+
 const picked = await prisma.page.findFirst({
   where: explicitBook
     ? { bookId: explicitBook }
     : { book: { status: { in: ["DRAFT", "STYLE_SELECTED", "REVIEW", "PUBLISHED"] } } },
   orderBy: [{ pageNum: "asc" }],
-  select: {
-    id: true,
-    pageNum: true,
-    bookId: true,
-    promptSummary: true,
-    book: { select: { title: true, ownerId: true } }
-  }
+  select: PROMPT_FIELDS
 });
 if (!picked) {
   fail("No page found — set PROBE_BOOK_ID=<id> PROBE_PAGE_NUM=<n> or seed a test book first.");
@@ -65,15 +61,26 @@ let targetPage = picked;
 if (explicitPage !== null) {
   const exact = await prisma.page.findUnique({
     where: { bookId_pageNum: { bookId: picked.bookId, pageNum: explicitPage } },
-    select: { id: true, pageNum: true, bookId: true, promptSummary: true, book: { select: { title: true, ownerId: true } } }
+    select: PROMPT_FIELDS
   });
   if (!exact) fail(`PROBE_PAGE_NUM=${explicitPage} not found in book ${picked.bookId}.`);
   targetPage = exact;
 }
 
+const promptSummary = (targetPage.animationPrompt || targetPage.stillPrompt || targetPage.promptText || "").trim();
 const prompt =
-  (targetPage.promptSummary && targetPage.promptSummary.trim()) ||
+  promptSummary ||
   `A cinematic illustration for page ${targetPage.pageNum} of ${picked.book?.title ?? "AnimBook"}, animation-ready still, painterly lighting, soft depth of field.`;
+
+// Guard: leave the Page row alone if a real clip is already attached. We
+// still generate, mirror to R2, and write the usage row — only the
+// `videoUrl` / `posterUrl` / `status` UPDATE is suppressed.
+const PLACEHOLDER_HOST = "placehold.co";
+const existingVideoUrl = targetPage.videoUrl;
+const hasRealClip =
+  typeof existingVideoUrl === "string" &&
+  existingVideoUrl.length > 0 &&
+  !existingVideoUrl.includes(PLACEHOLDER_HOST);
 
 const startedAt = new Date();
 
@@ -83,6 +90,7 @@ console.log(`  page    : ${targetPage.pageNum} (id=${targetPage.id})`);
 console.log(`  owner   : ${picked.book?.ownerId ?? "<none>"}`);
 console.log(`  provider: ${appEnv.MINIMAX_VIDEO_MODEL} @ 6s/768P`);
 console.log(`  image   : ${appEnv.MINIMAX_IMAGE_MODEL}`);
+console.log(`  existing: ${hasRealClip ? `${existingVideoUrl} (REAL — Page row will be LEFT AS-IS)` : `${existingVideoUrl ?? "(none)"}`}`);
 
 const result = await generateClip({
   projectId: targetPage.bookId,
@@ -98,10 +106,14 @@ const finishedAt = new Date();
 const elapsedSec = Math.round((finishedAt.getTime() - startedAt.getTime()) / 1000);
 const unitCostUsd = 0.28;
 
-await prisma.page.update({
-  where: { id: targetPage.id },
-  data: { videoUrl: result.videoUrl, posterUrl: result.posterUrl, status: "READY" }
-});
+let pageUpdated = false;
+if (!hasRealClip) {
+  await prisma.page.update({
+    where: { id: targetPage.id },
+    data: { videoUrl: result.videoUrl, posterUrl: result.posterUrl, status: "READY" }
+  });
+  pageUpdated = true;
+}
 
 await prisma.usageEvent.create({
   data: {
@@ -121,7 +133,9 @@ await prisma.usageEvent.create({
       durationSeconds: 6,
       source: result.source,
       facesLocked: Boolean(result.facesLocked),
-      elapsedSec
+      elapsedSec,
+      pageUpdated,
+      skippedPageRow: hasRealClip
     }
   }
 });
@@ -142,6 +156,8 @@ console.log(JSON.stringify({
   imageModel: appEnv.MINIMAX_IMAGE_MODEL,
   costUsd: unitCostUsd,
   usageRowWritten: true,
+  pageUpdated,
+  skippedPageRow: hasRealClip,
   finishedAt: finishedAt.toISOString()
 }, null, 2));
 console.log("-----------------------------------------------------------------------------");
