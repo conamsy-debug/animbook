@@ -13,7 +13,14 @@ import { generateShareToken } from "../../services/trailer.js";
 
 export const sharePublicRouter = Router();
 const shareAuthedRouter = Router();
-shareAuthedRouter.use(authMiddleware);
+// Note: do NOT mount `authMiddleware` at the router level. shareAuthedRouter
+// is exported as the default and registered in src/index.ts with the bare
+// `/api` prefix (`app.use("/api", share)`), which means every `/api/<x>`
+// request enters this router before any more-specific later mount (notably
+// `/api/lang` for the Languages module). A router-level authMiddleware would
+// 401 every unmatched path underneath, including `/api/lang/*`. Instead each
+// route below applies authMiddleware individually so unmatched paths fall
+// through to the next middleware.
 
 const createSchema = z.object({
   hook: z.string().trim().min(10, "Hook must be at least 10 characters").max(600, "Hook capped at 600 characters")
@@ -26,6 +33,7 @@ const createSchema = z.object({
  */
 shareAuthedRouter.post(
   "/books/:id/share",
+  authMiddleware,
   rateLimit({ name: "share.create", max: 20, windowSeconds: 3600 }),
   async (req: AuthedRequest, res: Response) => {
     const userId = requireUserId(req);
@@ -124,6 +132,7 @@ shareAuthedRouter.post(
  */
 shareAuthedRouter.get(
   "/books/:id/shares",
+  authMiddleware,
   async (req: AuthedRequest, res: Response) => {
     const userId = requireUserId(req);
     const id = req.params["id"];
@@ -238,6 +247,7 @@ sharePublicRouter.get("/:token", async (req: Request, res: Response) => {
  */
 shareAuthedRouter.delete(
   "/books/:id/share/:token",
+  authMiddleware,
   async (req: AuthedRequest, res: Response) => {
     const userId = requireUserId(req);
     const id = req.params["id"];

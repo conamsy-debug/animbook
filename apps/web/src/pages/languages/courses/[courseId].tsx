@@ -167,14 +167,24 @@ function CourseHomeInner() {
           <h2 id="lang-course-stories-heading" className="lang-course-section-heading">
             {t("course.storiesHeading", locale)}
           </h2>
-          <ul className="lang-course-stories-list" role="list">
-            {data.stories.map((story) => (
-              <CourseStoryItem key={story.storyId} story={story} locale={locale} />
-            ))}
-          </ul>
+          {data.stories.length === 0 ? (
+            <div className="lang-admin-empty">
+              <p className="lang-admin-empty-eyebrow">Coming soon</p>
+              <p className="lang-admin-empty-title">
+                Your first stories are on their way.
+              </p>
+              <p className="lang-admin-empty-hint">Check back soon.</p>
+            </div>
+          ) : (
+            <ul className="lang-course-stories-list" role="list">
+              {data.stories.map((story) => (
+                <CourseStoryItem key={story.storyId} story={story} locale={locale} />
+              ))}
+            </ul>
+          )}
         </section>
 
-        {/* Patch 06 — the "My words" link. Lives below the stories so
+        {/* The "My words" link. Lives below the stories so
             the home flow (read story → tap word → save) is the
             primary action, but always reachable in one tap. */}
         <section className="lang-course-extra-links" aria-label="Course shortcuts">
@@ -247,7 +257,7 @@ function CourseStoryItem({ story, locale }: { story: CourseStoryRow; locale: Loc
 
 function Shell({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="app-shell">
+    <div className="app-shell lib-page lang-page">
       <Head>
         <title>{title}</title>
       </Head>
@@ -272,7 +282,7 @@ function BadUrlFallback({ locale }: { locale: Locale }) {
 
 function NotAvailable() {
   return (
-    <div className="app-shell">
+    <div className="app-shell lib-page lang-page">
       <Head>
         <title>AnimBook Languages — coming soon</title>
       </Head>

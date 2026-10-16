@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
+import { Topbar } from "@/components/Topbar";
 import {
   fetchReviewDue,
   submitReviewRating,
@@ -135,12 +136,13 @@ export default function ReviewSessionPage() {
   );
 
   return (
-    <>
+    <div className="app-shell lib-page lang-page">
       <Head>
         <title>{t("review.title", locale)} · AnimBook</title>
       </Head>
+      <Topbar variant="cinematic" />
 
-      <main className={`lang-page lang-review ${(base as string) === "he" ? "lang-rtl" : ""}`}>
+      <main className={`container lang-page lang-review ${(base as string) === "he" ? "lang-rtl" : ""}`}>
         <header className="lang-review-header">
           <button
             type="button"
@@ -192,7 +194,7 @@ export default function ReviewSessionPage() {
           <CompleteState base={base} locale={locale} totalDue={totalDue} />
         ) : null}
       </main>
-    </>
+    </div>
   );
 }
 

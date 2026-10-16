@@ -24,7 +24,7 @@
 export interface Route {
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   path: string;
-  auth: "public" | "user" | "verified" | "service";
+  auth: "public" | "user" | "verified" | "admin" | "service";
   summary: string;
   notes?: string;
 }
@@ -438,6 +438,76 @@ export const APP_ROUTES: Module[] = [
         auth: "user",
         summary: "Learner stats payload (Patch 10).",
         notes: "Returns XP, current + longest streak, last activity date, timezone, total vocab + exercise attempt counts. The streak counter is re-derived against `now` so a learner who hasn't visited in a while sees their streak properly broken without a write."
+      },
+      {
+        method: "POST",
+        path: "/api/lang/admin/master-stories",
+        auth: "admin",
+        summary: "Create a draft master story (Patch 11).",
+        notes: "Body: `{ slug, titleEn, synopsis, targetLang, masterScript, targetVocabConcepts, cefrLevel? }`. 409 if the slug is taken. The row's `animationStatus` starts at `pending`; Patch 12's admin screen drives it through `ready` once the studio clips land."
+      },
+      {
+        method: "POST",
+        path: "/api/lang/admin/master-stories/:masterStoryId/adapt",
+        auth: "admin",
+        summary: "Queue per-language adaptation jobs (Patch 11).",
+        notes: "Body: `{ target_langs: string[] }`. Writes a `queued` row in `languages_adaptation_jobs` per target lang and enqueues a BullMQ job. The worker calls the LLM, retries up to 3x on parse failure, then runs `importLesson` to write the Story + Lexemes + Tokens + Exercises. Returns `{ jobs: [{ jobId, targetLang }] }`."
+      },
+      {
+        method: "GET",
+        path: "/api/lang/admin/jobs/:jobId",
+        auth: "admin",
+        summary: "Read adaptation job status (Patch 11).",
+        notes: "Returns the DB row straight off `languages_adaptation_jobs` — status, attempts, started_at, completed_at, result_story_id, error_message (truncated to 4 KB). The admin review screen (Patch 12) polls this every few seconds while jobs are running."
+      },
+      {
+        method: "POST",
+        path: "/api/lang/admin/jobs/:jobId/run",
+        auth: "admin",
+        summary: "Synchronously drive a queued adaptation job to completion (Patch 11).",
+        notes: "BullMQ was the original worker; this route replaces it because the project's `node_modules` install is currently broken in a way that prevents Redis-based jobs from booting. Calls `runAdaptationJob(jobId)` inline, marks the row `running` → `completed`/`failed`. When BullMQ lands, this route stays as a manual override; the worker becomes the primary execution path."
+      },
+      {
+        method: "GET",
+        path: "/api/lang/admin/stories",
+        auth: "admin",
+        summary: "List stories pending review (Patch 12).",
+        notes: "Query: `?status=draft|in_review|approved|rejected`, `?targetLang=<code>`, `?limit=<1-200>` (default 50). Returns `{ stories: [{ id, masterStoryId, targetLang, title, titleTranslations, cefrLevel, reviewStatus, reviewerId, reviewerNotes, isPublished, createdAt, updatedAt, masterStoryTitle }] }`. Default status filter is `in_review` (when query param omitted) to match the spec's review screen landing."
+      },
+      {
+        method: "GET",
+        path: "/api/lang/admin/stories/:storyId",
+        auth: "admin",
+        summary: "Deep story detail for the review screen (Patch 12).",
+        notes: "Returns scenes → lines → exercises as a single tree so the review UI renders one round-trip. Lines include audio_url + start_ms + end_ms + word_timings so the reviewer can spot-check narration alignment."
+      },
+      {
+        method: "PUT",
+        path: "/api/lang/admin/stories/:storyId",
+        auth: "admin",
+        summary: "Save reviewer edits (Patch 12).",
+        notes: "Body: `{ title?, titleTranslations?, reviewerNotes?, lines?: [{ id, text?, textReading?, translations?, audioUrl?, startMs?, endMs? }] }`. Edit `audioUrl` directly to swap a file; edit `text` (without touching audio) flags the audio as stale until the reviewer hits `regenerate-audio`. We don't auto-regenerate because TTS costs credits."
+      },
+      {
+        method: "POST",
+        path: "/api/lang/admin/lines/:lineId/regenerate-audio",
+        auth: "admin",
+        summary: "Regenerate one line's audio via the TTS provider (Patch 12).",
+        notes: "Picks the language's configured voice for the line's speaker (narrator or character) from `languages.tts_voice_ids`. Writes to `lang-audio/<targetLang>/<storyId>/<lineId>.mp3` in R2. Returns `{ lineId, audioUrl, source, characters, voiceId }`. Noop when ELEVENLABS_API_KEY is unset (source=stub, audioUrl=null)."
+      },
+      {
+        method: "POST",
+        path: "/api/lang/admin/stories/:storyId/approve",
+        auth: "admin",
+        summary: "Approve a story and publish it (Patch 12).",
+        notes: "Sets `review_status='approved'`, `is_published=true`, `reviewer_id=<admin>`. Approved stories become visible to learners immediately."
+      },
+      {
+        method: "POST",
+        path: "/api/lang/admin/stories/:storyId/reject",
+        auth: "admin",
+        summary: "Reject a story with reviewer notes (Patch 12).",
+        notes: "Body: `{ notes: string (non-empty, ≤4 KB) }`. Sets `review_status='rejected'`, `is_published=false`, `reviewer_id=<admin>`, `reviewer_notes=<notes>`. The rejected story stays in the DB for the author to inspect but never appears in `/api/lang/courses`."
       }
     ]
   },

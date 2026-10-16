@@ -126,25 +126,38 @@ export interface StoryProgressWriteResult {
 
 /* --------------------------------------------------------------------- *
  * Fetch helpers
+ *
+ * MUST go through the shared `apiFetch` from `@/lib/api`, not raw
+ * `fetch()`. Reasons:
+ *
+ *  1. Origin split in production — web at animbook.com, API at
+ *     api.animbook.com. apiFetch prepends NEXT_PUBLIC_API_URL via
+ *     apiUrl(); raw relative paths 404 against animbook.com.
+ *
+ *  2. Auth split in production — Clerk's session cookie is set on
+ *     animbook.com and does not cross origins. apiFetch calls
+ *     getAuthToken() and adds `Authorization: Bearer <token>`. Without
+ *     that, every protected Languages route 401s on production (which
+ *     is what users saw on the signed-in onboarding page).
+ *
+ * The two thin wrappers below preserve the file's existing null-on-404
+ * contract so callers don't need to change. They do not implement any
+ * auth or URL logic of their own.
  * --------------------------------------------------------------------- */
+
+import { apiFetch, ApiError } from "@/lib/api";
 
 async function jsonFetch<T>(
   path: string,
   init: RequestInit & { signal?: AbortSignal } = {}
 ): Promise<T | null> {
-  const res = await fetch(path, {
-    credentials: "include",
-    headers: { Accept: "application/json", ...(init.headers ?? {}) },
-    ...init
-  });
-  if (res.status === 404) return null;
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `${init.method ?? "GET"} ${path}: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
+  try {
+    const { signal, method, headers, body } = init;
+    return await apiFetch<T>(path, { method, headers, body, signal });
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
   }
-  return (await res.json()) as T;
 }
 
 /**
@@ -211,23 +224,14 @@ export async function enrollInCourse(input: {
   /** Accepted but not yet persisted (lands with Patch 10 stats). */
   dailyGoal?: number;
 }): Promise<EnrollmentCreateResult> {
-  const res = await fetch("/api/lang/enrollments", {
+  return await apiFetch<EnrollmentCreateResult>("/api/lang/enrollments", {
     method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({
+    json: {
       target_lang: input.targetLang,
       base_lang: input.baseLang,
       daily_goal: input.dailyGoal
-    })
+    }
   });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `POST /api/lang/enrollments: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
-  }
-  return (await res.json()) as EnrollmentCreateResult;
 }
 
 /**
@@ -268,26 +272,17 @@ export async function saveStoryProgress(input: {
   scorePct?: number;
   completed?: boolean;
 }): Promise<StoryProgressWriteResult> {
-  const res = await fetch(
+  return await apiFetch<StoryProgressWriteResult>(
     `/api/lang/stories/${encodeURIComponent(input.storyId)}/progress`,
     {
       method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
+      json: {
         last_scene_order: input.lastSceneOrder,
         score_pct: input.scorePct ?? 0,
         completed: input.completed ?? false
-      })
+      }
     }
   );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `POST /api/lang/stories/.../progress: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
-  }
-  return (await res.json()) as StoryProgressWriteResult;
 }
 
 /* --------------------------------------------------------------------- *
@@ -389,38 +384,21 @@ export async function saveVocab(input: {
   lexemeId: string;
   sourceLineId?: string | null;
 }): Promise<SaveVocabResult> {
-  const res = await fetch("/api/lang/vocab", {
+  return await apiFetch<SaveVocabResult>("/api/lang/vocab", {
     method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({
+    json: {
       lexeme_id: input.lexemeId,
       source_line_id: input.sourceLineId ?? null
-    })
+    }
   });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `POST /api/lang/vocab: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
-  }
-  return (await res.json()) as SaveVocabResult;
 }
 
 /** DELETE /api/lang/vocab/:userVocabId — remove a word from the deck. */
 export async function unsaveVocab(userVocabId: string): Promise<{ removed: boolean }> {
-  const res = await fetch(`/api/lang/vocab/${encodeURIComponent(userVocabId)}`, {
-    method: "DELETE",
-    credentials: "include",
-    headers: { Accept: "application/json" }
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `DELETE /api/lang/vocab/${userVocabId}: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
-  }
-  return (await res.json()) as { removed: boolean };
+  return await apiFetch<{ removed: boolean }>(
+    `/api/lang/vocab/${encodeURIComponent(userVocabId)}`,
+    { method: "DELETE" }
+  );
 }
 
 /** GET /api/lang/vocab — list the learner's saved words (optionally scoped to a course). */
@@ -489,22 +467,13 @@ export async function submitExerciseAttempt(input: {
   // from the Exercise row, not from the body.
   const { type, ...rest } = input.body;
   void type;
-  const res = await fetch(
+  return await apiFetch<ExerciseAttemptResult>(
     `/api/lang/exercises/${encodeURIComponent(input.exerciseId)}/attempts`,
     {
       method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(rest)
+      json: rest
     }
   );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `POST /api/lang/exercises/.../attempts: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
-  }
-  return (await res.json()) as ExerciseAttemptResult;
 }
 
 /* --------------------------------------------------------------------- *
@@ -560,9 +529,8 @@ export interface PronunciationInput {
  * via headers. Returns the score + per-word colouring.
  */
 export async function submitPronunciation(input: PronunciationInput): Promise<PronunciationResult> {
-  const res = await fetch("/api/lang/pronunciation", {
+  return await apiFetch<PronunciationResult>("/api/lang/pronunciation", {
     method: "POST",
-    credentials: "include",
     headers: {
       "Content-Type": input.audio.type || "audio/webm",
       "X-Line-Id": input.lineId,
@@ -571,13 +539,6 @@ export async function submitPronunciation(input: PronunciationInput): Promise<Pr
     body: input.audio,
     signal: input.signal
   });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `POST /api/lang/pronunciation: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
-  }
-  return (await res.json()) as PronunciationResult;
 }
 
 /* --------------------------------------------------------------------- *
@@ -656,17 +617,7 @@ export interface ReviewPostResult {
  */
 export async function fetchReviewDue(courseId?: string): Promise<ReviewDueResponse> {
   const qs = courseId ? `?course=${encodeURIComponent(courseId)}` : "";
-  const res = await fetch(`/api/lang/review/due${qs}`, {
-    method: "GET",
-    credentials: "include"
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `GET /api/lang/review/due: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
-  }
-  return (await res.json()) as ReviewDueResponse;
+  return await apiFetch<ReviewDueResponse>(`/api/lang/review/due${qs}`, { method: "GET" });
 }
 
 /**
@@ -678,23 +629,14 @@ export async function submitReviewRating(input: {
   rating: ReviewRating;
   signal?: AbortSignal;
 }): Promise<ReviewPostResult> {
-  const res = await fetch(
+  return await apiFetch<ReviewPostResult>(
     `/api/lang/review/${encodeURIComponent(input.userVocabId)}`,
     {
       method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rating: input.rating }),
+      json: { rating: input.rating },
       signal: input.signal
     }
   );
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `POST /api/lang/review: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
-    );
-  }
-  return (await res.json()) as ReviewPostResult;
 }
 
 /* --------------------------------------------------------------------- *
@@ -729,15 +671,165 @@ export interface LearnerStats {
  * GET /api/lang/stats — full learner stats payload.
  */
 export async function fetchLearnerStats(): Promise<LearnerStats> {
-  const res = await fetch("/api/lang/stats", {
-    method: "GET",
-    credentials: "include"
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(
-      `GET /api/lang/stats: ${res.status} ${res.statusText}${body?.error ? ` — ${body.error}` : ""}`
+  return await apiFetch<LearnerStats>("/api/lang/stats", { method: "GET" });
+}
+
+/* --------------------------------------------------------------------- *
+ * Patch 12 — admin review screen helpers
+ * --------------------------------------------------------------------- *
+ * The review UI talks to /api/lang/admin/* which requires a user whose
+ * `roles` include "platform_admin". The pages under
+ * /languages/admin/* only render when the caller is signed in via
+ * Clerk AND the smoke test has promoted that user. We throw on non-2xx
+ * (no silent 404) because admin callers want the toast to fire on errors.
+ * --------------------------------------------------------------------- */
+
+export type ReviewStatus = "draft" | "in_review" | "approved" | "rejected";
+
+export interface ReviewStorySummary {
+  id: string;
+  masterStoryId: string;
+  targetLang: LangCode;
+  title: string;
+  titleTranslations: Record<string, string>;
+  cefrLevel: string;
+  reviewStatus: ReviewStatus;
+  reviewerId: string | null;
+  reviewerNotes: string | null;
+  isPublished: boolean;
+  createdAt: string;
+  updatedAt: string;
+  masterStoryTitle: string;
+}
+
+export interface ReviewStoryDetail extends ReviewStorySummary {
+  scenes: Array<{
+    id: string;
+    order: number;
+    lines: Array<{
+      id: string;
+      order: number;
+      speaker: string;
+      text: string;
+      textReading: string | null;
+      translations: { en: string; fr: string } | null;
+      audioUrl: string | null;
+      startMs: number | null;
+      endMs: number | null;
+      wordTimings: unknown;
+    }>;
+    exercises: Array<{
+      id: string;
+      order: number;
+      type: string;
+      payload: unknown;
+      answer: unknown;
+    }>;
+  }>;
+}
+
+export interface RegenerateAudioResult {
+  lineId: string;
+  audioUrl: string | null;
+  source: "elevenlabs" | "stub";
+  characters: number;
+  voiceId: string | null;
+  /** Real failure reason when `source === "stub"`. Empty string on success. */
+  error: string;
+}
+
+async function adminJsonFetch<T>(
+  path: string,
+  init: RequestInit & { signal?: AbortSignal } = {}
+): Promise<T> {
+  const { signal, method, headers, body } = init;
+  return await apiFetch<T>(path, { method, headers, body, signal });
+}
+
+export async function fetchAdminStories(
+  input: { status?: ReviewStatus; targetLang?: string; limit?: number } = {},
+  signal?: AbortSignal
+): Promise<ReviewStorySummary[]> {
+  const params = new URLSearchParams();
+  if (input.status) params.set("status", input.status);
+  if (input.targetLang) params.set("targetLang", input.targetLang);
+  if (typeof input.limit === "number") params.set("limit", String(input.limit));
+  const qs = params.toString();
+  const data = await adminJsonFetch<{ stories: ReviewStorySummary[] }>(
+    `/api/lang/admin/stories${qs ? `?${qs}` : ""}`,
+    { method: "GET", signal }
+  );
+  return data.stories;
+}
+
+export async function fetchAdminStory(
+  storyId: string,
+  signal?: AbortSignal
+): Promise<ReviewStoryDetail | null> {
+  try {
+    return await adminJsonFetch<ReviewStoryDetail>(
+      `/api/lang/admin/stories/${encodeURIComponent(storyId)}`,
+      { method: "GET", signal }
     );
+  } catch (err) {
+    if (err instanceof Error && /\b404\b/.test(err.message)) return null;
+    throw err;
   }
-  return (await res.json()) as LearnerStats;
+}
+
+export async function saveAdminStoryEdits(
+  storyId: string,
+  patch: {
+    title?: string;
+    titleTranslations?: Record<string, string>;
+    reviewerNotes?: string;
+    lines?: Array<{
+      id: string;
+      text?: string;
+      textReading?: string | null;
+      translations?: { en?: string; fr?: string } | null;
+      audioUrl?: string | null;
+      startMs?: number | null;
+      endMs?: number | null;
+    }>;
+  }
+): Promise<ReviewStoryDetail> {
+  return adminJsonFetch<ReviewStoryDetail>(
+    `/api/lang/admin/stories/${encodeURIComponent(storyId)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch)
+    }
+  );
+}
+
+export async function regenerateLineAudio(
+  lineId: string
+): Promise<RegenerateAudioResult> {
+  return adminJsonFetch<RegenerateAudioResult>(
+    `/api/lang/admin/lines/${encodeURIComponent(lineId)}/regenerate-audio`,
+    { method: "POST" }
+  );
+}
+
+export async function approveStory(storyId: string): Promise<ReviewStorySummary> {
+  return adminJsonFetch<ReviewStorySummary>(
+    `/api/lang/admin/stories/${encodeURIComponent(storyId)}/approve`,
+    { method: "POST" }
+  );
+}
+
+export async function rejectStory(
+  storyId: string,
+  notes: string
+): Promise<ReviewStorySummary> {
+  return adminJsonFetch<ReviewStorySummary>(
+    `/api/lang/admin/stories/${encodeURIComponent(storyId)}/reject`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes })
+    }
+  );
 }

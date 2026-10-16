@@ -48,6 +48,14 @@ export interface ImportOptions {
    * halfway through rolls everything back. Defaults to true.
    */
   transactional?: boolean;
+  /**
+   * Override the interactive-transaction timeout (Prisma default 5s).
+   * The importer writes ~30 rows (Story + Scenes + Lines + Tokens +
+   * Lexemes + Exercises); on a slow link that exceeds the 5s default
+   * and Prisma raises "Transaction not found". Bump this to 30s in
+   * one-off scripts that import large lessons.
+   */
+  transactionTimeoutMs?: number;
 }
 
 /** Public entry point. Validates input then writes. */
@@ -62,11 +70,14 @@ export async function importLesson(
   const { parseLesson } = await import("./schema.js");
   const lesson = parseLesson(rawInput);
   const useTxn = options.transactional ?? true;
+  const txnOpts = options.transactionTimeoutMs
+    ? { timeout: options.transactionTimeoutMs, maxWait: options.transactionTimeoutMs }
+    : undefined;
   if (useTxn) {
     // NOTE: prisma.$transaction must be called via `prisma.$transaction`
     // — destructuring it (e.g. `const tx = prisma.$transaction`) breaks
     // because the method's `this` binding is the Prisma client.
-    return prisma.$transaction(async (tx) => writeLesson(tx, lesson));
+    return prisma.$transaction(async (tx) => writeLesson(tx, lesson), txnOpts);
   }
   return writeLesson(prisma as unknown as Prisma.TransactionClient, lesson);
 }
