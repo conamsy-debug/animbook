@@ -172,22 +172,36 @@ function hexToBuffer(hex: string): Buffer {
   return Buffer.from(clean, "hex");
 }
 
-function srtTimestampToVtt(t: string): string {
-  // SRT uses `,` as ms separator; VTT uses `.` — keep the same digits
-  return t.replace(",", ".");
+function msToVttTimestamp(ms: number): string {
+  // VTT uses HH:MM:SS.mmm. ms can be a float from the API; round to int ms.
+  const total = Math.max(0, Math.round(ms));
+  const h = Math.floor(total / 3_600_000);
+  const m = Math.floor((total % 3_600_000) / 60_000);
+  const s = Math.floor((total % 60_000) / 1000);
+  const milli = total % 1000;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(milli).padStart(3, "0")}`;
 }
 
-function srtToVtt(srt: string): string {
-  const withoutBom = srt.replace(/^\uFEFF/, "");
-  // SRT number field has comma separator; VTT requires dot. Strip trailing
-  // trailing-positioned numbers — they map fine because the comma→dot rule is
-  // a global replace.
-  const vtt = withoutBom
-    .replace(/(\d\d:\d\d:\d\d),(\d{3})/g, "$1.$2")
-    .replace(/(?:\r?\n)+/g, "\n")
-    .replace(/^/gm, "")
-    .trim();
-  return "WEBVTT\n\n" + vtt;
+interface SubtitleSegment {
+  text?: string;
+  time_begin?: number;
+  time_end?: number;
+}
+
+function subtitlesJsonToVtt(json: unknown): string {
+  if (!Array.isArray(json) || json.length === 0) return "WEBVTT\n\n";
+  const cues = json
+    .map((raw, idx) => {
+      const seg = raw as SubtitleSegment;
+      const text = (seg.text ?? "").toString().trim();
+      if (!text) return null;
+      const begin = Number.isFinite(seg.time_begin) ? Number(seg.time_begin) : 0;
+      const end = Number.isFinite(seg.time_end) ? Number(seg.time_end) : begin + 1000;
+      return `${msToVttTimestamp(begin)} --> ${msToVttTimestamp(end)}\n${text}`;
+    })
+    .filter((s): s is string => Boolean(s));
+  if (cues.length === 0) return "WEBVTT\n\n";
+  return "WEBVTT\n\n" + cues.join("\n\n") + "\n";
 }
 
 /* --------------------------------------------------------------------- *
@@ -254,9 +268,18 @@ async function fetchSubtitleAsVtt(url: string): Promise<string | null> {
   try {
     const res = await fetch(url);
     if (!res.ok) return null;
-    const srt = await res.text();
-    if (!srt.trim()) return null;
-    return srtToVtt(srt);
+    const body = await res.text();
+    if (!body.trim()) return null;
+    // The MiniMax subtitle_file is a JSON array of { text, time_begin, time_end,
+    // timestamped_words? } segments (per the openapi spec, ≤ 50 chars per
+    // sentence, ms timestamps). We convert it into a VTT blob for the player.
+    try {
+      const parsed = JSON.parse(body);
+      const vtt = subtitlesJsonToVtt(parsed);
+      return vtt === "WEBVTT\n\n" ? null : vtt;
+    } catch {
+      return null;
+    }
   } catch {
     return null;
   }
@@ -378,7 +401,7 @@ export async function generateNarration(opts: SynthesisOptions): Promise<Narrati
       audio_setting: audioSetting(),
       language_boost: opts.languageBoost ?? "English",
       subtitle_enable: true,
-      subtitle_type: "srt" as const
+      subtitle_type: "sentence" as const
     };
     const synthResp = await postJson<SyncT2aResp>("/v1/t2a_v2", baseBody);
     if (!synthResp.data || (synthResp.data.status && synthResp.data.status !== 2)) {

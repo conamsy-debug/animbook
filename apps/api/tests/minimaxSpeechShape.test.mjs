@@ -68,11 +68,15 @@ function installStub({ mode }) {
           headers: { "content-type": "audio/mpeg" }
         });
       }
-      // Phase 3: GET subtitle srt download URL.
+      // Phase 3: GET subtitle JSON download URL (MiniMax returns JSON; the
+// implementation parses it and emits a VTT blob).
       if (u.includes("clip-abc.srt")) {
         return new Response(
-          "1\n00:00:00,000 --> 00:00:02,000\nEvery great story begins\n\n2\n00:00:02,000 --> 00:00:04,500\nwith a single page, waiting to be heard.\n",
-          { status: 200, headers: { "content-type": "application/x-subrip" } }
+          JSON.stringify([
+            { text: "Every great story begins", time_begin: 0, time_end: 2000 },
+            { text: "with a single page, waiting to be heard.", time_begin: 2000, time_end: 4500 }
+          ]),
+          { status: 200, headers: { "content-type": "application/json" } }
         );
       }
       // Phase 3.5: data: URL passed into mirrorToR2 — decode the base64
@@ -158,7 +162,7 @@ test("generateNarration: posts MiniMax t2a_v2 body with model, language_boost, s
   assert.equal(capture.requestBody.model, "speech-2.8-hd", "model id must be MiniMax-Hailuo style");
   assert.equal(capture.requestBody.output_format, "url", "url format keeps memory bounded for multi-MB clips");
   assert.equal(capture.requestBody.subtitle_enable, true, "subtitle_enable must be true so VTT timing is real");
-  assert.equal(capture.requestBody.subtitle_type, "srt", "srt is the requested subtitle type");
+  assert.equal(capture.requestBody.subtitle_type, "sentence", "sentence is the only valid sentence-level subtitle type per MiniMax openapi");
   assert.match(capture.requestBody.prompt ?? capture.requestBody.text, /Every great/);
   // The text is mapped to "text" in the spec.
   assert.match(capture.requestBody.text, /Every great story begins with a single page/);
