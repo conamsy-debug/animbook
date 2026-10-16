@@ -44,7 +44,24 @@ if (!isFeatureEnabled("CLOUDFLARE")) {
 const explicitBook = process.env["PROBE_BOOK_ID"];
 const explicitPage = process.env["PROBE_PAGE_NUM"] ? Number.parseInt(process.env["PROBE_PAGE_NUM"], 10) : null;
 
-const PROMPT_FIELDS = { id: true, pageNum: true, bookId: true, videoUrl: true, animationPrompt: true, stillPrompt: true, promptText: true, book: { select: { title: true, ownerId: true } } } as const;
+// Selects only the columns the production PrismaClient knows about.
+// Confirmed via the live deployment's PrismaClientValidationError
+// (which lists every available Page field on the wire) plus a read of
+// apps/api/prisma/schema.prisma `model Page`. `promptText`, `visualPrompt`,
+// and `promptSummary` exist in the schema.prisma file but were never
+// migration'd to production — `prisma migrate status` reported "Database
+// schema is up to date!" against 30 migrations, with zero unapplied.
+// `textExcerpt` is sourced separately below for the prompt-fallback chain.
+const PROMPT_FIELDS = {
+  id: true,
+  pageNum: true,
+  bookId: true,
+  videoUrl: true,
+  animationPrompt: true,
+  stillPrompt: true,
+  textExcerpt: true,
+  book: { select: { title: true, ownerId: true } }
+} as const;
 
 const picked = await prisma.page.findFirst({
   where: explicitBook
@@ -67,7 +84,10 @@ if (explicitPage !== null) {
   targetPage = exact;
 }
 
-const promptSummary = (targetPage.animationPrompt || targetPage.stillPrompt || targetPage.promptText || "").trim();
+// Fallback order: per-page animation prompt → author still override → the
+// page's source text → generic. Only fields confirmed to exist on the
+// production `pages` table are read here.
+const promptSummary = (targetPage.animationPrompt || targetPage.stillPrompt || targetPage.textExcerpt || "").trim();
 const prompt =
   promptSummary ||
   `A cinematic illustration for page ${targetPage.pageNum} of ${picked.book?.title ?? "AnimBook"}, animation-ready still, painterly lighting, soft depth of field.`;
