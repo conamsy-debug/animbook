@@ -176,7 +176,6 @@ const result = await generateClip({
 const finishedAt = new Date();
 const elapsedSec = Math.round((finishedAt.getTime() - startedAt.getTime()) / 1000);
 const unitCostUsd = 0.28;
-const usageUserId = bookCreatorId || "probe-minimax-video";
 
 let pageUpdated = false;
 if (!hasRealClip) {
@@ -197,30 +196,75 @@ if (!hasRealClip) {
   pageUpdated = true;
 }
 
-await prisma.usageEvent.create({
-  data: {
-    userId: usageUserId,
-    bookId,
-    pageId,
-    kind: "ANIMATE_KICK",
-    provider: "MINIMAX_VIDEO",
-    units: 1,
-    unitCostUsd,
-    totalUsd: unitCostUsd,
-    status: "SUCCESS",
-    metadata: {
-      model: appEnv.MINIMAX_VIDEO_MODEL,
-      imageModel: appEnv.MINIMAX_IMAGE_MODEL,
-      resolution: "768P",
-      durationSeconds: 6,
-      source: result.source,
-      facesLocked: Boolean(result.facesLocked),
-      elapsedSec,
-      pageUpdated,
-      skippedPageRow: hasRealClip
+/* --------------------------------------------------------------------- *
+ * Usage row: always need a real User.id (FK constraint on usage_events).
+ *
+ *   1. Try Book.creatorId (cast defensively to Record<string, unknown>).
+ *   2. Else, look up a real "admin" user. We can't be 100% sure which User
+ *      is the admin — the User model has tier=BASIC/PREMIUM/ENTERPRISE
+ *      and no dedicated admin flag — so we pick the first user whose
+ *      email starts with "admin" (case-insensitive). This is the
+ *      conventional Cloudflare / Sentry / Railway pattern.
+ *   3. Else, skip writing the usage_events row entirely and print the
+ *      cost in the JSON summary. **Never** fallback to a literal string
+ *      like "probe-minimax-video" — Postgres rejects with P2003.
+ * --------------------------------------------------------------------- */
+
+let usageUserId: string | null = bookCreatorId;
+let usageRowWritten = false;
+let usageRowSkippedReason: string | null = null;
+
+if (!usageUserId) {
+  // Step 2: admin user fallback. Read defensively.
+  let adminCandidate: { id: string; email: string } | null = null;
+  try {
+    const found = await prisma.user.findFirst({
+      where: { email: { startsWith: "admin" } },
+      select: { id: true, email: true }
+    });
+    if (found && typeof found.id === "string" && found.id.length > 0) {
+      adminCandidate = { id: found.id, email: found.email };
     }
+  } catch {
+    // User table unavailable for whatever reason; fall through to skip.
   }
-});
+  if (adminCandidate) {
+    usageUserId = adminCandidate.id;
+    console.warn(`[probe-minimax] book.creatorId empty — fell back to admin user ${adminCandidate.email}`);
+  } else {
+    usageRowSkippedReason = "book has no creatorId and no admin user was found by email-prefix 'admin'";
+    console.warn(`[probe-minimax] ${usageRowSkippedReason}; skipping usage_events write, reporting cost only.`);
+  }
+}
+
+if (usageUserId) {
+  await prisma.usageEvent.create({
+    data: {
+      userId: usageUserId,
+      bookId,
+      pageId,
+      kind: "ANIMATE_KICK",
+      provider: "MINIMAX_VIDEO",
+      units: 1,
+      unitCostUsd,
+      totalUsd: unitCostUsd,
+      status: "SUCCESS",
+      metadata: {
+        model: appEnv.MINIMAX_VIDEO_MODEL,
+        imageModel: appEnv.MINIMAX_IMAGE_MODEL,
+        resolution: "768P",
+        durationSeconds: 6,
+        source: result.source,
+        facesLocked: Boolean(result.facesLocked),
+        elapsedSec,
+        pageUpdated,
+        skippedPageRow: hasRealClip,
+        usageUserSource: bookCreatorId ? "book.creatorId" : "admin-email-fallback"
+      }
+    }
+  });
+  usageRowWritten = true;
+}
 void mirrorToR2;
 
 console.log("--- probe summary -----------------------------------------------------------");
@@ -237,7 +281,8 @@ console.log(JSON.stringify({
   model: appEnv.MINIMAX_VIDEO_MODEL,
   imageModel: appEnv.MINIMAX_IMAGE_MODEL,
   costUsd: unitCostUsd,
-  usageRowWritten: true,
+  usageRowWritten,
+  usageRowSkippedReason,
   pageUpdated,
   skippedPageRow: hasRealClip,
   finishedAt: finishedAt.toISOString()
