@@ -407,9 +407,16 @@ export async function generateNarration(opts: SynthesisOptions): Promise<Narrati
     if (!synthResp.data || (synthResp.data.status && synthResp.data.status !== 2)) {
       throw baseRespError("t2a_v2 (no data)", synthResp);
     }
-    const audioUrl = synthResp.data.audio_url;
-    if (!audioUrl) throw new MinimaxSpeechError("MiniMax returned no audio_url");
-    const audio = await fetchAudio(audioUrl);
+    // The T2A response carries the audio (or audio URL) under `data.audio`,
+// regardless of `output_format`. When `output_format: "url"` is set,
+// `data.audio` holds a 24-hour signed OSS URL; otherwise it's a hex string.
+    const audioField = synthResp.data.audio ?? synthResp.data.audio_url;
+    if (!audioField) throw new MinimaxSpeechError("MiniMax returned no audio");
+    const audioUrl = /^https?:\/\//i.test(audioField) ? audioField : null;
+    const audio: Buffer = audioUrl
+      ? await fetchAudio(audioUrl)
+      : hexToBuffer(audioField);
+    if (audio.length === 0) throw new MinimaxSpeechError("MiniMax returned empty audio");
 
     const vtt: string | null = synthResp.data.subtitle_file ? await fetchSubtitleAsVtt(synthResp.data.subtitle_file) : null;
 
