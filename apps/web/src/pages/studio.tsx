@@ -60,13 +60,54 @@ const steps: { id: Stage; label: string; hint: string }[] = [
   { id: "REVIEW", label: "Review", hint: "Approve & publish" }
 ];
 const ORDER: Stage[] = steps.map((s) => s.id);
-const CREDITS_PER_PAGE = 30; // a page with video
-const CREDITS_PER_STILL = 5; // a painted page the reader pans across
+/**
+ * Provider-aware cost preview, in US dollars. Defaults line up with
+ * apps/api/src/services/usageTracking.ts so the UI matches the cost
+ * the server records in the usage_events row.
+ *
+ * Pricing for the default MiniMax (Hailuo 2.3, 6s/768P) and the Runway
+ * fallback. Switch `providerCostsFor()`'s return to flip displayed
+ * pricing once the Studio knows the live VIDEO_PROVIDER env (currently
+ * still a launch-time constant — pipe it from the book API later).
+ */
+type VideoProviderCostShape = {
+  /** 6s/768P/default — single animated clip. */
+  animatedClip: number;
+  /** Image-01 single still (the painted-but-not-animated pages). */
+  still: number;
+};
+
+const PROVIDER_COSTS: Record<string, VideoProviderCostShape> = {
+  // Default per VIDEO_PROVIDER=minimax on the API.
+  minimax: { animatedClip: 0.28, still: 0.0035 },
+  // Fallback per VIDEO_PROVIDER=runway.
+  runway: { animatedClip: 0.3, still: 0.05 }
+};
+
+function providerCostsFor(): VideoProviderCostShape {
+  // If the server has exposed integration.activeVideoProvider we honour it;
+  // otherwise we assume the new default (MiniMax) since that is what the
+  // server ships with post-migration.
+  const active = (typeof window !== "undefined" && (window as unknown as { __animbookProvider?: string }).__animbookProvider) || "minimax";
+  return PROVIDER_COSTS[active] ?? PROVIDER_COSTS.minimax!;
+}
+
 const keyPageCount = (pages: number) => Math.max(1, Math.ceil(pages / 10));
-function estimateCredits(pages: number, mode: "full" | "illustrated"): number {
-  if (mode === "full") return pages * CREDITS_PER_PAGE;
+function estimateCostUsd(pages: number, mode: "full" | "illustrated"): number {
+  const costs = providerCostsFor();
+  if (mode === "full") return pages * costs.animatedClip;
   const key = keyPageCount(pages);
-  return (pages - key) * CREDITS_PER_STILL + key * CREDITS_PER_PAGE;
+  return (pages - key) * costs.still + key * costs.animatedClip;
+}
+/** Cost of a single page re-animate. STANDARD = 6s/768P, HERO = 10s/768P.
+ *  We assume STANDARD on the UI side because the Studio doesn't know the
+ *  page's motion tier at confirm-time without another round-trip. */
+function singlePageReanimateUsd(): number {
+  return providerCostsFor().animatedClip;
+}
+/** Bulk re-animate cost (N pages × animatedClip). */
+function bulkReanimateUsd(n: number): number {
+  return n * providerCostsFor().animatedClip;
 }
 const styleName = (id: string | null | undefined) => styleOptions.find((o) => o.id === id)?.label ?? id ?? "";
 const PAGE_STATUS: Record<string, string> = { PENDING: "To review", APPROVED: "Approved", FLAGGED: "Failed", REGENERATING: "Re-animating" };
@@ -76,9 +117,10 @@ function stageFor(project: ProjectDetail | null): Stage {
   if (!project) return "SETUP";
   // Split-pipeline books bypass the legacy GENERATING/AUDIO gates — the
   // STILL_PAGE + ANIMATE_PAGE workers handle generation. Skip ahead so a
-  // paused legacy queue (e.g. Runway credits at 0) doesn't trap the user
-  // at Step 4. Brain-related states (BRAIN_REVIEW, FAILED-before-brain)
-  // still hold: the Brain is upstream of SplitReview.
+  // paused legacy queue (e.g. the active video provider's API being out
+  // of credits) doesn't trap the user at Step 4. Brain-related states
+  // (BRAIN_REVIEW, FAILED-before-brain) still hold: the Brain is
+  // upstream of SplitReview.
   if (
     project.book?.splitPipeline &&
     (project.status === "GENERATING" || project.status === "AUDIO")
@@ -375,9 +417,9 @@ export default function StudioPage() {
 
   async function generate() {
     if (!projectId) return;
-    const estimate = estimateCredits(pages.length, mode);
+    const estimate = estimateCostUsd(pages.length, mode);
     const what = mode === "full" ? "Animate" : "Illustrate";
-    if (!window.confirm(`${what} ${pages.length} pages in this style? This uses about ${estimate} Runway credits (≈ $${(estimate / 100).toFixed(2)}).`)) return;
+    if (!window.confirm(`${what} ${pages.length} pages in this style? Estimated cost: $${estimateCostUsd(pages.length, mode).toFixed(2)}.`)) return;
     setBusy(true);
     try {
       await apiFetch(`/api/studio/projects/${projectId}/style`, { method: "POST", json: { styleId } });
@@ -438,7 +480,7 @@ export default function StudioPage() {
       toast("Write a short direction note first");
       return;
     }
-    if (!window.confirm("Re-animate this page? This uses about 30 Runway credits.")) return;
+    if (!window.confirm(`Re-animate this page? Estimated cost: $${singlePageReanimateUsd().toFixed(2)}.`)) return;
     setWorkingPage(pageId);
     try {
       await apiFetch(`/api/studio/pages/${pageId}/regenerate`, { method: "POST", json: { note } });
@@ -457,11 +499,11 @@ export default function StudioPage() {
     if (!projectId) return;
     const flagged = pages.filter((p) => p.status === "FLAGGED");
     if (flagged.length === 0) return;
-    const estCredits = flagged.length * 50;
+    const estUsd = bulkReanimateUsd(flagged.length);
     if (!window.confirm(
       `Re-animate ${flagged.length} failed pages? ` +
-      `Estimated ${estCredits.toLocaleString()} Runway credits ` +
-      `(${flagged.length} pages × ~50 credits). The Bull worker will pick them up immediately.`
+      `Estimated cost: $${estUsd.toFixed(2)} ` +
+      `(${flagged.length} pages × one clip each). The Bull worker will pick them up immediately.`
     )) return;
     setWorkingBulk("all-failed");
     try {
@@ -1046,16 +1088,16 @@ export default function StudioPage() {
                           Every page painted and slowly panned; chapter openings and key moments fully animated
                           ({keyPageCount(pages.length)} of {pages.length} pages move).
                         </small>
-                        <span className="mode-cost">≈ {estimateCredits(pages.length, "illustrated")} credits · ${(estimateCredits(pages.length, "illustrated") / 100).toFixed(2)}</span>
+                        <span className="mode-cost">≈ ${estimateCostUsd(pages.length, "illustrated").toFixed(2)}</span>
                       </button>
                       <button type="button" className={`mode-card${mode === "full" ? " selected" : ""}`} onClick={() => setMode("full")}>
                         <strong>Every page animated</strong>
-                        <small>A five-second animation on every page. Best for short, visual books.</small>
-                        <span className="mode-cost">≈ {estimateCredits(pages.length, "full")} credits · ${(estimateCredits(pages.length, "full") / 100).toFixed(2)}</span>
+                        <small>A six-second animation on every page. Best for short, visual books.</small>
+                        <span className="mode-cost">≈ ${estimateCostUsd(pages.length, "full").toFixed(2)}</span>
                       </button>
                     </div>
                     <div className="cost-note">
-                      <strong>{pages.length} pages</strong> · about <strong>{estimateCredits(pages.length, mode)} Runway credits</strong> (≈ ${(estimateCredits(pages.length, mode) / 100).toFixed(2)}).{" "}
+                      <strong>{pages.length} pages</strong> · estimated cost <strong>${estimateCostUsd(pages.length, mode).toFixed(2)}</strong> (≈ {estimateCostUsd(pages.length, mode) < 1 ? "pennies" : "a few clips"}).{" "}
                       {pages.length > 60
                         ? "The opening pages are narrated now; the rest are recorded the first time a reader plays them."
                         : "Narration for every page is recorded too."}

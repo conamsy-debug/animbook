@@ -152,7 +152,12 @@ router.get("/:id/pages", async (req: AuthedRequest, res: Response) => {
   res.json({
     bookId: book.id,
     pages,
-    integration: { runway: isFeatureEnabled("RUNWAY"), elevenlabs: isFeatureEnabled("ELEVENLABS") }
+    integration: {
+      runway: isFeatureEnabled("RUNWAY"),
+      elevenlabs: isFeatureEnabled("ELEVENLABS"),
+      minimax: isFeatureEnabled("MINIMAX_VIDEO"),
+      activeVideoProvider: process.env.VIDEO_PROVIDER?.toLowerCase().trim() === "runway" ? "runway" : "minimax"
+    }
   });
 });
 

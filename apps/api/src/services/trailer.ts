@@ -1,8 +1,9 @@
 // Splits a ≤600-char hook into 3 cinematic scene prompts. We pick the most
 // evocative 1-sentence beats from the hook (first, middle-style, last) and
-// pad them with a fixed visual scaffold so Runway has something concrete to
-// hang a still image on. No Claude call needed — the hook is short by
-// construction.
+// pad them with a fixed visual scaffold so the active video provider
+// (MiniMax / Hailuo by default, Runway when VIDEO_PROVIDER=runway) has
+// something concrete to hang a still image on. No Claude call needed —
+// the hook is short by construction.
 import { spawn } from "node:child_process";
 import { readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -39,10 +40,11 @@ function pickBeat(hook: string, target: "first" | "middle" | "last"): string {
 }
 
 /**
- * Returns 3 scene prompts ready for Runway text_to_image. Each is the picked
- * beat + a deterministic visual scaffold so all three clips sit in the same
- * cinematic family. The author already chose the hook; this just shapes it
- * for the camera.
+ * Returns 3 scene prompts ready for the active video provider's
+ * text-to-image call (MiniMax image-01 by default, Runway when
+ * VIDEO_PROVIDER=runway). Each is the picked beat + a deterministic
+ * visual scaffold so all three clips sit in the same cinematic family.
+ * The author already chose the hook; this just shapes it for the camera.
  */
 export function splitHookIntoScenes(hook: string): { scene1: string; scene2: string; scene3: string } {
   const trimmed = hook.replace(/\s+/g, " ").trim();

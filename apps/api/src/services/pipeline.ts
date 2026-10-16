@@ -4,7 +4,7 @@ import { appEnv } from "../config/env.js";
 import { prisma } from "../db.js";
 import { emitPipelineEvent, type PipelineEvent } from "../studio/events.js";
 import { generateBookBrain, type BookBrain } from "./bookBrain.js";
-import { generateClip, generateStill, animateStill } from "./runway.js";
+import { generateClip, generateStill, animateStill, currentProvider as currentVideoProvider } from "./videoProvider.js";
 import { generateNarration } from "./elevenlabs.js";
 import { mirrorToR2, uploadAsset } from "./cloudflare.js";
 import { safePrompt, stylePrompt, type NamedCharacter } from "./promptSafety.js";

@@ -25,6 +25,27 @@ export const RUNWAY_CREDITS_PER_IMAGE = 5;
 export const RUNWAY_CREDITS_PER_SECOND = 5;
 export const RUNWAY_USD_PER_CREDIT = 0.01;
 
+/* --------------------------------------------------------------------- *
+ * MiniMax (Hailuo) pricing — sourced from the published price sheet at
+ * https://platform.minimax.io/docs/api-reference/llms.txt (and cross-checked
+ * against the cost grid pasted into the migration brief). All USD, per
+ * generated clip (T2V/I2V) or per still (image-01). MiniMax bills per clip,
+ * not per second, so the helper prorates by duration/resolution.
+ * --------------------------------------------------------------------- */
+
+/** 6s 768P clip — the default. */
+export const MINIMAX_VIDEO_USD_768P_6S = 0.28;
+/** 10s 768P clip (HERO tier). */
+export const MINIMAX_VIDEO_USD_768P_10S = 0.56;
+/** 6s 1080P clip (HD). */
+export const MINIMAX_VIDEO_USD_1080P_6S = 0.49;
+/** MiniMax-Hailuo-2.3-Fast pricing. */
+export const MINIMAX_VIDEO_USD_FAST_768P_6S = 0.19;
+export const MINIMAX_VIDEO_USD_FAST_768P_10S = 0.32;
+export const MINIMAX_VIDEO_USD_FAST_1080P_6S = 0.33;
+/** image-01 per-still. */
+export const MINIMAX_IMAGE_USD_IMAGE_01 = 0.0035;
+
 export type UsageKind =
   | "ANIMATE_KICK"
   | "STILL_KICK"
@@ -32,7 +53,7 @@ export type UsageKind =
   | "AUDIO_REGEN"
   | "TRAILER";
 
-export type UsageProvider = "RUNWAY" | "ELEVENLABS";
+export type UsageProvider = "RUNWAY" | "ELEVENLABS" | "MINIMAX_VIDEO";
 
 export interface RecordUsageInput {
   userId: string;
@@ -198,6 +219,49 @@ export function estimateAnimateCostUsd(pages: { motionTier: "HERO" | "STANDARD" 
 /** Seconds × credits-per-sec × USD-per-credit. */
 export function estimateClipCostUsd(seconds: number): number {
   return Math.round(seconds * RUNWAY_CREDITS_PER_SECOND * RUNWAY_USD_PER_CREDIT * 100) / 100;
+}
+
+/* --------------------------------------------------------------------- *
+ * MiniMax cost helpers. The provider bills a single flat-rate per clip
+ * based on (duration, resolution, model), so we round to one of the four
+ * price-points (6s/10s × 768P/1080P) and pick Fast vs full from the model
+ * name. The function takes the same inputs as Runway's to keep the
+ * splitPipeline + pipeline callers able to swap providers seamlessly.
+ * --------------------------------------------------------------------- */
+
+export interface MinimaxVideoCostInput {
+  durationSeconds?: number;
+  resolution?: "768P" | "1080P";
+  isFast?: boolean;
+}
+
+/** Returns the clip-cost in USD for a MiniMax (Hailuo) video generation.
+ *  Defaults: 6s / 768P / full model. Resolves to the nearest published
+ *  price-point by linearly prorating duration. */
+export function estimateMinimaxVideoCostUsd(input: MinimaxVideoCostInput = {}): number {
+  const duration = Math.max(1, input.durationSeconds ?? 6);
+  const resolution: "768P" | "1080P" = input.resolution ?? "768P";
+  const fast = Boolean(input.isFast);
+
+  // 1. Pick the two price anchors (6s + 10s) at this resolution/speed.
+  let anchor6: number;
+  let anchor10: number;
+  if (resolution === "1080P") {
+    anchor6 = fast ? MINIMAX_VIDEO_USD_FAST_1080P_6S : MINIMAX_VIDEO_USD_1080P_6S;
+    // 1080P only has a 6s published price point; we extrapolate at the
+    // same minute-rate. The math is deliberately conservative.
+    anchor10 = anchor6 * (10 / 6);
+  } else {
+    anchor6 = fast ? MINIMAX_VIDEO_USD_FAST_768P_6S : MINIMAX_VIDEO_USD_768P_6S;
+    anchor10 = fast ? MINIMAX_VIDEO_USD_FAST_768P_10S : MINIMAX_VIDEO_USD_768P_10S;
+  }
+  const raw = duration <= 6 ? anchor6 * (duration / 6) : anchor6 + ((duration - 6) / 4) * (anchor10 - anchor6);
+  return Math.round(raw * 100) / 100;
+}
+
+/** Per-image cost — MiniMax charges one fixed price per image-01 still. */
+export function estimateMinimaxImageCostUsd(count: number = 1): number {
+  return Math.round(Math.max(0, count) * MINIMAX_IMAGE_USD_IMAGE_01 * 100) / 100;
 }
 
 /** Chars × USD per 1k chars. */

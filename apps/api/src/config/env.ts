@@ -8,7 +8,16 @@
  */
 import "dotenv/config";
 
-type Feature = "CLERK" | "BOOK_BRAIN" | "RUNWAY" | "ELEVENLABS" | "OPENAI" | "STRIPE" | "CLOUDFLARE" | "LANGUAGES";
+type Feature =
+  | "CLERK"
+  | "BOOK_BRAIN"
+  | "RUNWAY"
+  | "ELEVENLABS"
+  | "OPENAI"
+  | "STRIPE"
+  | "CLOUDFLARE"
+  | "LANGUAGES"
+  | "MINIMAX_VIDEO";
 
 const env = process.env;
 
@@ -40,6 +49,21 @@ export interface AppEnv {
   ANTHROPIC_API_KEY: string | undefined;
   ANTHROPIC_BOOK_BRAIN_MODEL: string;
   RUNWAY_API_KEY: string | undefined;
+  /** MiniMax (Hailuo) video + image API. Apply at https://platform.minimax.io.
+   *  Treat this key like a payment credential — never log, print, or commit it. */
+  MINIMAX_API_KEY: string | undefined;
+  /** Routing key for the active video provider. Defaults to "minimax" when
+   *  unset. See apps/api/src/services/videoProvider.ts. */
+  VIDEO_PROVIDER: "minimax" | "runway";
+  /** Per-call concurrency cap for MiniMax requests. Conservative default
+   *  to stay under any plausible per-account RPM ceiling. */
+  MINIMAX_VIDEO_CONCURRENCY: number;
+  /** Comma-separated allow-list of MiniMax video models the API is allowed
+   *  to pass to the worker; the runtime model is `MINIMAX_VIDEO_MODEL`. */
+  MINIMAX_VIDEO_MODEL: string;
+  /** Image model used for the per-page still. `image-01` is the documented
+   *  default at platform.minimax.io/docs. */
+  MINIMAX_IMAGE_MODEL: string;
   ELEVENLABS_API_KEY: string | undefined;
   OPENAI_API_KEY: string | undefined;
   STRIPE_SECRET_KEY: string | undefined;
@@ -81,6 +105,13 @@ export const appEnv: AppEnv = {
   ANTHROPIC_API_KEY: optional("ANTHROPIC_API_KEY"),
   ANTHROPIC_BOOK_BRAIN_MODEL: env.ANTHROPIC_BOOK_BRAIN_MODEL ?? "claude-sonnet-4-5",
   RUNWAY_API_KEY: optional("RUNWAY_API_KEY"),
+  MINIMAX_API_KEY: optional("MINIMAX_API_KEY"),
+  VIDEO_PROVIDER: ((env.VIDEO_PROVIDER ?? "minimax").toLowerCase().trim() === "runway" ? "runway" : "minimax") as
+    | "minimax"
+    | "runway",
+  MINIMAX_VIDEO_CONCURRENCY: Math.max(1, Number.parseInt(env.MINIMAX_VIDEO_CONCURRENCY ?? "2", 10) || 2),
+  MINIMAX_VIDEO_MODEL: env.MINIMAX_VIDEO_MODEL?.trim() || "MiniMax-Hailuo-2.3",
+  MINIMAX_IMAGE_MODEL: env.MINIMAX_IMAGE_MODEL?.trim() || "image-01",
   ELEVENLABS_API_KEY: optional("ELEVENLABS_API_KEY"),
   OPENAI_API_KEY: optional("OPENAI_API_KEY"),
   STRIPE_SECRET_KEY: optional("STRIPE_SECRET_KEY"),
@@ -122,6 +153,8 @@ export function isFeatureEnabled(feature: Feature): boolean {
       );
     case "LANGUAGES":
       return appEnv.LANGUAGES_ENABLED;
+    case "MINIMAX_VIDEO":
+      return Boolean(appEnv.MINIMAX_API_KEY);
     default:
       return false;
   }
@@ -135,5 +168,6 @@ export const featureStatus = {
   openai: isFeatureEnabled("OPENAI"),
   stripe: isFeatureEnabled("STRIPE"),
   cloudflare: isFeatureEnabled("CLOUDFLARE"),
-  languages: isFeatureEnabled("LANGUAGES")
+  languages: isFeatureEnabled("LANGUAGES"),
+  minimaxVideo: isFeatureEnabled("MINIMAX_VIDEO")
 } as const;

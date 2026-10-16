@@ -39,7 +39,8 @@ const KIND_LABEL: Record<string, string> = {
 };
 const PROVIDER_LABEL: Record<string, string> = {
   RUNWAY: "Runway",
-  ELEVENLABS: "ElevenLabs"
+  ELEVENLABS: "ElevenLabs",
+  MINIMAX_VIDEO: "MiniMax (Hailuo)"
 };
 
 /* --------------------------------------------------------------------- *

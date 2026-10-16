@@ -36,7 +36,8 @@ import IORedis from "ioredis";
 import { appEnv } from "../config/env.js";
 import { prisma as defaultPrisma, type PrismaClient } from "../db.js";
 import { emitPipelineEvent } from "../studio/events.js";
-import { generateStill as defaultGenerateStill, animateStill as defaultAnimateStill } from "./runway.js";
+import { generateStill as defaultGenerateStill, animateStill as defaultAnimateStill, currentProvider as currentVideoProvider } from "./videoProvider.js";
+import { estimateMinimaxVideoCostUsd } from "./usageTracking.js";
 import { mirrorToR2 as defaultMirrorToR2 } from "./cloudflare.js";
 import { move as defaultMove, IllegalTransitionError } from "./pageState.js";
 import { loadBrain as defaultLoadBrain } from "./pipeline.js";
@@ -72,7 +73,19 @@ export function pickClipSeconds(tier: MotionTier): number {
 }
 
 export function estimateClipCostUsd(seconds: number): number {
-  // Runway gen4_turbo is 5 credits/sec at $0.01/credit.
+  // Runway gen4_turbo legacy math — kept verbatim to keep the pre-migration
+  // unit tests (`splitPipeline.test.mjs` at line 118) unchanged. Provider-aware
+  // code paths should use `providerEstimateClipCostUsd()` below.
+  return seconds * 5 * 0.01;
+}
+
+/** Provider-aware cost preview. Routes that already know the active provider
+ *  (or that want to surface the live MiniMax price point) call this instead.
+ *  Defaults: 6s / 768P / full model — see estimateMinimaxVideoCostUsd. */
+export function providerEstimateClipCostUsd(seconds: number): number {
+  if (currentVideoProvider() === "minimax") {
+    return estimateMinimaxVideoCostUsd({ durationSeconds: seconds, resolution: "768P", isFast: false });
+  }
   return seconds * 5 * 0.01;
 }
 
