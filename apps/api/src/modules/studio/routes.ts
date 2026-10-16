@@ -1,12 +1,14 @@
 import type { Request, Response } from "express";
 import express, { Router } from "express";
+import type { BookVertical } from "@prisma/client";
 import { z } from "zod";
 import { authMiddleware, requireUserId, type AuthedRequest } from "../../auth/middleware.js";
 import { prisma } from "../../db.js";
 import {
   enqueuePipeline,
   registerManuscript,
-  shutdownPipeline
+  shutdownPipeline,
+  type ManuscriptPayload
 } from "../../services/pipeline.js";
 import { emitPipelineEvent, subscribeProject, writeSseEvent, writeSseHeaders, type PipelineEvent } from "../../studio/events.js";
 import { rateLimit } from "../../middleware/rateLimit.js";
@@ -46,6 +48,25 @@ const createSchema = z.object({
   author: z.string().min(1),
   synopsis: z.string().min(1).optional(),
   language: z.string().default("en")
+});
+
+/* Editable after publish. Vertical is intentionally absent — it gates
+ * expert review and is locked at creation time (see PATCH schema below). */
+const patchSchema = z.object({
+  title: z.string().trim().min(1).optional(),
+  subtitle: z.string().trim().max(200).nullable().optional(),
+  author: z.string().trim().min(1).optional(),
+  synopsis: z.string().trim().nullable().optional(),
+  subcategory: z.string().trim().max(40).nullable().optional()
+}).strict();
+
+/* Same as patchSchema but also accepts vertical — only valid for drafts.
+ * The route handler enforces "vertical locked on published books". */
+const patchVerticalSchema = patchSchema.extend({
+  vertical: z.enum([
+    "CONSUMER", "KIDS", "EDU", "FAITH", "DOCS", "VERSE",
+    "COMICS", "BUSINESS", "WELLNESS", "LAW", "TRAVEL", "ORIGINALS"
+  ])
 });
 
 /**
@@ -203,9 +224,19 @@ router.post("/projects/:id/upload", async (req: AuthedRequest, res: Response) =>
     res.status(400).json({ error: "Missing project id" });
     return;
   }
-  const project = await prisma.studioProject.findFirst({ where: { id, ownerId: userId } });
-  if (!project) {
+  const project = await prisma.studioProject.findFirst({ where: { id, ownerId: userId }, include: { book: true } });
+  if (!project?.book) {
     res.status(404).json({ error: "Project not found" });
+    return;
+  }
+  // Once a book is published, an upload would deleteMany-and-createMany the
+  // pages, wiping every clip / audio / VTT row that's already in the reader
+  // CDN. Reject loudly so the author has to archive + re-publish to start
+  // over — the same path that unlocks the release schedule.
+  if (project.book.status === "PUBLISHED") {
+    res.status(409).json({
+      error: "This book is already published. Uploading a new manuscript would erase every published page's clip, audio and VTT. Archive the book and re-publish to start over."
+    });
     return;
   }
   const schema = z.object({
@@ -226,7 +257,7 @@ router.post("/projects/:id/upload", async (req: AuthedRequest, res: Response) =>
     res.status(400).json({ error: "Invalid manuscript", details: parsed.error.flatten() });
     return;
   }
-  await registerManuscript(id, parsed.data);
+  await registerManuscript(id, parsed.data as ManuscriptPayload);
   emitPipelineEvent(id, {
     stage: "MANUSCRIPT_INGESTION",
     status: "succeeded",
@@ -236,6 +267,93 @@ router.post("/projects/:id/upload", async (req: AuthedRequest, res: Response) =>
   });
   res.json({ projectId: id, pages: parsed.data.pages.length });
 });
+
+/**
+ * PATCH /api/studio/projects/:id/details — edit title/subtitle/author/
+ * synopsis/subcategory at any time (draft AND published). Vertical is
+ * also accepted here but ONLY when the book hasn't been published yet
+ * (vertical gates expert review; flipping it after publish would be
+ * unsafe).
+ *
+ * The slug is intentionally NOT recomputed on title change — reader URLs
+ * pinned on /r/<slug> must keep working. Subtitle/author/synopsis don't
+ * affect the slug.
+ */
+router.patch(
+  "/projects/:id/details",
+  rateLimit({ name: "studio.details", max: 60, windowSeconds: 600 }),
+  async (req: AuthedRequest, res: Response) => {
+    const userId = requireUserId(req);
+    const id = req.params["id"];
+    if (typeof id !== "string") {
+      res.status(400).json({ error: "Missing project id" });
+      return;
+    }
+    const project = await prisma.studioProject.findFirst({
+      where: { id, ownerId: userId },
+      include: { book: true }
+    });
+    if (!project?.book) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
+    const isPublished = project.book.status === "PUBLISHED";
+    const schema = isPublished ? patchSchema : patchVerticalSchema;
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid details", details: parsed.error.flatten() });
+      return;
+    }
+    const data = parsed.data as Record<string, unknown>;
+    /* Vertical change ⇒ re-derive requiresExpertReview. Vertical→subcategory
+     * must still match the subcategories table. */
+    const targetVertical = (data["vertical"] as string | undefined) ?? project.book.vertical;
+    if (data["subcategory"] !== undefined && !isValidSubcategory(targetVertical, (data["subcategory"] as string | null) ?? null)) {
+      res.status(400).json({ error: "Unknown subcategory for this vertical" });
+      return;
+    }
+    const updateData: Record<string, unknown> = {};
+    if (data["title"] !== undefined) updateData["title"] = data["title"];
+    if (data["subtitle"] !== undefined) updateData["subtitle"] = data["subtitle"];
+    if (data["author"] !== undefined) updateData["author"] = data["author"];
+    if (data["synopsis"] !== undefined) updateData["synopsis"] = data["synopsis"];
+    if (data["subcategory"] !== undefined) updateData["subcategory"] = data["subcategory"];
+    if (!isPublished && data["vertical"] !== undefined) {
+      updateData["vertical"] = data["vertical"];
+      const requiresExpertReview = data["vertical"] === "EDU" || data["vertical"] === "FAITH";
+      updateData["requiresExpertReview"] = requiresExpertReview;
+      updateData["expertReviewStatus"] = requiresExpertReview ? "PENDING" : "NOT_REQUIRED";
+      // Sync the StudioProject's vertical too — the picker uses it.
+      await prisma.studioProject.update({
+        where: { id },
+        data: {
+          vertical: data["vertical"] as BookVertical,
+          expertReviewRequired: requiresExpertReview
+        }
+      });
+    }
+    if (Object.keys(updateData).length === 0) {
+      res.status(400).json({ error: "No editable fields supplied" });
+      return;
+    }
+    const book = await prisma.book.update({
+      where: { id: project.book.id },
+      data: updateData,
+      select: {
+        title: true,
+        subtitle: true,
+        author: true,
+        synopsis: true,
+        subcategory: true,
+        vertical: true,
+        requiresExpertReview: true,
+        expertReviewStatus: true,
+        slug: true
+      }
+    });
+    res.json({ book });
+  }
+);
 
 router.post(
   "/projects/:id/analyze",
@@ -487,6 +605,16 @@ router.post("/pages/:pageId/regenerate", async (req: AuthedRequest, res: Respons
     res.status(404).json({ error: "Page not found" });
     return;
   }
+  // Same guard as /upload — regenerating a published page would change the
+  // clip readers are already playing. The Studio UI hides this button
+  // post-publish; the route enforces the same so a direct API call can't
+  // slip past.
+  if (page.book.status === "PUBLISHED") {
+    res.status(409).json({
+      error: "This book is already published. Re-animating a published page would replace the clip readers are seeing. Archive the book and re-publish to regenerate."
+    });
+    return;
+  }
   await prisma.page.update({
     where: { id: pageId },
     data: {
@@ -551,6 +679,16 @@ router.post(
     });
     if (!page?.book.studioProject || page.book.studioProject.ownerId !== userId) {
       res.status(404).json({ error: "Page not found" });
+      return;
+    }
+    // Mirror the regenerate-route lock: re-narrating a published page would
+    // swap the audio readers are already hearing. The UI hides the button
+    // post-publish; this enforces the same at the API so a curl can't
+    // bypass.
+    if (page.book.status === "PUBLISHED") {
+      res.status(409).json({
+        error: "This book is already published. Re-narrating a published page would replace the audio readers are hearing. Archive the book and re-publish to regenerate."
+      });
       return;
     }
     const text = (page.textExcerpt ?? "").trim();

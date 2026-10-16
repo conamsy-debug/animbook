@@ -24,6 +24,7 @@ interface ProjectDetail extends StudioProjectSummary {
     subtitle?: string | null;
     status?: string;
     styleId?: string | null;
+    subcategory?: string | null;
     requiresExpertReview?: boolean;
     expertReviewStatus?: string;
     splitPipeline?: boolean;
@@ -173,6 +174,25 @@ export default function StudioPage() {
   const [vertical, setVertical] = useState("CONSUMER");
   const [subcategory, setSubcategory] = useState("");
 
+  /* Edit Details (PATCH /details) — preloaded from project on open, editable
+   * before AND after publish (vertical is locked once the book is live). */
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [detailTitle, setDetailTitle] = useState("");
+  const [detailSubtitle, setDetailSubtitle] = useState("");
+  const [detailAuthor, setDetailAuthor] = useState("");
+  const [detailSynopsis, setDetailSynopsis] = useState("");
+  const [detailSubcategory, setDetailSubcategory] = useState("");
+  const [detailVertical, setDetailVertical] = useState("CONSUMER");
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailBusy, setDetailBusy] = useState(false);
+
+  /* Re-upload confirm modal — the only path that destroys existing clips +
+   * audio is POST /upload (which deleteMany's pages and recreateMany's
+   * them). On a draft that already has media, gate the call behind an
+   * explicit "I know what I'm doing" click. Published books can't upload
+   * at all (409 enforced server-side). */
+  const [reuploadConfirm, setReuploadConfirm] = useState(false);
+
   // Manuscript
   const [manuscriptText, setManuscriptText] = useState("");
   const [pageLength, setPageLength] = useState(1200);
@@ -226,9 +246,51 @@ export default function StudioPage() {
     const detail = await apiFetch<ProjectDetail>(`/api/studio/projects/${id}`);
     setProject(detail);
     if (detail.book?.styleId) setStyleId(detail.book.styleId);
+    // Pre-fill the Edit Details form from the book record so the panel is
+    // ready as soon as the project opens.
+    if (detail.book) {
+      setDetailTitle(detail.book.title ?? "");
+      setDetailSubtitle(detail.book.subtitle ?? "");
+      setDetailAuthor(detail.book.author ?? "");
+      setDetailSynopsis(detail.book.synopsis ?? "");
+      setDetailSubcategory(detail.book.subcategory ?? "");
+      setDetailVertical((detail.book.vertical as string) ?? "CONSUMER");
+    }
     if (jump) setView(stageFor(detail));
     return detail;
   }, []);
+
+  async function saveDetails() {
+    if (!projectId) return;
+    setDetailBusy(true);
+    setDetailError(null);
+    try {
+      const isPublished = project?.status === "PUBLISHED";
+      // Vertical is intentionally dropped from the payload when the book
+      // is already published — the API rejects it, but skipping the field
+      // means the form stays tidy for the user.
+      const payload: Record<string, unknown> = {
+        title: detailTitle.trim(),
+        subtitle: detailSubtitle.trim() || null,
+        author: detailAuthor.trim(),
+        synopsis: detailSynopsis.trim() || null,
+        subcategory: detailSubcategory || null
+      };
+      if (!isPublished) payload["vertical"] = detailVertical;
+      await apiFetch<{ book: { title: string; subtitle: string | null; author: string; synopsis: string | null; subcategory: string | null; vertical: string; slug: string } }>(
+        `/api/studio/projects/${encodeURIComponent(projectId)}/details`,
+        { method: "PATCH", json: payload }
+      );
+      setEditingDetails(false);
+      toast("Details saved");
+      await refresh(projectId);
+    } catch (err) {
+      const detail = (err as { details?: { error?: string } }).details?.error;
+      setDetailError(detail ?? (err as Error).message);
+    } finally {
+      setDetailBusy(false);
+    }
+  }
 
   useEffect(() => {
     void loadProjects();
@@ -382,8 +444,18 @@ export default function StudioPage() {
     }
   }
 
-  async function uploadManuscript() {
+  async function uploadManuscript(opts?: { skipConfirm?: boolean }) {
     if (!projectId || kept.length === 0) return;
+    /* Re-upload is destructive — registerManuscript() does deleteMany on
+     * pages and createMany fresh ones, which wipes every clip + audio +
+     * VTT row for the book. On a draft that already has any media, show
+     * an explicit confirm before pulling the trigger. (The published path
+     * is blocked server-side anyway.) */
+    const hasMedia = pages.some((p) => p.videoUrl || p.audioUrl || p.posterUrl);
+    if (!opts?.skipConfirm && hasMedia && project?.status !== "PUBLISHED") {
+      setReuploadConfirm(true);
+      return;
+    }
     setBusy(true);
     try {
       await apiFetch(`/api/studio/projects/${projectId}/upload`, {
@@ -968,7 +1040,7 @@ export default function StudioPage() {
                       </div>
                     )}
                     <div className="panel-actions">
-                      <button type="button" className="btn primary" disabled={busy || kept.length === 0} onClick={uploadManuscript}>
+                      <button type="button" className="btn primary" disabled={busy || kept.length === 0} onClick={() => void uploadManuscript()}>
                         {busy ? "Uploading…" : `Upload & analyse ${kept.length} pages`}
                       </button>
                     </div>
@@ -1003,6 +1075,109 @@ export default function StudioPage() {
                 <div className="cover-preview" style={{ backgroundImage: project.book?.coverUrl ? `url(${project.book.coverUrl})` : undefined }}>
                   {!project.book?.coverUrl && <span>No cover yet</span>}
                 </div>
+              </article>
+            )}
+
+            {/* Edit details — available on every view that has a project.
+                Pre-publish, all fields (incl. vertical) are editable.
+                Post-publish, vertical is locked (gates expert review). */}
+            {project && project.book && (
+              <article className="studio-panel details-panel">
+                <div className="details-head">
+                  <div>
+                    <h2>Book details</h2>
+                    <p className="muted small">
+                      {project.status === "PUBLISHED"
+                        ? "Update the listing readers see in the library. The vertical stays locked once the book is live."
+                        : "Update the listing readers see in the library. Vertical is locked after publish."}
+                    </p>
+                  </div>
+                  {editingDetails ? (
+                    <button type="button" className="btn ghost" onClick={() => setEditingDetails(false)}>
+                      Cancel
+                    </button>
+                  ) : (
+                    <button type="button" className="btn" onClick={() => setEditingDetails(true)}>
+                      Edit details
+                    </button>
+                  )}
+                </div>
+                {editingDetails ? (
+                  <div className="form-grid">
+                    <label className="field">
+                      <span>Title *</span>
+                      <input value={detailTitle} onChange={(e) => setDetailTitle(e.target.value)} />
+                    </label>
+                    <label className="field">
+                      <span>Subtitle</span>
+                      <input value={detailSubtitle} onChange={(e) => setDetailSubtitle(e.target.value)} maxLength={200} />
+                    </label>
+                    <label className="field">
+                      <span>Author *</span>
+                      <input value={detailAuthor} onChange={(e) => setDetailAuthor(e.target.value)} />
+                    </label>
+                    <label className="field wide">
+                      <span>Description</span>
+                      <textarea value={detailSynopsis} onChange={(e) => setDetailSynopsis(e.target.value)} rows={3} />
+                    </label>
+                    {project.status !== "PUBLISHED" ? (
+                      <>
+                        <label className="field">
+                          <span>Type of book</span>
+                          <select value={detailVertical} onChange={(e) => {
+                            setDetailVertical(e.target.value);
+                            setDetailSubcategory(""); // reset when vertical changes
+                          }}>
+                            {VERTICALS.map((v) => (
+                              <option key={v.id} value={v.id}>{v.label}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="field">
+                          <span>Subcategory</span>
+                          <select value={detailSubcategory} onChange={(e) => setDetailSubcategory(e.target.value)}>
+                            <option value="">(none)</option>
+                            {subcategoriesFor(detailVertical).map((s) => (
+                              <option key={s.id} value={s.id}>{s.label}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </>
+                    ) : (
+                      <>
+                        <label className="field">
+                          <span>Type of book</span>
+                          <input value={verticalById(detailVertical)?.label ?? detailVertical} disabled />
+                        </label>
+                        <label className="field">
+                          <span>Subcategory</span>
+                          <input value={detailSubcategory || "(none)"} disabled />
+                        </label>
+                      </>
+                    )}
+                    {detailError && <p className="notice">{detailError}</p>}
+                    <div className="panel-actions">
+                      <button
+                        type="button"
+                        className="btn primary"
+                        onClick={() => void saveDetails()}
+                        disabled={detailBusy || !detailTitle.trim() || !detailAuthor.trim()}
+                      >
+                        {detailBusy ? "Saving…" : "Save details"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <dl className="kvp">
+                    <dt>Title</dt><dd>{project.book.title}</dd>
+                    <dt>Subtitle</dt><dd>{project.book.subtitle || <span className="muted">—</span>}</dd>
+                    <dt>Author</dt><dd>{project.book.author}</dd>
+                    <dt>Description</dt><dd>{project.book.synopsis || <span className="muted">—</span>}</dd>
+                    <dt>Vertical</dt><dd>{verticalById(project.book.vertical)?.label ?? project.book.vertical}</dd>
+                    <dt>Subcategory</dt><dd>{project.book.subcategory ? (subcategoriesFor(project.book.vertical).find((s) => s.id === project.book.subcategory)?.label ?? project.book.subcategory) : <span className="muted">—</span>}</dd>
+                    <dt>Slug</dt><dd><code>{project.book.slug}</code> <span className="muted small">(unchanged when the title is edited)</span></dd>
+                  </dl>
+                )}
               </article>
             )}
 
@@ -1425,6 +1600,35 @@ export default function StudioPage() {
               </button>
               <button type="button" className="btn primary" onClick={() => { setConfirmPublish(false); void publish(); }}>
                 Yes, lock and publish
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reuploadConfirm && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="confirm-reupload-title">
+          <div className="modal-card">
+            <h3 id="confirm-reupload-title">Replace this book&apos;s pages?</h3>
+            <p className="muted">
+              This book already has generated clips, audio and VTT files on its pages. Re-uploading the
+              manuscript will <strong>delete every existing page</strong> — clips, audio, VTT, approval
+              state and per-page notes all go. The reader URL keeps working (the slug doesn&apos;t change),
+              but pages won&apos;t have any media until you re-run analysis and animation.
+            </p>
+            <div className="panel-actions">
+              <button type="button" className="btn ghost" onClick={() => setReuploadConfirm(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => {
+                  setReuploadConfirm(false);
+                  void uploadManuscript({ skipConfirm: true });
+                }}
+              >
+                Yes, replace and re-analyse
               </button>
             </div>
           </div>

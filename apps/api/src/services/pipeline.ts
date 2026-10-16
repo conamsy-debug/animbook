@@ -9,6 +9,7 @@ import { generateNarration, currentTtsProvider } from "./ttsProvider.js";
 import { mirrorToR2, uploadAsset } from "./cloudflare.js";
 import { safePrompt, stylePrompt, type NamedCharacter } from "./promptSafety.js";
 import { defaultVoiceIdFor, findVoice, pickProviderVoiceId } from "../config/voices.js";
+import { recordUsage, MINIMAX_IMAGE_USD_IMAGE_01 } from "./usageTracking.js";
 import { splitHookIntoScenes } from "./trailer.js";
 
 const QUEUE_NAME = "animbook-pipeline";
@@ -103,15 +104,34 @@ export function startPipelineWorker(): Worker<PipelineJobData> | null {
       async (job: Job<PipelineJobData>) => runPipeline(job.data),
       { connection: getConnection() }
     );
-    worker.on("failed", (job, err) => {
+    // BullMQ's `Worker.on()` is overloaded, so cast to a permissive signature
+    // for the post-hoc listeners we add. The processor overload above
+    // keeps the strict Job<PipelineJobData> typing.
+    (worker as unknown as {
+      on(event: string, listener: (...args: unknown[]) => void): unknown;
+    }).on("completed", (job: Job<PipelineJobData>) => {
+      console.log(`[pipeline/worker] job ${job.id} completed (stage=${job.data.triggerStage} project=${job.data.projectId})`);
+    });
+    (worker as unknown as {
+      on(event: string, listener: (...args: unknown[]) => void): unknown;
+    }).on("failed", (job: Job<PipelineJobData> | undefined, err: unknown) => {
       if (!job) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[pipeline/worker] job ${job.id} failed (stage=${job.data.triggerStage} project=${job.data.projectId}): ${msg}`);
       emitPipelineEvent(job.data.projectId, {
         stage: "PIPELINE",
         status: "failed",
         progress: 0,
-        message: err.message,
+        message: msg,
         at: new Date().toISOString()
       });
+    });
+    (worker as unknown as {
+      on(event: string, listener: (...args: unknown[]) => void): unknown;
+    }).on("error", (err: unknown) => {
+      // Generic worker error (Redis blip, BullMQ internal). Surface so we
+      // don't get silent failures like the original runAudioStage drop.
+      console.warn(`[pipeline/worker] error: ${err instanceof Error ? err.message : String(err)}`);
     });
     return worker;
   } catch (err) {
@@ -389,7 +409,8 @@ type PageRow = Awaited<ReturnType<typeof prisma.page.findMany>>[number];
  * slowly pans across. Pages wait for the author's approval.
  */
 async function animatePage(projectId: string, brain: BookBrain, page: PageRow, moving = true): Promise<"done" | "failed"> {
-  const book = await prisma.book.findUnique({ where: { id: page.bookId }, select: { styleId: true } });
+  const book = await prisma.book.findUnique({ where: { id: page.bookId }, select: { styleId: true, creatorId: true } });
+  const userId = book?.creatorId ?? page.bookId;
   const style = stylePrompt(book?.styleId, brain.style_recommendation);
   const manifest = brain.page_manifest.find((m) => m.page_num === page.pageNum);
   const characters: NamedCharacter[] = (brain.characters ?? []).map((c) => ({ name: c.name, description: c.description }));
@@ -412,6 +433,19 @@ async function animatePage(projectId: string, brain: BookBrain, page: PageRow, m
         where: { id: page.id },
         data: { videoUrl: null, posterUrl: stored.url, animationPrompt: still, qualityScore: 0.8, status: "PENDING" }
       });
+      // Still-only: MiniMax bills one image-01 ($0.0035) per page when the
+      // pipeline runs in "illustrated" mode. Recorded here so the Spending
+      // dashboard shows the real per-page cost.
+      await recordUsage({
+        userId,
+        bookId: page.bookId,
+        pageId: page.id,
+        kind: "STILL_KICK",
+        provider: "MINIMAX_VIDEO",
+        units: 1,
+        unitCostUsd: MINIMAX_IMAGE_USD_IMAGE_01,
+        metadata: { model: appEnv.MINIMAX_IMAGE_MODEL, pageNum: page.pageNum, mode: "illustrated-still" }
+      });
       return "done";
     }
     const result = await generateClip({
@@ -426,6 +460,24 @@ async function animatePage(projectId: string, brain: BookBrain, page: PageRow, m
     await prisma.page.update({
       where: { id: page.id },
       data: { videoUrl: result.videoUrl, posterUrl: result.posterUrl, animationPrompt: still, qualityScore: 0.85, status: "PENDING" }
+    });
+    // Record the per-clip cost so the Spending dashboard reflects the real
+    // run. generateClip already calls estimateClipCredits → creditsEstimate,
+    // which is in USD for the active model/resolution/duration.
+    await recordUsage({
+      userId,
+      bookId: page.bookId,
+      pageId: page.id,
+      kind: "ANIMATE_KICK",
+      provider: "MINIMAX_VIDEO",
+      units: 1,
+      unitCostUsd: result.creditsEstimate,
+      metadata: {
+        model: appEnv.MINIMAX_VIDEO_MODEL,
+        pageNum: page.pageNum,
+        durationSeconds: result.durationSeconds,
+        source: result.source
+      }
     });
     return "done";
   } catch (err) {
@@ -477,10 +529,27 @@ async function runAudioStage(projectId: string, limit?: number): Promise<void> {
   if (!chosenId) {
     chosenId = pickProviderVoiceId(findVoice(defaultVoiceIdFor({ vertical: brain?.book.vertical ?? "CONSUMER", setting: brain?.culturalOrigin })));
   }
-  // Brain may store the author-key wrapper ("author:voice_abc") which is
-  // our stable AnimBook-side id; strip the prefix so ElevenLabs gets the
-  // raw voice_id.
-  const voiceId = chosenId?.startsWith("author:") ? chosenId.slice("author:".length) : chosenId;
+  /* Map the AnimBook-side voice id (curated id or author-key wrapper) into
+   * the provider-specific raw voice id that generateNarration actually
+   * needs. Curated ids ("nigerian-storyteller", "british-storyteller", …)
+   * must go through pickProviderVoiceId(findVoice(...)) so MiniMax gets
+   * "English_expressive_narrator" and ElevenLabs gets "reGkImJki7uJOve2F4A0"
+   * (the right voice per active TTS_PROVIDER). The "author:<elevenVoiceId>"
+   * wrapper skips the curated mapping because it already holds the raw
+   * ElevenLabs voice id; we just strip the prefix. If the provider is
+   * MiniMax the author's clone can't be used, so we fall back to the
+   * curated default for the vertical/region. */
+  let voiceId: string | null = null;
+  if (chosenId?.startsWith("author:")) {
+    voiceId = tts === "elevenlabs" ? chosenId.slice("author:".length) : null;
+  } else if (chosenId) {
+    voiceId = pickProviderVoiceId(findVoice(chosenId));
+  }
+  if (!voiceId) {
+    console.warn(`[pipeline/audio] ${projectId}: no usable voiceId for provider=${tts} (chosenId=${chosenId}); skipping audio narrate`);
+    return;
+  }
+  console.log(`[pipeline/audio] ${projectId}: provider=${tts} voiceId=${voiceId} pages=${pages.length}`);
   // Sequential: ElevenLabs limits concurrent requests on smaller plans.
   let didMarkOrphan = false; // dedupe the REMOVED write per run
   for (const page of pages) {
@@ -515,6 +584,28 @@ async function runAudioStage(projectId: string, limit?: number): Promise<void> {
       await prisma.page.update({
         where: { id: page.id },
         data: { audioUrl: result.audioUrl, vttUrl: result.vttUrl, audioStatus: "READY" }
+      });
+      // Record narration cost so the Spending dashboard reflects the live run.
+      // Provider is MiniMax HD ($100/M chars) when TTS_PROVIDER=minimax,
+      // ElevenLabs ($0.18/1k chars) otherwise.
+      const chars = page.textExcerpt?.length ?? result.characters ?? 0;
+      const isMinimax = tts === "minimax";
+      await recordUsage({
+        userId: brain?.book.creator?.id ?? page.bookId,
+        bookId: page.bookId,
+        pageId: page.id,
+        kind: "NARRATION_KICK",
+        provider: isMinimax ? "MINIMAX_TTS" : "ELEVENLABS",
+        units: chars,
+        unitCostUsd: isMinimax
+          ? Math.round(0.0001 * 1_000_000) / 1_000_000 // MiniMax HD $100/M
+          : 0.00018,
+        metadata: {
+          model: isMinimax ? appEnv.MINIMAX_TTS_MODEL : "elevenlabs-default",
+          voiceId,
+          pageNum: page.pageNum,
+          durationSeconds: result.durationSeconds
+        }
       });
     } catch (err) {
       console.warn(`[pipeline/audio] page ${page.pageNum}: ${(err as Error).message}`);

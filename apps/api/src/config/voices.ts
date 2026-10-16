@@ -34,7 +34,7 @@ const BUILT_IN: NarratorVoice[] = [
     id: "nigerian-storyteller",
     label: "Nigerian storyteller",
     description:
-      "Warm West African narrator. MiniMax has no African-accent system voice at the time of writing — the picked MiniMax match is British (closest warm male). ElevenLabs stays as the authentic-accent fallback.",
+      "Warm, unhurried storyteller voice.",
     elevenVoiceId: "reGkImJki7uJOve2F4A0",
     minimaxVoiceId: "English_expressive_narrator"
   },
