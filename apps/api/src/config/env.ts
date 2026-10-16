@@ -17,7 +17,8 @@ type Feature =
   | "STRIPE"
   | "CLOUDFLARE"
   | "LANGUAGES"
-  | "MINIMAX_VIDEO";
+  | "MINIMAX_VIDEO"
+  | "MINIMAX_TTS";
 
 const env = process.env;
 
@@ -64,6 +65,20 @@ export interface AppEnv {
   /** Image model used for the per-page still. `image-01` is the documented
    *  default at platform.minimax.io/docs. */
   MINIMAX_IMAGE_MODEL: string;
+  /** Routing key for the active TTS provider. Defaults to "minimax" when
+   *  unset. See apps/api/src/services/ttsProvider.ts. The author voice-clone
+   *  flow is excluded from this router and stays on ElevenLabs until MiniMax
+   *  parity lands. */
+  TTS_PROVIDER: "minimax" | "elevenlabs";
+  /** MiniMax TTS model id. Default `speech-2.8-hd` (premium); `speech-2.8-turbo`
+   *  is the cheaper option per the docs. */
+  MINIMAX_TTS_MODEL: string;
+  /** Per-call concurrency cap for MiniMax TTS requests. Matches the video
+   *  default and stays under plausible per-account RPM ceilings. */
+  MINIMAX_TTS_CONCURRENCY: number;
+  /** When set to "true", narrationLanguages.ts renders the language-specific
+   *  TTS preview even when TTS_PROVIDER=elevenlabs. Mirrors the existing
+   *  TTS route seam. */
   ELEVENLABS_API_KEY: string | undefined;
   OPENAI_API_KEY: string | undefined;
   STRIPE_SECRET_KEY: string | undefined;
@@ -112,6 +127,11 @@ export const appEnv: AppEnv = {
   MINIMAX_VIDEO_CONCURRENCY: Math.max(1, Number.parseInt(env.MINIMAX_VIDEO_CONCURRENCY ?? "2", 10) || 2),
   MINIMAX_VIDEO_MODEL: env.MINIMAX_VIDEO_MODEL?.trim() || "MiniMax-Hailuo-2.3",
   MINIMAX_IMAGE_MODEL: env.MINIMAX_IMAGE_MODEL?.trim() || "image-01",
+  TTS_PROVIDER: ((env.TTS_PROVIDER ?? "minimax").toLowerCase().trim() === "elevenlabs" ? "elevenlabs" : "minimax") as
+    | "minimax"
+    | "elevenlabs",
+  MINIMAX_TTS_MODEL: env.MINIMAX_TTS_MODEL?.trim() || "speech-2.8-hd",
+  MINIMAX_TTS_CONCURRENCY: Math.max(1, Number.parseInt(env.MINIMAX_TTS_CONCURRENCY ?? "2", 10) || 2),
   ELEVENLABS_API_KEY: optional("ELEVENLABS_API_KEY"),
   OPENAI_API_KEY: optional("OPENAI_API_KEY"),
   STRIPE_SECRET_KEY: optional("STRIPE_SECRET_KEY"),
@@ -155,6 +175,9 @@ export function isFeatureEnabled(feature: Feature): boolean {
       return appEnv.LANGUAGES_ENABLED;
     case "MINIMAX_VIDEO":
       return Boolean(appEnv.MINIMAX_API_KEY);
+    case "MINIMAX_TTS":
+      // The TTS path shares the MiniMax account; presence of the key is enough.
+      return Boolean(appEnv.MINIMAX_API_KEY);
     default:
       return false;
   }
@@ -169,5 +192,6 @@ export const featureStatus = {
   stripe: isFeatureEnabled("STRIPE"),
   cloudflare: isFeatureEnabled("CLOUDFLARE"),
   languages: isFeatureEnabled("LANGUAGES"),
-  minimaxVideo: isFeatureEnabled("MINIMAX_VIDEO")
+  minimaxVideo: isFeatureEnabled("MINIMAX_VIDEO"),
+  minimaxTts: isFeatureEnabled("MINIMAX_TTS")
 } as const;

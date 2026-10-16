@@ -31,7 +31,7 @@ function readStoredVolume(): { volume: number; muted: boolean } {
  * - "listening" is the reader's choice: once they press Play, every page they
  *   flip to is narrated until they press Pause.
  * - "speaking" is whether narration for the current page is sounding now.
- * - Pages with a recorded ElevenLabs MP3 play that; others use the browser voice.
+ * - Pages with a recorded narrator MP3 play that; others use the browser voice.
  * - When the reader picks another narrator (options.voice), that voice's
  *   recording is fetched (recorded on first request) and played instead.
  */

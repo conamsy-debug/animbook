@@ -6,22 +6,25 @@
  * pipeline. The audio narration worker + the admin "regenerate audio"
  * route both call through this seam.
  *
- * Today the only adapter is `ElevenLabsTtsProvider`, a thin wrapper
- * around the existing `generateNarration()` in `services/elevenlabs.ts`.
- * The wrapper:
+ * Today the only adapters are `ElevenLabsTtsProvider` (fallback) and
+ * `MinimaxTtsProvider` (default, post-MiniMax-migration). Both are
+ * thin wrappers around the existing `generateNarration()` in
+ * `services/ttsProvider.ts`, which dispatches to the right provider.
+ * The wrappers:
  *
- *   1. Resolves the language's `tts_voice_ids` JSON to pick a voice
+ *   1. Resolve the language's `tts_voice_ids` JSON to pick a voice
  *      (narrator for `speaker === "narrator"`, character voice otherwise
  *      via the line's scene context).
- *   2. Generates the audio bytes via ElevenLabs + uploads to R2.
- *   3. Returns the storage URL + character count + a `source` flag so the
+ *   2. Generate the audio bytes + upload to R2.
+ *   3. Return the storage URL + character count + a `source` flag so the
  *      caller knows whether real audio was produced or a stub was used.
  *
- * `resolveTtsProvider()` returns a noop stub when the keys are absent so
- * tests + dev don't crash.
+ * `resolveTtsProvider()` dispatches by `TTS_PROVIDER` env (default `minimax`)
+ * and falls back to a noop stub when the keys are absent so tests + dev don't
+ * crash.
  */
 import { prisma } from "../../db.js";
-import { generateNarration } from "../elevenlabs.js";
+import { generateNarration as ttsGenerateNarration, currentTtsProvider as _tts } from "../ttsProvider.js";
 
 /* --------------------------------------------------------------------- *
  * Provider interface
@@ -34,6 +37,8 @@ export interface TtsSynthesizeInput {
   storageKey: string;
   /** When true, throw on failure instead of returning a stub. */
   strict?: boolean;
+  /** Pass-through sent to MiniMax TTS (no-op for ElevenLabs). */
+  languageBoost?: string;
 }
 
 export interface TtsSynthesizeResult {
@@ -41,10 +46,10 @@ export interface TtsSynthesizeResult {
   /** Word timings aligned to tokens (future — Patch 12 ships null). */
   wordTimings: Array<{ token: string; startMs: number; endMs: number }> | null;
   characters: number;
-  source: "elevenlabs" | "stub";
+  source: "minimax" | "elevenlabs" | "stub";
   /**
-   * When `source === "stub"`, a short reason ("ElevenLabs not configured",
-   * "ElevenLabs 401: ...", "ElevenLabs or R2 is not configured", ...).
+   * When `source === "stub"`, a short reason ("TTS provider not configured",
+   * "401: ...", "TTS provider or R2 is not configured", ...).
    * Empty string on the success path. Carried up so admin callers can
    * show the real failure instead of guessing.
    */
@@ -58,7 +63,7 @@ export interface TtsProvider {
 }
 
 /* --------------------------------------------------------------------- *
- * ElevenLabs adapter
+ * ElevenLabs adapter (fallback — TTS_PROVIDER=elevenlabs)
  * --------------------------------------------------------------------- */
 
 class ElevenLabsTtsProvider implements TtsProvider {
@@ -79,7 +84,7 @@ class ElevenLabsTtsProvider implements TtsProvider {
         error: "ElevenLabs is not configured (set ELEVENLABS_API_KEY)"
       };
     }
-    const result = await generateNarration({
+    const result = await ttsGenerateNarration({
       text: input.text,
       voiceId: input.voiceId ?? null,
       storageKey: input.storageKey,
@@ -96,15 +101,59 @@ class ElevenLabsTtsProvider implements TtsProvider {
 }
 
 /* --------------------------------------------------------------------- *
+ * MiniMax (Hailuo) adapter (default — TTS_PROVIDER=minimax)
+ * --------------------------------------------------------------------- */
+
+class MinimaxTtsProvider implements TtsProvider {
+  readonly name = "minimax";
+
+  isConfigured(): boolean {
+    // MiniMax TTS shares the MINIMAX_API_KEY with the video path.
+    return Boolean(process.env.MINIMAX_API_KEY);
+  }
+
+  async synthesize(input: TtsSynthesizeInput): Promise<TtsSynthesizeResult> {
+    if (!this.isConfigured()) {
+      if (input.strict) throw new Error("TTS provider is not configured (set MINIMAX_API_KEY or TTS_PROVIDER=elevenlabs).");
+      return {
+        audioUrl: null,
+        wordTimings: null,
+        characters: 0,
+        source: "stub",
+        error: "TTS provider is not configured (set MINIMAX_API_KEY)"
+      };
+    }
+    const result = await ttsGenerateNarration({
+      text: input.text,
+      voiceId: input.voiceId ?? null,
+      storageKey: input.storageKey,
+      languageBoost: input.languageBoost,
+      strict: input.strict ?? false
+    });
+    return {
+      audioUrl: result.audioUrl,
+      wordTimings: null,
+      characters: result.characters,
+      source: result.source === "minimax" ? "minimax" : "stub",
+      error: result.error
+    };
+  }
+}
+
+/* --------------------------------------------------------------------- *
  * resolveTtsProvider
  * --------------------------------------------------------------------- */
 
 /**
- * Pick a provider. Today there's only ElevenLabs. The seam exists so a
- * future XTTS / Azure / open-source swap is one factory line.
+ * Pick a provider by `TTS_PROVIDER`. MiniMax (Hailuo) is the new default.
+ * The "noop" fallback handles the case where neither provider is configured.
  */
 export function resolveTtsProvider(): TtsProvider {
+  if (_tts() === "minimax") return new MinimaxTtsProvider();
   if (process.env.ELEVENLABS_API_KEY) return new ElevenLabsTtsProvider();
+  // Last-ditch: try the minimax fallback too. Minimax wins if both keys
+  // are set, since that's the env default.
+  if (process.env.MINIMAX_API_KEY) return new MinimaxTtsProvider();
   return {
     name: "noop",
     isConfigured: () => false,
@@ -113,7 +162,7 @@ export function resolveTtsProvider(): TtsProvider {
       wordTimings: null,
       characters: 0,
       source: "stub",
-      error: "ElevenLabs is not configured (set ELEVENLABS_API_KEY)"
+      error: "TTS provider is not configured (set MINIMAX_API_KEY and/or ELEVENLABS_API_KEY)"
     })
   };
 }

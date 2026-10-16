@@ -5,10 +5,10 @@ import { prisma } from "../db.js";
 import { emitPipelineEvent, type PipelineEvent } from "../studio/events.js";
 import { generateBookBrain, type BookBrain } from "./bookBrain.js";
 import { generateClip, generateStill, animateStill, currentProvider as currentVideoProvider } from "./videoProvider.js";
-import { generateNarration } from "./elevenlabs.js";
+import { generateNarration, currentTtsProvider } from "./ttsProvider.js";
 import { mirrorToR2, uploadAsset } from "./cloudflare.js";
 import { safePrompt, stylePrompt, type NamedCharacter } from "./promptSafety.js";
-import { defaultVoiceIdFor, findVoice } from "../config/voices.js";
+import { defaultVoiceIdFor, findVoice, pickProviderVoiceId } from "../config/voices.js";
 import { splitHookIntoScenes } from "./trailer.js";
 
 const QUEUE_NAME = "animbook-pipeline";
@@ -462,14 +462,20 @@ async function runAudioStage(projectId: string, limit?: number): Promise<void> {
   //      voice without any Studio setup.
   //   3. Vertical + region default.
   let chosenId = brain?.narratorVoiceId ?? null;
+  const tts = currentTtsProvider();
+  // Author clones only exist on ElevenLabs. Skip the clone fallback when
+  // TTS_PROVIDER=minimax (the clone's underlying voice id can't be used by
+  // MiniMax TTS).
   if (!chosenId || chosenId === "author:auto") {
-    const creatorClone = brain?.book.creator;
-    if (creatorClone?.narratorVoiceId && creatorClone.voiceStatus === "CLONED") {
-      chosenId = creatorClone.narratorVoiceId;
+    if (tts === "elevenlabs") {
+      const creatorClone = brain?.book.creator;
+      if (creatorClone?.narratorVoiceId && creatorClone.voiceStatus === "CLONED") {
+        chosenId = creatorClone.narratorVoiceId;
+      }
     }
   }
   if (!chosenId) {
-    chosenId = findVoice(defaultVoiceIdFor({ vertical: brain?.book.vertical ?? "CONSUMER", setting: brain?.culturalOrigin }))?.elevenVoiceId;
+    chosenId = pickProviderVoiceId(findVoice(defaultVoiceIdFor({ vertical: brain?.book.vertical ?? "CONSUMER", setting: brain?.culturalOrigin })));
   }
   // Brain may store the author-key wrapper ("author:voice_abc") which is
   // our stable AnimBook-side id; strip the prefix so ElevenLabs gets the
@@ -493,8 +499,8 @@ async function runAudioStage(projectId: string, limit?: number): Promise<void> {
       // the user record so the UI shows the "re-clone" banner. Only the
       // first orphaned page writes — subsequent pages in the same run skip
       // the redundant UPDATE since voiceStatus is already REMOVED.
-      if (result.orphanedVoiceId && !didMarkOrphan && brain?.book.creator?.id) {
-        const { markVoiceOrphaned } = await import("./elevenlabs.js");
+      if (result.orphanedVoiceId && !didMarkOrphan && brain?.book.creator?.id && tts === "elevenlabs") {
+        const { markVoiceOrphaned } = await import("./ttsProvider.js");
         const flipped = await markVoiceOrphaned(brain.book.creator.id, result.orphanedVoiceId);
         if (flipped) {
           console.warn(`[pipeline/audio] user ${brain.book.creator.id} voice ${result.orphanedVoiceId} marked REMOVED`);

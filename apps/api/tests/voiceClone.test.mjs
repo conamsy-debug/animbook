@@ -116,6 +116,12 @@ test("VoiceOrphanedError: synthesizeSpeech throws on 404 with the requested voic
 
 test("generateNarration: 404 on the cloned voice → retries with default → returns audioUrl + orphanedVoiceId", async () => {
   const originalFetch = globalThis.fetch;
+  // Pin ELEVENLABS_API_KEY so generateNarration doesn't short-circuit on the
+  // "no key" stub branch before our 404 stub is ever consulted. This must be
+  // set BEFORE calling api.generateNarration because the key is read fresh
+  // each call. Tests run independently — do not rely on a parent setting it.
+  const prevElevenKey = process.env.ELEVENLABS_API_KEY;
+  process.env.ELEVENLABS_API_KEY = "sk-test-fake";
   // First call (cloned voice) returns 404; second call (fallback) returns audio;
   // third call is the R2 upload — also returns 200.
   let calls = 0;
@@ -141,11 +147,16 @@ test("generateNarration: 404 on the cloned voice → retries with default → re
     globalThis.fetch = originalFetch;
     if (origFallback === undefined) delete process.env.ELEVENLABS_NARRATOR_VOICE_ID;
     else process.env.ELEVENLABS_NARRATOR_VOICE_ID = origFallback;
+    if (prevElevenKey === undefined) delete process.env.ELEVENLABS_API_KEY;
+    else process.env.ELEVENLABS_API_KEY = prevElevenKey;
   }
 });
 
 test("generateNarration: 404 on cloned voice when fallback IS the orphan → returns stub with orphanedVoiceId", async () => {
   const originalFetch = globalThis.fetch;
+  // Pin ELEVENLABS_API_KEY so the orphan-retry path runs (see sibling test for rationale).
+  const prevElevenKey = process.env.ELEVENLABS_API_KEY;
+  process.env.ELEVENLABS_API_KEY = "sk-test-fake";
   let calls = 0;
   globalThis.fetch = async () => {
     calls += 1;
@@ -164,6 +175,8 @@ test("generateNarration: 404 on cloned voice when fallback IS the orphan → ret
     globalThis.fetch = originalFetch;
     if (origFallback === undefined) delete process.env.ELEVENLABS_NARRATOR_VOICE_ID;
     else process.env.ELEVENLABS_NARRATOR_VOICE_ID = origFallback;
+    if (prevElevenKey === undefined) delete process.env.ELEVENLABS_API_KEY;
+    else process.env.ELEVENLABS_API_KEY = prevElevenKey;
   }
 });
 

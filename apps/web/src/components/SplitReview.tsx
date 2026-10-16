@@ -218,7 +218,7 @@ export default function SplitReview({ projectId, pages, published, onPublish, on
   async function renarratePage(pageId: string) {
     // Single-page audio re-narration: useful when the project-level kick
     // silently skipped a page (OCR garbage, content-classifier reject).
-    // Synchronous endpoint — takes 1-3s for ElevenLabs TTS + R2 upload.
+    // Synchronous endpoint — takes 1-3s for TTS + R2 upload (provider-aware).
     setWorkingPage(pageId);
     try {
       const res = await apiFetch<{ audioUrl: string; characters: number }>(
@@ -265,9 +265,11 @@ export default function SplitReview({ projectId, pages, published, onPublish, on
     try {
       // Load animate + audio estimates in parallel so the confirm-animate
       // modal can show "this kicks off 32 pages of Runway (~$24) AND
-      // would also need ~14 min of ElevenLabs narration (~$5) if you
+      // would also need ~14 min of TTS narration (~$5) if you
       // haven't generated audio yet". Authors tend to forget the audio
-      // cost; surfacing it here keeps the conversation grounded.
+      // cost; surfacing it here keeps the conversation grounded. The
+      // TTS provider (MiniMax default, ElevenLabs fallback) is hidden —
+      // see apps/web/src/pages/profile.tsx's spending dashboard.
       const [animateRes, audioRes] = await Promise.all([
         apiFetch<AnimateEstimate>(`/api/studio/projects/${projectId}/animate/estimate`),
         apiFetch<AudioEstimate>(`/api/studio/projects/${projectId}/audio/estimate`).catch(() => null)
@@ -580,7 +582,7 @@ export default function SplitReview({ projectId, pages, published, onPublish, on
             <p className="muted" style={{ marginTop: 8 }}>
               <strong>{audioEstimate.estimatedDurationLabel}</strong> still to record
               ({audioEstimate.pages} page{audioEstimate.pages === 1 ? "" : "s"},
-              ~${fmt(audioEstimate.usd)} ElevenLabs) — open the kick-audio action
+              ~${fmt(audioEstimate.usd)} TTS) — open the kick-audio action
               separately to start it.
             </p>
           )}
@@ -610,7 +612,7 @@ export default function SplitReview({ projectId, pages, published, onPublish, on
               <p className="muted">
                 Plus <strong>{audioEstimate.estimatedDurationLabel}</strong> audio
                 ({audioEstimate.pages} page{audioEstimate.pages === 1 ? "" : "s"},
-                ~${fmt(audioEstimate.usd)} ElevenLabs) still to record — not part of this
+                ~${fmt(audioEstimate.usd)} TTS) still to record — not part of this
                 kick but worth budgeting for.
               </p>
             )}

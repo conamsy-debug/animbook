@@ -85,8 +85,12 @@ async function loadFixture(prisma, slug) {
 test("resolveTtsProvider: returns noop when no API key is configured", async () => {
   const { resolveTtsProvider } = await import(pathToFileURL(servicesPath).href);
   // Save + restore the env so the test is deterministic.
-  const prev = process.env.ELEVENLABS_API_KEY;
+  const prevEleven = process.env.ELEVENLABS_API_KEY;
+  const prevMinimax = process.env.MINIMAX_API_KEY;
+  const prevProvider = process.env.TTS_PROVIDER;
   delete process.env.ELEVENLABS_API_KEY;
+  delete process.env.MINIMAX_API_KEY;
+  process.env.TTS_PROVIDER = "elevenlabs";
   try {
     const p = resolveTtsProvider();
     assert.equal(p.isConfigured(), false);
@@ -99,21 +103,29 @@ test("resolveTtsProvider: returns noop when no API key is configured", async () 
     assert.equal(out.audioUrl, null);
     assert.equal(out.source, "stub");
   } finally {
-    if (prev !== undefined) process.env.ELEVENLABS_API_KEY = prev;
+    if (prevEleven !== undefined) process.env.ELEVENLABS_API_KEY = prevEleven;
+    if (prevMinimax !== undefined) process.env.MINIMAX_API_KEY = prevMinimax;
+    else delete process.env.MINIMAX_API_KEY;
+    if (prevProvider !== undefined) process.env.TTS_PROVIDER = prevProvider;
+    else delete process.env.TTS_PROVIDER;
   }
 });
 
 test("resolveTtsProvider: returns ElevenLabsTtsProvider when key is set", async () => {
   const { resolveTtsProvider } = await import(pathToFileURL(servicesPath).href);
-  const prev = process.env.ELEVENLABS_API_KEY;
+  const prevEleven = process.env.ELEVENLABS_API_KEY;
+  const prevProvider = process.env.TTS_PROVIDER;
   process.env.ELEVENLABS_API_KEY = "sk-test-fake";
+  process.env.TTS_PROVIDER = "elevenlabs";
   try {
     const p = resolveTtsProvider();
     assert.equal(p.name, "elevenlabs");
     assert.equal(p.isConfigured(), true);
   } finally {
-    if (prev !== undefined) process.env.ELEVENLABS_API_KEY = prev;
+    if (prevEleven !== undefined) process.env.ELEVENLABS_API_KEY = prevEleven;
     else delete process.env.ELEVENLABS_API_KEY;
+    if (prevProvider !== undefined) process.env.TTS_PROVIDER = prevProvider;
+    else delete process.env.TTS_PROVIDER;
   }
 });
 
@@ -264,13 +276,17 @@ dbSuite("POST /admin/lines/:id/regenerate-audio returns a stub when no TTS key",
   });
   assert.ok(line);
 
-  // Strip ELEVENLABS so the stub path runs.
-  const prev = process.env.ELEVENLABS_API_KEY;
+  // Strip BOTH provider keys so the noop stub path runs regardless of the
+  // TTS_PROVIDER selector (MiniMax default vs ElevenLabs fallback).
+  const prevEleven = process.env.ELEVENLABS_API_KEY;
+  const prevMinimax = process.env.MINIMAX_API_KEY;
   delete process.env.ELEVENLABS_API_KEY;
+  delete process.env.MINIMAX_API_KEY;
 
   const { server, baseUrl } = await startAppRouter();
   t.after(() => new Promise((r) => {
-    if (prev !== undefined) process.env.ELEVENLABS_API_KEY = prev;
+    if (prevEleven !== undefined) process.env.ELEVENLABS_API_KEY = prevEleven;
+    if (prevMinimax !== undefined) process.env.MINIMAX_API_KEY = prevMinimax;
     server.close(() => r());
   }));
 

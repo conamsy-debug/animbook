@@ -8,7 +8,7 @@ export interface VoiceSpec {
 
 /**
  * Speak a piece of text using the browser's built-in SpeechSynthesis API.
- * This is the Constraint #6 fallback when a page has no ElevenLabs narration.
+ * This is the Constraint #6 fallback when a page has no provider narration.
  */
 export function speakWithBrowser(text: string, voice?: VoiceSpec, onEnd?: () => void): void {
   if (typeof window === "undefined") return;

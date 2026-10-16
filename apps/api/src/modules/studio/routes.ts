@@ -16,8 +16,8 @@ import { isValidSubcategory } from "../../config/subcategories.js";
 import { applySchedule, lockSchedule, CHUNK_PERCENT_OPTIONS } from "../../services/releaseSchedule.js";
 import { enqueueAnimateJob, type SplitJobData } from "../../services/splitPipeline.js";
 import { move as moveState, moveMany as moveManyState } from "../../services/pageState.js";
-import { generateNarration } from "../../services/elevenlabs.js";
-import { findVoice, defaultVoiceIdFor } from "../../config/voices.js";
+import { generateNarration, currentTtsProvider, markVoiceOrphaned } from "../../services/ttsProvider.js";
+import { findVoice, defaultVoiceIdFor, pickProviderVoiceId } from "../../config/voices.js";
 import { recordUsage, estimateNarrationDurationSec } from "../../services/usageTracking.js";
 import splitRoutes from "./splitRoutes.js";
 
@@ -563,15 +563,18 @@ router.post(
       select: { narratorVoiceId: true, culturalOrigin: true }
     });
     let chosenId = brain?.narratorVoiceId ?? null;
+    const tts = currentTtsProvider();
     if (!chosenId || chosenId === "author:auto") {
-      if (page.book.creator?.narratorVoiceId && page.book.creator.voiceStatus === "CLONED") {
+      // Author clones only exist on ElevenLabs. Skip the clone fallback
+      // when TTS_PROVIDER=minimax (a clone can't be reused by MiniMax TTS).
+      if (tts === "elevenlabs" && page.book.creator?.narratorVoiceId && page.book.creator.voiceStatus === "CLONED") {
         chosenId = page.book.creator.narratorVoiceId;
       }
     }
     if (!chosenId) {
-      chosenId = findVoice(
-        defaultVoiceIdFor({ vertical: page.book.vertical, setting: brain?.culturalOrigin })
-      )?.elevenVoiceId;
+      chosenId = pickProviderVoiceId(
+        findVoice(defaultVoiceIdFor({ vertical: page.book.vertical, setting: brain?.culturalOrigin }))
+      );
     }
     const voiceId = chosenId?.startsWith("author:") ? chosenId.slice("author:".length) : chosenId;
     if (!voiceId) {
@@ -586,8 +589,7 @@ router.post(
     // If ElevenLabs 404'd on the voice we asked for, generateNarration
     // already retried with the curated fallback. Surface the orphaned
     // id to the user record so the Studio renders a "re-clone" banner.
-    if (result.orphanedVoiceId) {
-      const { markVoiceOrphaned } = await import("../../services/elevenlabs.js");
+    if (result.orphanedVoiceId && currentTtsProvider() === "elevenlabs") {
       const flipped = await markVoiceOrphaned(userId, result.orphanedVoiceId);
       if (flipped) {
         console.warn(`[studio/audio-regen] user ${userId} voice ${result.orphanedVoiceId} marked REMOVED`);
@@ -603,11 +605,13 @@ router.post(
         bookId: page.bookId,
         pageId,
         kind: "AUDIO_REGEN",
-        provider: "ELEVENLABS",
+        provider: currentTtsProvider() === "minimax" ? "MINIMAX_TTS" : "ELEVENLABS",
         units: text.length,
-        unitCostUsd: 0.00018,
+        unitCostUsd: currentTtsProvider() === "minimax"
+          ? Math.round(0.0001 * 1_000_000) / 1_000_000 // MiniMax HD $100/M chars
+          : 0.00018,
         status: "STUB",
-        metadata: { pageNum: page.pageNum }
+        metadata: { pageNum: page.pageNum, ttsProvider: currentTtsProvider() }
       });
       await prisma.page.update({
         where: { id: pageId },
@@ -718,9 +722,11 @@ router.post("/projects/:id/audio", async (req: AuthedRequest, res: Response) => 
     userId,
     bookId: project.bookId,
     kind: "NARRATION_KICK",
-    provider: "ELEVENLABS",
+    provider: currentTtsProvider() === "minimax" ? "MINIMAX_TTS" : "ELEVENLABS",
     units: totalChars,
-    unitCostUsd: 0.00018, // $0.18 per 1k chars
+    unitCostUsd: currentTtsProvider() === "minimax"
+      ? Math.round(0.0001 * 1_000_000) / 1_000_000 // MiniMax HD $100/M chars
+      : 0.00018, // $0.18 per 1k chars (ElevenLabs)
     metadata: {
       pages: pagesToNarrate.length,
       estimatedUsd: Math.round((totalChars / 1000) * 0.18 * 100) / 100
@@ -1119,18 +1125,33 @@ router.get("/projects/:id/narrator-voice", async (req: AuthedRequest, res: Respo
     })
   ]);
   const creator = book?.creator;
-  const voices: { id: string; label: string; description: string; isAuthor: boolean; elevenVoiceId: string }[] = [];
+  const voices: {
+    id: string;
+    label: string;
+    description: string;
+    isAuthor: boolean;
+    elevenVoiceId: string;
+    minimaxVoiceId?: string | null;
+  }[] = [];
   if (creator?.narratorVoiceId && creator.voiceStatus === "CLONED") {
     voices.push({
       id: `author:${creator.narratorVoiceId}`,
       label: `By ${creator.name} (your cloned voice)`,
-      description: "ElevenLabs voice cloned from your own audio samples. Audiences hear you read every page.",
+      description: "Cloned voice. Audiences hear you read every page. Cloned voices target ElevenLabs (TTS_PROVIDER=elevenlabs).",
       isAuthor: true,
-      elevenVoiceId: creator.narratorVoiceId
+      elevenVoiceId: creator.narratorVoiceId,
+      minimaxVoiceId: null
     });
   }
   for (const v of narratorVoices()) {
-    voices.push({ id: v.id, label: v.label, description: v.description, isAuthor: false, elevenVoiceId: v.elevenVoiceId });
+    voices.push({
+      id: v.id,
+      label: v.label,
+      description: v.description,
+      isAuthor: false,
+      elevenVoiceId: v.elevenVoiceId,
+      minimaxVoiceId: v.minimaxVoiceId ?? null
+    });
   }
   res.json({
     voices,

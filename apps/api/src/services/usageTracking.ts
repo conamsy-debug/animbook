@@ -21,6 +21,18 @@
 import { prisma } from "../db.js";
 
 export const ELEVENLABS_USD_PER_1K_CHARS = 0.18;
+
+/* --------------------------------------------------------------------- *
+ * MiniMax (Hailuo) TTS pricing — sourced from the published price sheet
+ * at https://platform.minimax.io/docs/api-reference/llms.txt §Speech to
+ * Text. All USD, per million characters.
+ * --------------------------------------------------------------------- */
+
+/** $100 per 1M characters on the speech-2.8-hd model. */
+export const MINIMAX_TTS_USD_PER_1M_CHARS_HD = 100;
+/** $60 per 1M characters on the speech-2.8-turbo model. */
+export const MINIMAX_TTS_USD_PER_1M_CHARS_TURBO = 60;
+
 export const RUNWAY_CREDITS_PER_IMAGE = 5;
 export const RUNWAY_CREDITS_PER_SECOND = 5;
 export const RUNWAY_USD_PER_CREDIT = 0.01;
@@ -53,7 +65,7 @@ export type UsageKind =
   | "AUDIO_REGEN"
   | "TRAILER";
 
-export type UsageProvider = "RUNWAY" | "ELEVENLABS" | "MINIMAX_VIDEO";
+export type UsageProvider = "RUNWAY" | "ELEVENLABS" | "MINIMAX_VIDEO" | "MINIMAX_TTS";
 
 export interface RecordUsageInput {
   userId: string;
@@ -262,6 +274,35 @@ export function estimateMinimaxVideoCostUsd(input: MinimaxVideoCostInput = {}): 
 /** Per-image cost — MiniMax charges one fixed price per image-01 still. */
 export function estimateMinimaxImageCostUsd(count: number = 1): number {
   return Math.round(Math.max(0, count) * MINIMAX_IMAGE_USD_IMAGE_01 * 100) / 100;
+}
+
+/* --------------------------------------------------------------------- *
+ * MiniMax TTS cost helpers.
+ * --------------------------------------------------------------------- */
+
+export interface MinimaxTtsCostInput {
+  characters?: number;
+  /** Model id ("speech-2.8-hd", "speech-2.8-turbo") OR a "fast"/"hd" tag. */
+  model?: string;
+  /** Explicit override: "hd" → 100/M, "turbo" → 60/M. */
+  tier?: "hd" | "turbo";
+}
+
+/** Returns the TTS cost in USD for a MiniMax (Hailuo) synthesis. */
+export function estimateMinimaxTtsCostUsd(input: MinimaxTtsCostInput = {}): number {
+  const chars = Math.max(0, input.characters ?? 0);
+  const tier = resolveTtsTier(input.model, input.tier);
+  const ratePer1M = tier === "hd" ? MINIMAX_TTS_USD_PER_1M_CHARS_HD : MINIMAX_TTS_USD_PER_1M_CHARS_TURBO;
+  const raw = (chars / 1_000_000) * ratePer1M;
+  return Math.round(raw * 1_000_000) / 1_000_000; // 6dp accuracy; the unit is sub-cent
+}
+
+function resolveTtsTier(model: string | undefined, tier: "hd" | "turbo" | undefined): "hd" | "turbo" {
+  if (tier === "hd" || tier === "turbo") return tier;
+  if (!model) return "hd";
+  const m = model.toLowerCase();
+  if (m.includes("turbo") || m.includes("fast") || m.includes("light")) return "turbo";
+  return "hd";
 }
 
 /** Chars × USD per 1k chars. */

@@ -36,11 +36,25 @@ export class VoiceOrphanedError extends Error {
   }
 }
 
+export interface SynthesisOptions {
+  text: string;
+  voiceId?: string | null;
+  storageKey?: string;
+  strict?: boolean;
+  /** Pass-through sent to MiniMax TTS (no-op for ElevenLabs). The
+   *  selector ignores this field on the ElevenLabs branch. */
+  languageBoost?: string;
+}
+
 export interface NarrationResult {
   audioUrl: string | null;
   vttUrl: string | null;
+  durationSeconds?: number;
   characters: number;
-  source: "elevenlabs" | "stub";
+  /** "minimax" can appear when this result is re-tagged by the ttsProvider
+   * selector; both providers funnel through the same shape so the admin
+   * review + usage-tracking callers don't have to discriminate. */
+  source: "minimax" | "elevenlabs" | "stub";
   /**
    * When `source === "stub"`, a short human-readable reason
    * ("ElevenLabs or R2 is not configured", "ElevenLabs 401: quota_exceeded",

@@ -1,7 +1,12 @@
 /**
  * KIDS vertical services.
  *
- * - Character voice mapping: per-character ElevenLabs voice IDs.
+ * - Character voice mapping: per-character voice IDs.
+ *   Now parallel-both: each CharacterVoiceMap carries a `voiceId` (the
+ *   ElevenLabs voice id), plus an optional `minimaxVoiceId` (the MiniMax
+ *   (Hailuo) system voice id). The TTS selector picks the right one for
+ *   the active provider. ElevenLabs stays the clone-targeted provider.
+ *
  * - Bedtime pacing: slower narration rate, dim palette, no emotional peaks.
  * - Achievement catalogue: read first page, finish a book, three books in 7 days,
  *   bedtime streak.
@@ -9,21 +14,32 @@
 
 export interface CharacterVoiceMap {
   character: string;
+  /** ElevenLabs voice id (fallback provider). */
   voiceId: string;
+  /** MiniMax (Hailuo) system voice id (default provider post-migration). */
+  minimaxVoiceId?: string;
+  /** Half-steps; the TTS provider honours it on MiniMax. */
   pitch: number;
+  /** 0.5–2; the TTS provider honours it on MiniMax (called `speed`). */
   rate: number;
 }
 
+/**
+ * Hard-coded character → voice table for the KIDS vertical. The voice id
+ * is sourced from the official MiniMax catalogue at platform.minimax.io/docs
+ * /api-reference/speech/voice-management/api/openapi.json (voice-type=system,
+ * filtered to English_*) on 2026-10-16.
+ */
 export const KIDS_VOICES: CharacterVoiceMap[] = [
-  { character: "narrator", voiceId: "21m00Tcm4TlvDq8ikWAM", pitch: 0, rate: 0.95 },
-  { character: "rabbit", voiceId: "AZnzlk1XvdvUeBnXmlld", pitch: 1.2, rate: 1.05 },
-  { character: "fox", voiceId: "VR6AewLTigWG4xSOukaG", pitch: -2, rate: 0.9 },
-  { character: "bear", voiceId: "N2lVS1w4EtoT3dr5eRW0", pitch: -4, rate: 0.85 },
-  { character: "child", voiceId: "TxGEqnHWrfWFTfGW9XjX", pitch: 2, rate: 1.1 },
-  { character: "mother", voiceId: "ThT5KcBeYPX3keUQ32H3", pitch: -1, rate: 0.95 },
-  { character: "father", voiceId: "cjVigY5qzO86Huf0Swal", pitch: -3, rate: 0.95 },
-  { character: "wizard", voiceId: "iP95p4aoKVQ53ZUTDULc", pitch: -1, rate: 0.9 },
-  { character: "queen", voiceId: "jBpfuIE2acCOa6b74Tz7", pitch: 0, rate: 1.0 }
+  { character: "narrator", voiceId: "21m00Tcm4TlvDq8ikWAM", minimaxVoiceId: "English_expressive_narrator", pitch: 0, rate: 0.95 },
+  { character: "rabbit",   voiceId: "AZnzlk1XvdvUeBnXmlld", minimaxVoiceId: "English_PlayfulGirl",          pitch: 1.2, rate: 1.05 },
+  { character: "fox",      voiceId: "VR6AewLTigWG4xSOukaG", minimaxVoiceId: "English_ManWithDeepVoice",     pitch: -2, rate: 0.9 },
+  { character: "bear",     voiceId: "N2lVS1w4EtoT3dr5eRW0", minimaxVoiceId: "English_Diligent_Man",         pitch: -4, rate: 0.85 },
+  { character: "child",    voiceId: "TxGEqnHWrfWFTfGW9XjX", minimaxVoiceId: "English_PlayfulGirl",          pitch: 2, rate: 1.1 },
+  { character: "mother",   voiceId: "ThT5KcBeYPX3keUQ32H3", minimaxVoiceId: "English_Graceful_Lady",        pitch: -1, rate: 0.95 },
+  { character: "father",   voiceId: "cjVigY5qzO86Huf0Swal", minimaxVoiceId: "English_MaturePartner",       pitch: -3, rate: 0.95 },
+  { character: "wizard",   voiceId: "iP95p4aoKVQ53ZUTDULc", minimaxVoiceId: "English_ManWithDeepVoice",     pitch: -1, rate: 0.9 },
+  { character: "queen",    voiceId: "jBpfuIE2acCOa6b74Tz7", minimaxVoiceId: "English_compelling_lady1",     pitch: 0, rate: 1.0 }
 ];
 
 /**
@@ -36,6 +52,18 @@ export function voiceForCharacter(name: string | null): CharacterVoiceMap {
   if (match) return match;
   const fuzzy = KIDS_VOICES.find((v) => lower.includes(v.character));
   return fuzzy ?? KIDS_VOICES[0]!;
+}
+
+/**
+ * Provider-aware voice id picker. When the active TTS provider is minimax
+ * returns `minimaxVoiceId`, otherwise returns `voiceId` (ElevenLabs).
+ * Falls back to the ElevenLabs id if no MiniMax id is configured.
+ */
+export function pickProviderVoiceIdForCharacter(name: string | null): string {
+  const match = voiceForCharacter(name);
+  const tts = (process.env.TTS_PROVIDER ?? "minimax").toLowerCase().trim();
+  if (tts === "elevenlabs") return match.voiceId;
+  return match.minimaxVoiceId ?? match.voiceId;
 }
 
 /**

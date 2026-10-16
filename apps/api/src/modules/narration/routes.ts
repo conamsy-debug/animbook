@@ -16,10 +16,10 @@ import { Router } from "express";
 import { authMiddleware, requireUserId, type AuthedRequest } from "../../auth/middleware.js";
 import { incrementCounter } from "../../cache/index.js";
 import { isFeatureEnabled } from "../../config/env.js";
-import { defaultVoiceIdFor, findVoice, narratorVoices, voicesForReader } from "../../config/voices.js";
+import { defaultVoiceIdFor, findVoice, narratorVoices, voicesForReader, pickProviderVoiceId } from "../../config/voices.js";
 import { prisma } from "../../db.js";
 import { cdnUrl } from "../../services/cloudflare.js";
-import { generateNarration } from "../../services/elevenlabs.js";
+import { generateNarration, currentTtsProvider } from "../../services/ttsProvider.js";
 
 export const router = Router();
 
@@ -70,9 +70,21 @@ async function spend(readerKey: string | null, chars: number): Promise<void> {
 }
 
 function ready(res: Response): boolean {
-  if (isFeatureEnabled("ELEVENLABS") && isFeatureEnabled("CLOUDFLARE")) return true;
-  res.status(503).json({ error: "Narration voices are not available right now" });
-  return false;
+  // Provider-aware readyness — either ElevenLabs or MiniMax TTS must be live.
+  const tts = currentTtsProvider();
+  if (tts === "elevenlabs" && !isFeatureEnabled("ELEVENLABS")) {
+    res.status(503).json({ error: "Narration voices are not available right now" });
+    return false;
+  }
+  if (tts === "minimax" && !isFeatureEnabled("MINIMAX_TTS")) {
+    res.status(503).json({ error: "Narration voices are not available right now" });
+    return false;
+  }
+  if (!isFeatureEnabled("CLOUDFLARE")) {
+    res.status(503).json({ error: "Narration voices are not available right now" });
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -99,8 +111,17 @@ router.get("/voices", async (req: Request, res: Response) => {
   const merged = voicesForReader({ authorVoiceId, authorName });
   res.set("Cache-Control", "private, max-age=60");
   res.json({
-    voices: merged.map((v) => ({ id: v.id, label: v.label, description: v.description })),
-    available: isFeatureEnabled("ELEVENLABS") && isFeatureEnabled("CLOUDFLARE")
+    voices: merged.map((v) => ({
+      id: v.id,
+      label: v.label,
+      description: v.description,
+      elevenVoiceId: v.elevenVoiceId,
+      minimaxVoiceId: v.minimaxVoiceId ?? null
+    })),
+    available:
+      (currentTtsProvider() === "elevenlabs" ? isFeatureEnabled("ELEVENLABS") : isFeatureEnabled("MINIMAX_TTS")) &&
+      isFeatureEnabled("CLOUDFLARE"),
+    ttsProvider: currentTtsProvider()
   });
 });
 
@@ -112,12 +133,17 @@ router.get("/voices/:voice/sample", async (req: Request, res: Response) => {
     return;
   }
   try {
-    const hash = createHash("sha256").update(`${voice.elevenVoiceId}:${SAMPLE_TEXT}`).digest("hex").slice(0, 12);
-    const url = await recordOnce(`narration/samples/${voice.id}-${hash}.mp3`, SAMPLE_TEXT, voice.elevenVoiceId, () =>
+    const providerVoiceId = pickProviderVoiceId(voice);
+    if (!providerVoiceId) {
+      res.status(409).json({ error: "Voice has no provider id for the active TTS_PROVIDER" });
+      return;
+    }
+    const hash = createHash("sha256").update(`${providerVoiceId}:${SAMPLE_TEXT}`).digest("hex").slice(0, 12);
+    const url = await recordOnce(`narration/samples/${voice.id}-${hash}.mp3`, SAMPLE_TEXT, providerVoiceId, () =>
       spend(null, SAMPLE_TEXT.length)
     );
     if (!url) throw new Error("no url");
-    res.json({ voice: voice.id, audioUrl: url });
+    res.json({ voice: voice.id, audioUrl: url, ttsProvider: currentTtsProvider(), voiceId: providerVoiceId });
   } catch (err) {
     res.status(err instanceof LimitError ? 429 : 502).json({ error: err instanceof LimitError ? err.message : "Could not load the sample" });
   }
@@ -155,11 +181,16 @@ router.get("/pages/:pageId", authMiddleware, async (req: AuthedRequest, res: Res
     return;
   }
   try {
-    const hash = createHash("sha256").update(`${voice.elevenVoiceId}:${text}`).digest("hex").slice(0, 12);
+    const providerVoiceId = pickProviderVoiceId(voice);
+    if (!providerVoiceId) {
+      res.status(409).json({ error: "Voice has no provider id for the active TTS_PROVIDER" });
+      return;
+    }
+    const hash = createHash("sha256").update(`${providerVoiceId}:${text}`).digest("hex").slice(0, 12);
     const key = `narration/${page.bookId}/${page.id}/${voice.id}-${hash}.mp3`;
-    const url = await recordOnce(key, text, voice.elevenVoiceId, () => spend(userId, text.length));
+    const url = await recordOnce(key, text, providerVoiceId, () => spend(userId, text.length));
     res.set("Cache-Control", "private, max-age=3600");
-    res.json({ pageId: page.id, voice: voice.id, audioUrl: url });
+    res.json({ pageId: page.id, voice: voice.id, audioUrl: url, ttsProvider: currentTtsProvider() });
   } catch (err) {
     if (err instanceof LimitError) {
       res.status(429).json({ error: err.message });

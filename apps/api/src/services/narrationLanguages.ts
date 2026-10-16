@@ -1,29 +1,34 @@
 /**
  * Multi-language narration.
  *
- * ElevenLabs Multilingual v2 supports a curated set of language codes. The
- * `LibraryEntry.narrationLanguage` column records the user's preferred
- * narration language; when present, the page's audioUrl is regenerated with
- * the requested locale. Fallback order:
+ * Routes every language through the apps/api/src/services/ttsProvider.ts
+ * selector. When `TTS_PROVIDER=minimax` (the new default), we send the
+ * book text to MiniMax (Hailuo) `t2a_v2` with `language_boost` matching
+ * the language code (so the right language model kicks in). When the env
+ * falls back to `elevenlabs`, we keep the existing ElevenLabs Multilingual
+ * v2 path.
+ *
+ * The page's `audioUrl` is regenerated with the requested locale.
+ * Fallback order:
  *
  *   1. The book's `narrationLanguages` list (curated by the creator).
  *   2. The user's `LibraryEntry.narrationLanguage`.
  *   3. The book's `language`.
  *   4. "en".
  */
-import { appEnv, isFeatureEnabled } from "../config/env.js";
+import { appEnv, currentTtsProvider } from "./ttsProvider.js";
 
 export const SUPPORTED_LANGUAGES = [
-  { code: "en", label: "English", elevenlabsModel: "eleven_multilingual_v2" },
-  { code: "sw", label: "Kiswahili", elevenlabsModel: "eleven_multilingual_v2" },
-  { code: "fr", label: "Français", elevenlabsModel: "eleven_multilingual_v2" },
-  { code: "es", label: "Español", elevenlabsModel: "eleven_multilingual_v2" },
-  { code: "pt", label: "Português", elevenlabsModel: "eleven_multilingual_v2" },
-  { code: "ar", label: "العربية", elevenlabsModel: "eleven_multilingual_v2" },
-  { code: "zh", label: "中文", elevenlabsModel: "eleven_multilingual_v2" },
-  { code: "yo", label: "Yorùbá", elevenlabsModel: "eleven_multilingual_v2" },
-  { code: "ig", label: "Igbo", elevenlabsModel: "eleven_multilingual_v2" },
-  { code: "ha", label: "Hausa", elevenlabsModel: "eleven_multilingual_v2" }
+  { code: "en", label: "English" },
+  { code: "sw", label: "Kiswahili" },
+  { code: "fr", label: "Français" },
+  { code: "es", label: "Español" },
+  { code: "pt", label: "Português" },
+  { code: "ar", label: "العربية" },
+  { code: "zh", label: "中文" },
+  { code: "yo", label: "Yorùbá" },
+  { code: "ig", label: "Igbo" },
+  { code: "ha", label: "Hausa" }
 ] as const;
 
 export type LanguageCode = (typeof SUPPORTED_LANGUAGES)[number]["code"];
@@ -49,7 +54,7 @@ export interface NarrationResultLang {
   vttUrl: string;
   durationSeconds: number;
   language: LanguageCode;
-  source: "elevenlabs" | "stub";
+  source: "minimax" | "elevenlabs" | "stub";
 }
 
 export async function generateNarrationInLanguage(input: {
@@ -57,7 +62,35 @@ export async function generateNarrationInLanguage(input: {
   voiceId?: string;
   language: LanguageCode;
 }): Promise<NarrationResultLang> {
-  if (!isFeatureEnabled("ELEVENLABS")) {
+  const tts = currentTtsProvider();
+  if (tts === "minimax") {
+    // MiniMax path: use the t2a_v2 endpoint through the selector.
+    const { generateNarration } = await import("./ttsProvider.js");
+    const result = await generateNarration({
+      text: input.text,
+      voiceId: input.voiceId ?? "English_expressive_narrator",
+      languageBoost: input.language === "en" ? "English" : input.language,
+      strict: false
+    });
+    if (result.audioUrl) {
+      return {
+        audioUrl: result.audioUrl,
+        vttUrl: result.vttUrl ?? `data:text/vtt;base64,${Buffer.from("WEBVTT\n\n").toString("base64")}`,
+        durationSeconds: result.durationSeconds,
+        language: input.language,
+        source: result.source === "minimax" ? "minimax" : "stub"
+      };
+    }
+    return {
+      audioUrl: "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=",
+      vttUrl: "data:text/vtt;base64,VkVCRVQK",
+      durationSeconds: Math.max(1, Math.round(input.text.length / 16)),
+      language: input.language,
+      source: "stub"
+    };
+  }
+  // ElevenLabs path — preserved from the pre-migration code.
+  if (!appEnv.ELEVENLABS_API_KEY) {
     return {
       audioUrl: "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=",
       vttUrl: "data:text/vtt;base64,VkVCRVQK",
