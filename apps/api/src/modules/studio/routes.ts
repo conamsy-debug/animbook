@@ -14,6 +14,7 @@ import { emitPipelineEvent, subscribeProject, writeSseEvent, writeSseHeaders, ty
 import { rateLimit } from "../../middleware/rateLimit.js";
 import { ExtractError, extractManuscript } from "../../services/manuscriptExtract.js";
 import { deleteAsset, uploadAsset } from "../../services/cloudflare.js";
+import { COVER_MAX_WIDTH, uploadOptimized } from "../../services/mediaPostProcess.js";
 import { isValidSubcategory } from "../../config/subcategories.js";
 import { applySchedule, lockSchedule, CHUNK_PERCENT_OPTIONS } from "../../services/releaseSchedule.js";
 import { enqueueAnimateJob, type SplitJobData } from "../../services/splitPipeline.js";
@@ -135,11 +136,11 @@ router.put(
       return;
     }
     try {
-      const stored = await uploadAsset({
-        key: `books/${project.book.slug}/cover-${Date.now().toString(36)}.${ext === "jpeg" ? "jpg" : ext}`,
-        body,
-        contentType
-      });
+      // Covers are stored as WebP at 800px wide — the size they are
+      // actually displayed at (3:4 card, max ~400 CSS px). The original
+      // PNG/JPG stays in the bucket; the optimised copy gets its own key.
+      const originalKey = `books/${project.book.slug}/cover-${Date.now().toString(36)}.${ext === "jpeg" ? "jpg" : ext}`;
+      const stored = await uploadOptimized(originalKey, body, "image", { maxWidth: COVER_MAX_WIDTH });
       await prisma.book.update({ where: { id: project.book.id }, data: { coverUrl: stored.url } });
       res.json({ coverUrl: stored.url });
     } catch (err) {

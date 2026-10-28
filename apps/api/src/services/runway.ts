@@ -14,6 +14,7 @@
  */
 import { appEnv, isFeatureEnabled } from "../config/env.js";
 import { mirrorToR2 } from "./cloudflare.js";
+import { posterTransform, videoTransform } from "./mediaPostProcess.js";
 
 const API_BASE = "https://api.dev.runwayml.com/v1";
 const API_VERSION = "2024-11-06";
@@ -292,8 +293,8 @@ export async function generateClip(input: RunwayJobInput): Promise<RunwayJobResu
 
     const prefix = (input.storagePrefix ?? `runway/${input.projectId}`).replace(/\/+$/, "");
     const stamp = Date.now().toString(36);
-    const poster = await mirrorToR2(stillUrl, `${prefix}/p${input.pageNum}-${stamp}.png`, "image/png");
-    const video = await mirrorToR2(clipUrl, `${prefix}/p${input.pageNum}-${stamp}.mp4`, "video/mp4");
+    const poster = await mirrorToR2(stillUrl, `${prefix}/p${input.pageNum}-${stamp}.png`, "image/png", 5, posterTransform());
+    const video = await mirrorToR2(clipUrl, `${prefix}/p${input.pageNum}-${stamp}.mp4`, "video/mp4", 5, videoTransform());
     if (video.source !== "r2") {
       console.warn("[runway] R2 not configured — storing Runway URLs, which expire within ~48h");
     }

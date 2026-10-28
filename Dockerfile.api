@@ -58,6 +58,21 @@ ENV NODE_ENV=production
 ENV PORT=4000
 ENV HOSTNAME=0.0.0.0
 
+# ffmpeg + ffprobe.
+#
+# services/trailer.ts (3x ffmpeg) and services/voiceQuality.ts (ffprobe)
+# spawn these binaries by name, and services/mediaPostProcess.ts uses
+# ffmpeg to faststart-remux every generated MP4, convert posters/covers to
+# WebP and re-encode narration to mono 48 kbps. The image shipped without
+# them, so every one of those calls died with ENOENT.
+#
+# `apk add` (not a static npm binary) because this is Alpine/musl — the
+# @ffmpeg-installer/ffmpeg package ships a glibc build and would not run
+# here. The npm installer package is still kept as a dependency because it
+# is the fallback when Railway builds this service with NIXPACKS (Debian,
+# glibc) instead of this Dockerfile.
+RUN apk add --no-cache ffmpeg
+
 # Build artefacts (dist/src — the actual entry, not the root index).
 COPY --from=build /app/apps/api/dist/src ./apps/api/dist/src
 # Prisma schema + generated client.

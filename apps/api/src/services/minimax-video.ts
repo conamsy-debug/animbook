@@ -29,6 +29,7 @@
  */
 import { appEnv, isFeatureEnabled } from "../config/env.js";
 import { mirrorToR2 } from "./cloudflare.js";
+import { posterTransform, videoTransform } from "./mediaPostProcess.js";
 import {
   MINIMAX_VIDEO_USD_768P_6S,
   MINIMAX_VIDEO_USD_1080P_6S,
@@ -359,8 +360,8 @@ export async function generateClip(input: MinimaxJobInput): Promise<MinimaxJobRe
     const clipUrl = await animateStill(stillUrl, input.motionPrompt ?? input.prompt, duration, resolution);
     const prefix = (input.storagePrefix ?? `minimax/${input.projectId}`).replace(/\/+$/, "");
     const stamp = Date.now().toString(36);
-    const poster = await mirrorToR2(stillUrl, `${prefix}/p${input.pageNum}-${stamp}.png`, "image/png");
-    const video = await mirrorToR2(clipUrl, `${prefix}/p${input.pageNum}-${stamp}.mp4`, "video/mp4");
+    const poster = await mirrorToR2(stillUrl, `${prefix}/p${input.pageNum}-${stamp}.png`, "image/png", 5, posterTransform());
+    const video = await mirrorToR2(clipUrl, `${prefix}/p${input.pageNum}-${stamp}.mp4`, "video/mp4", 5, videoTransform());
     if (video.source !== "r2") {
       console.warn("[minimax] R2 not configured — storing MiniMax URLs, which expire within ~1h");
     }

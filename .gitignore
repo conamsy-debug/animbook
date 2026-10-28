@@ -6,6 +6,7 @@ coverage/
 *.err
 *.out
 *.tsbuildinfo
+.tmp/
 .env
 .env.*
 !.env.example

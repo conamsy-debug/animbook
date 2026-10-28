@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ElevenLabs narration client.
  *
  * Narration is saved to Cloudflare R2 as an MP3 and the page stores its
@@ -10,14 +10,14 @@
  * stock "Rachel" voice is used.
  */
 import { appEnv, isFeatureEnabled } from "../config/env.js";
-import { uploadAsset } from "./cloudflare.js";
+import { uploadOptimized } from "./mediaPostProcess.js";
 
 const API = "https://api.elevenlabs.io/v1";
 const DEFAULT_VOICE = "21m00Tcm4TlvDq8ikWAM";
 const MODEL = "eleven_multilingual_v2";
 
 /**
- * Thrown by `synthesizeSpeech` when ElevenLabs returns 404 — i.e. the
+ * Thrown by `synthesizeSpeech` when ElevenLabs returns 404 â€” i.e. the
  * voiceId we asked it to use no longer exists on their side. Callers
  * (runAudioStage, /audio-regenerate) catch this, mark the user-side
  * voice as REMOVED, clear narratorVoiceId, and fall back to a default
@@ -68,7 +68,7 @@ export interface NarrationResult {
    * (audio narration worker / route) should update users.voiceStatus to
    * REMOVED and clear narratorVoiceId so subsequent narrations fall
    * back to a curated default. We carry the orphaned id up so the
-   * caller can decide — it knows the userId, we don't.
+   * caller can decide â€” it knows the userId, we don't.
    */
   orphanedVoiceId?: string;
 }
@@ -90,7 +90,7 @@ export function narratorVoiceId(explicit?: string | null): string {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Text → MP3 bytes. Retries rate limits, server errors and network drops. */
+/** Text â†’ MP3 bytes. Retries rate limits, server errors and network drops. */
 export async function synthesizeSpeech(text: string, voiceId?: string | null): Promise<Buffer> {
   const voice = narratorVoiceId(voiceId);
   let lastErr: unknown;
@@ -109,7 +109,7 @@ export async function synthesizeSpeech(text: string, voiceId?: string | null): P
       const detail = await res.text().catch(() => "");
       // 404 = voice no longer exists on ElevenLabs. Surface as a typed
       // VoiceOrphanedError so callers can mark the user-side voice as
-      // REMOVED and fall back to a default voice. Don't retry — a deleted
+      // REMOVED and fall back to a default voice. Don't retry â€” a deleted
       // voice won't come back.
       if (res.status === 404) {
         throw new VoiceOrphanedError(voice, res.status, detail);
@@ -157,7 +157,7 @@ export async function characterQuota(): Promise<{ used: number; limit: number } 
  * voice id on the result so the caller can flip the user-side voice
  * record to REMOVED, then retry with ElevenLabs' default voice so the
  * page still gets audio. Silent fallback would mean authors don't notice
- * they lost their clone — surfacing orphanedVoiceId keeps them informed.
+ * they lost their clone â€” surfacing orphanedVoiceId keeps them informed.
  */
 export async function generateNarration(input: {
   text: string;
@@ -177,7 +177,7 @@ export async function generateNarration(input: {
   try {
     const audio = await synthesizeSpeech(text, input.voiceId);
     const storageKey = input.storageKey ?? `narration/misc/${Date.now().toString(36)}.mp3`;
-    const stored = await uploadAsset({ key: storageKey, body: audio, contentType: "audio/mpeg" });
+    const stored = await uploadOptimized(storageKey, audio, "narration");
     return { audioUrl: stored.url, vttUrl: null, characters: text.length, source: "elevenlabs", error: "" };
   } catch (err) {
     if (err instanceof VoiceOrphanedError) {
@@ -188,7 +188,7 @@ export async function generateNarration(input: {
       // missing, so this almost always succeeds.
       const fallback = process.env.ELEVENLABS_NARRATOR_VOICE_ID || DEFAULT_VOICE;
       if (fallback === requestedVoice || fallback === err.voiceId) {
-        // Already tried the fallback — give up.
+        // Already tried the fallback â€” give up.
         if (input.strict) throw err;
         console.warn(`[elevenlabs] fallback voice ${fallback} also missing for ${err.voiceId}`);
         return { audioUrl: null, vttUrl: null, characters: 0, source: "stub", orphanedVoiceId: err.voiceId, error: `Voice ${err.voiceId} orphaned and fallback ${fallback} also missing` };
@@ -196,7 +196,7 @@ export async function generateNarration(input: {
       try {
         const audio = await synthesizeSpeech(text, fallback);
         const storageKey = input.storageKey ?? `narration/misc/${Date.now().toString(36)}.mp3`;
-        const stored = await uploadAsset({ key: storageKey, body: audio, contentType: "audio/mpeg" });
+        const stored = await uploadOptimized(storageKey, audio, "narration");
         console.warn(`[elevenlabs] voice ${err.voiceId} orphaned; used fallback ${fallback}`);
         return {
           audioUrl: stored.url,
@@ -249,7 +249,7 @@ export async function cloneVoiceFromSamples(input: VoiceCloneInput): Promise<{ v
   if (!input.samples.length) throw new Error("At least one audio sample is required");
   for (const s of input.samples) {
     if (s.buffer.byteLength === 0) throw new Error("An audio sample is empty");
-    if (s.buffer.byteLength > 12 * 1024 * 1024) throw new Error("Each audio sample must be ≤12MB");
+    if (s.buffer.byteLength > 12 * 1024 * 1024) throw new Error("Each audio sample must be â‰¤12MB");
   }
   const form = new FormData();
   form.set("name", input.name.slice(0, 100));
@@ -277,7 +277,7 @@ export async function cloneVoiceFromSamples(input: VoiceCloneInput): Promise<{ v
 }
 
 /**
- * Delete a previously cloned voice. Safe to call on a non-existent id —
+ * Delete a previously cloned voice. Safe to call on a non-existent id â€”
  * ElevenLabs returns 404 which we swallow so DELETE is idempotent.
  */
 export async function deleteClonedVoice(voiceId: string): Promise<void> {
@@ -301,7 +301,7 @@ export async function deleteClonedVoice(voiceId: string): Promise<void> {
  * voice_id (someone deleted it from their ElevenLabs dashboard, or our
  * token was revoked). Clears narratorVoiceId so the voice-precedence
  * chain in runAudioStage / audio-regenerate falls back to a curated
- * default. Idempotent — re-running with the same orphaned id is a no-op.
+ * default. Idempotent â€” re-running with the same orphaned id is a no-op.
  */
 export async function markVoiceOrphaned(userId: string, orphanedVoiceId: string): Promise<boolean> {
   // Lazy import to avoid pulling Prisma in scripts that only need TTS.

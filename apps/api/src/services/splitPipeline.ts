@@ -39,6 +39,7 @@ import { emitPipelineEvent } from "../studio/events.js";
 import { generateStill as defaultGenerateStill, animateStill as defaultAnimateStill, currentProvider as currentVideoProvider } from "./videoProvider.js";
 import { estimateMinimaxVideoCostUsd } from "./usageTracking.js";
 import { mirrorToR2 as defaultMirrorToR2 } from "./cloudflare.js";
+import { posterTransform, videoTransform } from "./mediaPostProcess.js";
 import { move as defaultMove, IllegalTransitionError } from "./pageState.js";
 import { loadBrain as defaultLoadBrain } from "./pipeline.js";
 import { safePrompt as defaultSafePrompt, stylePrompt as defaultStylePrompt } from "./promptSafety.js";
@@ -139,7 +140,13 @@ export interface SplitDeps {
   prisma: PrismaClient;
   generateStill: (prompt: string, ratio: string) => Promise<string>;
   animateStill: (stillUrl: string, motion: string, seconds: number, ratio: string) => Promise<string>;
-  mirrorToR2: (sourceUrl: string, key: string, fallbackContentType: string) => Promise<{ url: string }>;
+  mirrorToR2: (
+    sourceUrl: string,
+    key: string,
+    fallbackContentType: string,
+    attempts?: number,
+    transform?: (body: Buffer, contentType: string, key: string) => Promise<{ body: Buffer; contentType: string; key: string } | null>
+  ) => Promise<{ url: string }>;
   loadBrain: (bookId: string) => Promise<unknown>;
   stylePrompt: (styleId: string | null | undefined, recommendation: string | null | undefined) => string;
   safePrompt: (prompt: string, characters: { name: string; description: string }[]) => string;
@@ -269,7 +276,9 @@ export async function runStillPageJob(
     const stored = await deps.mirrorToR2(
       stillUrl,
       `studio/${data.projectId}/p${page.pageNum}-${Date.now().toString(36)}.png`,
-      "image/png"
+      "image/png",
+      5,
+      posterTransform()
     );
     await deps.prisma.page.update({
       where: { id: page.id },
@@ -399,7 +408,9 @@ export async function runAnimatePageJob(
     const stored = await deps.mirrorToR2(
       clipUrl,
       `studio/${data.projectId}/p${page.pageNum}-${Date.now().toString(36)}.mp4`,
-      "video/mp4"
+      "video/mp4",
+      5,
+      videoTransform()
     );
     await deps.prisma.page.update({
       where: { id: page.id },

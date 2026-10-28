@@ -1,0 +1,110 @@
+{
+  "generatedAt": "2026-10-28T01:19:06.838Z",
+  "bookId": "cmu36a4fo00047kog0t9ldi03",
+  "bookSlug": "lagos-nights-2-the-lagoon",
+  "bookTitle": "Lagos Nights · The Lagoon",
+  "cover": {
+    "oldUrl": "https://media.animbook.com/books/lagos-nights-2-the-lagoon/cover-mu57drnn.png",
+    "newUrl": "https://media.animbook.com/books/lagos-nights-2-the-lagoon/cover-mu57drnn.opt.webp",
+    "oldKey": "books/lagos-nights-2-the-lagoon/cover-mu57drnn.png",
+    "newKey": "books/lagos-nights-2-the-lagoon/cover-mu57drnn.opt.webp",
+    "bytesBefore": 2003532,
+    "bytesAfter": 77704
+  },
+  "pages": [
+    {
+      "pageId": "cmu36a4x200057kogejzywyfv",
+      "pageNum": 1,
+      "video": {
+        "oldUrl": "https://media.animbook.com/books/lagos-nights-2-the-lagoon/p1-mu4vrigb.mp4",
+        "newUrl": "https://media.animbook.com/books/lagos-nights-2-the-lagoon/p1-mu4vrigb.opt.mp4",
+        "oldKey": "books/lagos-nights-2-the-lagoon/p1-mu4vrigb.mp4",
+        "newKey": "books/lagos-nights-2-the-lagoon/p1-mu4vrigb.opt.mp4",
+        "bytesBefore": 644196,
+        "bytesAfter": 488298,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "boxesBefore": [
+          "ftyp:32",
+          "uuid:155918",
+          "free:8",
+          "mdat:485999",
+          "moov:2239"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2259",
+          "free:8",
+          "mdat:485999"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/lagos-nights-2-the-lagoon/p1-voice-mu4i3smk.mp3",
+        "newUrl": "https://media.animbook.com/books/lagos-nights-2-the-lagoon/p1-voice-mu4i3smk.opt.mp3",
+        "oldKey": "books/lagos-nights-2-the-lagoon/p1-voice-mu4i3smk.mp3",
+        "newKey": "books/lagos-nights-2-the-lagoon/p1-voice-mu4i3smk.opt.mp3",
+        "bytesBefore": 121252,
+        "bytesAfter": 45523,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/books/lagos-nights-2-the-lagoon/p1-mu4vrigb.png",
+        "newUrl": "https://media.animbook.com/books/lagos-nights-2-the-lagoon/p1-mu4vrigb.opt.webp",
+        "oldKey": "books/lagos-nights-2-the-lagoon/p1-mu4vrigb.png",
+        "newKey": "books/lagos-nights-2-the-lagoon/p1-mu4vrigb.opt.webp",
+        "bytesBefore": 941129,
+        "bytesAfter": 39236
+      }
+    },
+    {
+      "pageId": "cmu36a4x200067kogzlj28pbm",
+      "pageNum": 2,
+      "video": {
+        "oldUrl": "https://media.animbook.com/books/lagos-nights-2-the-lagoon/p2-mu54i2ms.mp4",
+        "newUrl": "https://media.animbook.com/books/lagos-nights-2-the-lagoon/p2-mu54i2ms.opt.mp4",
+        "oldKey": "books/lagos-nights-2-the-lagoon/p2-mu54i2ms.mp4",
+        "newKey": "books/lagos-nights-2-the-lagoon/p2-mu54i2ms.opt.mp4",
+        "bytesBefore": 2067111,
+        "bytesAfter": 1693643,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "boxesBefore": [
+          "ftyp:32",
+          "uuid:373488",
+          "free:8",
+          "mdat:1691328",
+          "moov:2255"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2275",
+          "free:8",
+          "mdat:1691328"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/lagos-nights-2-the-lagoon/p2-voice-mu4i3yrs.mp3",
+        "newUrl": "https://media.animbook.com/books/lagos-nights-2-the-lagoon/p2-voice-mu4i3yrs.opt.mp3",
+        "oldKey": "books/lagos-nights-2-the-lagoon/p2-voice-mu4i3yrs.mp3",
+        "newKey": "books/lagos-nights-2-the-lagoon/p2-voice-mu4i3yrs.opt.mp3",
+        "bytesBefore": 133373,
+        "bytesAfter": 50068,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/books/lagos-nights-2-the-lagoon/p2-mu54i2ms.png",
+        "newUrl": "https://media.animbook.com/books/lagos-nights-2-the-lagoon/p2-mu54i2ms.opt.webp",
+        "oldKey": "books/lagos-nights-2-the-lagoon/p2-mu54i2ms.png",
+        "newKey": "books/lagos-nights-2-the-lagoon/p2-mu54i2ms.opt.webp",
+        "bytesBefore": 1213727,
+        "bytesAfter": 74754
+      }
+    }
+  ]
+}

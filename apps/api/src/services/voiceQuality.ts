@@ -1,18 +1,19 @@
-// Voice clone quality scoring. Heuristic — no ML, just signal we can read
+﻿// Voice clone quality scoring. Heuristic â€” no ML, just signal we can read
 // from the sample buffers themselves. Inputs are per-sample audio buffers
 // plus their declared content types; we ffprobe each one for duration +
 // bit depth + sample rate and combine those into a 0-100 score.
 //
 // The score is best understood as "how good a raw material does this user
 // give ElevenLabs to clone from", not "how good does the resulting clone
-// sound" — that's still gated by ElevenLabs' own training quality. We
+// sound" â€” that's still gated by ElevenLabs' own training quality. We
 // surface the per-component breakdown so authors can iterate: "you need
 // 90 more seconds of clean speech" or "your m4a is at 64kbps; try wav".
 
 import { spawn } from "node:child_process";
+import { resolveFfprobe } from "./ffmpegBin.js";
 
 export interface SampleStats {
-  /** Per-sample label, e.g. "sample-1.mp3" — surfaced in the UI list. */
+  /** Per-sample label, e.g. "sample-1.mp3" â€” surfaced in the UI list. */
   filename: string;
   /** Detected container: "wav" | "mp3" | "m4a" | "mp4" | "unknown". */
   format: "wav" | "mp3" | "m4a" | "mp4" | "unknown";
@@ -37,7 +38,7 @@ export interface VoiceQualityReport {
     totalDuration: { seconds: number; idealMin: number; idealMax: number; contribution: number };
     /** 0-25: best audio format detected (wav 44.1k+ > mp3 192k+ > m4a). */
     format: { detected: string; contribution: number };
-    /** 0-20: format variety — different formats recorded in different conditions. */
+    /** 0-20: format variety â€” different formats recorded in different conditions. */
     variety: { uniqueFormats: number; contribution: number };
   };
   /** Per-sample stats for the UI list. */
@@ -71,7 +72,7 @@ async function probeSample(buf: Buffer, filename: string): Promise<SampleStats> 
         "-show_entries", "format=duration,bit_rate:stream=sample_rate,channels,codec_name",
         "-of", "csv=s=x:p=0"
       ];
-      const child = spawn("ffprobe", args, { stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn(resolveFfprobe() ?? "ffprobe", args, { stdio: ["ignore", "pipe", "pipe"] });
       let stdout = "";
       child.stdout.on("data", (c: Buffer | string) => { stdout += c.toString("utf8"); });
       child.on("error", () => {
@@ -110,7 +111,7 @@ async function probeSample(buf: Buffer, filename: string): Promise<SampleStats> 
 
 /**
  * Score voice-clone sample quality. Higher = better training material.
- * Caps at 100, floors at 0. Doesn't fail on ffprobe errors — components
+ * Caps at 100, floors at 0. Doesn't fail on ffprobe errors â€” components
  * just contribute 0 and we surface "couldn't read audio metadata" in
  * the hint.
  */
@@ -132,7 +133,7 @@ export async function scoreVoiceQuality(
   }
   const stats = await Promise.all(samples.map((s) => probeSample(s.buffer, s.filename)));
 
-  // Component 1: sample count (0-25). 3-5 is the sweet spot — ElevenLabs
+  // Component 1: sample count (0-25). 3-5 is the sweet spot â€” ElevenLabs
   // recommends "1-5 minutes of clean speech", which usually means 3-5
   // distinct recordings.
   const countContribution =
@@ -187,15 +188,15 @@ export async function scoreVoiceQuality(
   // Actionable hint based on what's holding the score down.
   let hint: string | null = null;
   if (totalSec > 0 && totalSec < 60) {
-    hint = `Add ${Math.max(60, 90 - Math.round(totalSec))} more seconds — ElevenLabs recommends 1–4 minutes total.`;
+    hint = `Add ${Math.max(60, 90 - Math.round(totalSec))} more seconds â€” ElevenLabs recommends 1â€“4 minutes total.`;
   } else if (samples.length === 1) {
     hint = "Upload 2-4 more samples from different sessions (vary tone and pace).";
   } else if (formatContribution < 12) {
-    hint = "Re-export as WAV 44.1kHz or MP3 ≥192kbps — compressed formats lose timbre detail.";
+    hint = "Re-export as WAV 44.1kHz or MP3 â‰¥192kbps â€” compressed formats lose timbre detail.";
   } else if (varietyKeys.size < 2 && samples.length >= 2) {
     hint = "Record in at least 2 different formats or settings (e.g. phone vs. mic) for natural variety.";
   } else if (score >= 90) {
-    hint = "Excellent — your sample set should give ElevenLabs a strong clone.";
+    hint = "Excellent â€” your sample set should give ElevenLabs a strong clone.";
   }
 
   return {
@@ -213,4 +214,4 @@ export async function scoreVoiceQuality(
 
 /** Pick a short, branded sentence for the "hear your clone" preview. */
 export const PREVIEW_SENTENCE =
-  "Hello, reader — this is a sample of my voice. If you're hearing warmth, clarity, and a calm pace, then the clone is working.";
+  "Hello, reader â€” this is a sample of my voice. If you're hearing warmth, clarity, and a calm pace, then the clone is working.";

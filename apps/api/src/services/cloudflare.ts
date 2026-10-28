@@ -87,19 +87,50 @@ export async function uploadAsset(input: UploadInput): Promise<UploadResult> {
 }
 
 /**
+ * Optional post-processing step applied to a downloaded object before it is
+ * uploaded. It receives the raw bytes, the detected content type and the
+ * ORIGINAL key, and returns the bytes + key to actually store.
+ *
+ * Returning `null` means "store the original unchanged" — that is the
+ * fallback whenever an optimiser is unavailable or fails, so a missing
+ * ffmpeg can never lose a paid-for asset.
+ */
+export type R2Transform = (
+  body: Buffer,
+  contentType: string,
+  key: string
+) => Promise<{ body: Buffer; contentType: string; key: string } | null>;
+
+/**
  * Download a remote file (e.g. a Runway output, which expires) and store it
  * in R2. Retries the whole download + upload, because by this point the
  * file has already been paid for.
  */
-export async function mirrorToR2(sourceUrl: string, key: string, fallbackContentType: string, attempts = 5): Promise<UploadResult> {
+export async function mirrorToR2(
+  sourceUrl: string,
+  key: string,
+  fallbackContentType: string,
+  attempts = 5,
+  transform?: R2Transform
+): Promise<UploadResult> {
   let lastErr: unknown;
   for (let i = 0; i < attempts; i++) {
     try {
       const res = await fetch(sourceUrl);
       if (!res.ok) throw new Error(`Download failed (${res.status}) for ${sourceUrl.slice(0, 80)}`);
       const contentType = res.headers.get("content-type")?.split(";")[0] || fallbackContentType;
-      const buf = new Uint8Array(await res.arrayBuffer());
-      return await uploadAsset({ key, body: buf, contentType });
+      let buf: Buffer = Buffer.from(new Uint8Array(await res.arrayBuffer()));
+      let finalKey = key;
+      let finalType = contentType;
+      if (transform) {
+        const transformed = await transform(buf, contentType, key);
+        if (transformed) {
+          buf = transformed.body;
+          finalKey = transformed.key;
+          finalType = transformed.contentType;
+        }
+      }
+      return await uploadAsset({ key: finalKey, body: buf, contentType: finalType });
     } catch (err) {
       lastErr = err;
       const wait = Math.min(30_000, 3_000 * 2 ** i);

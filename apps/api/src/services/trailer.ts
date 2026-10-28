@@ -1,8 +1,8 @@
-// Splits a ≤600-char hook into 3 cinematic scene prompts. We pick the most
+﻿// Splits a â‰¤600-char hook into 3 cinematic scene prompts. We pick the most
 // evocative 1-sentence beats from the hook (first, middle-style, last) and
 // pad them with a fixed visual scaffold so the active video provider
 // (MiniMax / Hailuo by default, Runway when VIDEO_PROVIDER=runway) has
-// something concrete to hang a still image on. No Claude call needed —
+// something concrete to hang a still image on. No Claude call needed â€”
 // the hook is short by construction.
 import { spawn } from "node:child_process";
 import { readFile, rm, unlink, writeFile } from "node:fs/promises";
@@ -12,6 +12,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { randomFillSync } from "node:crypto";
 import { join } from "node:path";
+import { resolveFfmpeg, resolveFfprobe } from "./ffmpegBin.js";
 
 const SCENE_SCAFFOLD = {
   scene1: "Opening cinematic slow dolly reveal.",
@@ -28,7 +29,7 @@ function pickBeat(hook: string, target: "first" | "middle" | "last"): string {
   if (sentences.length === 0) return hook.trim();
   if (target === "first") return sentences[0]!;
   if (target === "last") return sentences[sentences.length - 1]!;
-  // Pick the middle by character count — earlier mids have less room.
+  // Pick the middle by character count â€” earlier mids have less room.
   const totalChars = sentences.reduce((sum, s) => sum + s.length, 0);
   let targetStart = totalChars / 2;
   let cursor = 0;
@@ -87,7 +88,7 @@ export async function stitchTrailerClips(listFile: string, outFile: string): Pro
     outFile
   ];
   await new Promise<void>((resolve, reject) => {
-    const child = spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(resolveFfmpeg() ?? "ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
     let stderr = "";
     child.stderr.on("data", (c: Buffer | string) => { stderr += c.toString("utf8"); });
     child.on("error", reject);
@@ -97,7 +98,7 @@ export async function stitchTrailerClips(listFile: string, outFile: string): Pro
     });
   });
   const buf = await readFile(outFile);
-  // Clean up the list file — it's a per-run artifact, no value keeping.
+  // Clean up the list file â€” it's a per-run artifact, no value keeping.
   await unlink(listFile).catch(() => {});
   return buf.byteLength;
 }
@@ -116,8 +117,8 @@ const TRAILER_WATERMARK_PATHS = [
   resolve(process.cwd(), "apps", "api", "src", "assets", "trailer-watermark.png"),
   // tsx dev: source-relative to this module
   resolve(dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, "$1")), "assets", "trailer-watermark.png"),
-  // Built dist fallback — when tsc emits src/assets/trailer-watermark.png
-  // to dist/src/assets/… we still resolve via src above, but in case the
+  // Built dist fallback â€” when tsc emits src/assets/trailer-watermark.png
+  // to dist/src/assets/â€¦ we still resolve via src above, but in case the
   // running CWD differs we try one more relative location.
   resolve(process.cwd(), "dist", "src", "assets", "trailer-watermark.png")
 ];
@@ -162,7 +163,7 @@ export async function applyTrailerWatermark(
     outputMp4
   ];
   await new Promise<void>((resolveP, rejectP) => {
-    const child = spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(resolveFfmpeg() ?? "ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
     let stderr = "";
     child.stderr.on("data", (c: Buffer | string) => { stderr += c.toString("utf8"); });
     child.on("error", rejectP);
@@ -181,7 +182,7 @@ export async function applyTrailerWatermark(
  * The trailer pipeline produces a 30s MP4, but social previews (OG
  * images, Twitter Card thumbnails, Slack unfurls) need a STATIC image.
  * This composites the book's coverUrl with the title in a translucent
- * banner at the bottom — the same look readers see when they open the
+ * banner at the bottom â€” the same look readers see when they open the
  * trailer link.
  *
  * Used as `BookShare.thumbnailUrl` and as `og:image` for /share/<token>.
@@ -190,7 +191,7 @@ export async function applyTrailerWatermark(
  *   - If the cover URL is empty / 404s: returns null (caller uses the
  *     bare coverUrl for the og:image, no overlay).
  *   - If no system font is available: skips the title overlay and just
- *     re-uploads the cover at share/<bookId>-thumb.png — still better
+ *     re-uploads the cover at share/<bookId>-thumb.png â€” still better
  *     than the inline `<img>` fallback because the share row gets a
  *     persistent R2 URL to point at.
  * --------------------------------------------------------------------- */
@@ -237,7 +238,7 @@ export async function renderCoverOverlayPng(
   const outputPng = join(workDir, "thumb.png");
 
   // Write the title to a text file and pass it via `textfile=`. This
-  // sidesteps drawtext's painful escape rules — no backslash, colon,
+  // sidesteps drawtext's painful escape rules â€” no backslash, colon,
   // percent or quote escaping is needed because ffmpeg reads the literal
   // bytes from disk. Title is hard-capped at 120 chars so a runaway input
   // can't fill the work dir.
@@ -248,11 +249,11 @@ export async function renderCoverOverlayPng(
   // and subtitle with absolute pixel values. drawtext expressions don't
   // expose the input frame's width/height (only text_w, text_h, line_h,
   // n, pts, r, time_base) so we can't do relative scaling inside the
-  // filter — must compute it on this side and bake it in.
+  // filter â€” must compute it on this side and bake it in.
   const dims = await probeCoverDims(coverUrl).catch(() => null);
 
-  // If we couldn't probe (rare — broken cover URL, no ffprobe, etc.) fall
-  // back to sane defaults. Real covers are 512–2048 wide and 720–2880 tall.
+  // If we couldn't probe (rare â€” broken cover URL, no ffprobe, etc.) fall
+  // back to sane defaults. Real covers are 512â€“2048 wide and 720â€“2880 tall.
   const W = dims?.width ?? 1024;
   const H = dims?.height ?? 1440;
   const bannerH = Math.round(W * 0.30);            // 30% of cover width
@@ -268,7 +269,7 @@ export async function renderCoverOverlayPng(
   // Two separate filter chains with an explicit label handoff. The chain
   // order is intentional: banner first, title on top of it, subtitle
   // below the title. We use `textfile=` for the title so we don't have
-  // to escape backslash / colon / quote / percent chars — ffmpeg reads
+  // to escape backslash / colon / quote / percent chars â€” ffmpeg reads
   // the literal bytes from disk. The subtitle is hard-coded so we can
   // pass it as `text=` without worrying.
   // POSIX-style path + drive-colon escape so ffmpeg's parser doesn't
@@ -292,7 +293,7 @@ export async function renderCoverOverlayPng(
 
   try {
     await new Promise<void>((resolveP, rejectP) => {
-      const child = spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn(resolveFfmpeg() ?? "ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
       let stderr = "";
       child.stderr.on("data", (c: Buffer | string) => { stderr += c.toString("utf8"); });
       child.on("error", rejectP);
@@ -319,7 +320,7 @@ export async function renderCoverOverlayPng(
 async function probeCoverDims(coverUrl: string): Promise<{ width: number; height: number } | null> {
   return new Promise((resolveP) => {
     const args = ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=s=x:p=0", coverUrl];
-    const child = spawn("ffprobe", args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(resolveFfprobe() ?? "ffprobe", args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     child.stdout.on("data", (c: Buffer | string) => { stdout += c.toString("utf8"); });
     child.on("error", () => resolveP(null));

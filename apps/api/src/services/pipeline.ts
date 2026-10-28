@@ -7,6 +7,7 @@ import { generateBookBrain, type BookBrain } from "./bookBrain.js";
 import { generateClip, generateStill, animateStill, currentProvider as currentVideoProvider } from "./videoProvider.js";
 import { generateNarration, currentTtsProvider } from "./ttsProvider.js";
 import { mirrorToR2, uploadAsset } from "./cloudflare.js";
+import { posterTransform, videoTransform } from "./mediaPostProcess.js";
 import { safePrompt, stylePrompt, type NamedCharacter } from "./promptSafety.js";
 import { defaultVoiceIdFor, findVoice, pickProviderVoiceId } from "../config/voices.js";
 import { recordUsage, MINIMAX_IMAGE_USD_IMAGE_01 } from "./usageTracking.js";
@@ -428,7 +429,13 @@ async function animatePage(projectId: string, brain: BookBrain, page: PageRow, m
   try {
     if (!moving) {
       const url = await generateStill(still, "1920:1080");
-      const stored = await mirrorToR2(url, `studio/${projectId}/p${page.pageNum}-${Date.now().toString(36)}.png`, "image/png");
+      const stored = await mirrorToR2(
+        url,
+        `studio/${projectId}/p${page.pageNum}-${Date.now().toString(36)}.png`,
+        "image/png",
+        5,
+        posterTransform()
+      );
       await prisma.page.update({
         where: { id: page.id },
         data: { videoUrl: null, posterUrl: stored.url, animationPrompt: still, qualityScore: 0.8, status: "PENDING" }

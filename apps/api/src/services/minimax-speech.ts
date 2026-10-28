@@ -1,31 +1,31 @@
-/**
+﻿/**
  * MiniMax (Hailuo) TTS client.
  *
- *   POST https://api.minimax.io/v1/t2a_v2           — synchronous HTTP (T2A v2)
+ *   POST https://api.minimax.io/v1/t2a_v2           â€” synchronous HTTP (T2A v2)
  *     body: { model, text, stream, voice_setting, audio_setting,
  *             language_boost, pronunciation_dict, voice_modify,
  *             subtitle_enable, subtitle_type, output_format }
- *     resp: { data: { audio (hex|URL), status }, extra_info: { audio_length_ms, audio_sample_rate, usage_characters, … } }
+ *     resp: { data: { audio (hex|URL), status }, extra_info: { audio_length_ms, audio_sample_rate, usage_characters, â€¦ } }
  *
- *   POST https://api.minimax.io/v1/t2a_async_v2    — async task create (1M chars/file_id)
- *     body: { model, text or text_file_id, voice_setting, audio_setting, … }
- *     resp: { task_id, file_id, … } (file_id is returned only on success)
+ *   POST https://api.minimax.io/v1/t2a_async_v2    â€” async task create (1M chars/file_id)
+ *     body: { model, text or text_file_id, voice_setting, audio_setting, â€¦ }
+ *     resp: { task_id, file_id, â€¦ } (file_id is returned only on success)
  *
  *   GET  https://api.minimax.io/v1/query/t2a_async_query_v2?task_id=<id>
- *     resp: { status: success|failed|expired|processing, file_id, … }
+ *     resp: { status: success|failed|expired|processing, file_id, â€¦ }
  *
  *   GET  https://api.minimax.io/v1/files/retrieve?file_id=<id>
  *     resp: { file: { download_url (9h TTL) } }
  *
  *   POST https://api.minimax.io/v1/get_voice
- *     body: { voice_type: "system"|"cloned"|… }
+ *     body: { voice_type: "system"|"cloned"|â€¦ }
  *     resp: { system_voice: [{ voice_id, voice_name, description[] }] }
  *
  *   POST https://api.minimax.io/v1/voice_clone
- *     body: { file_id, voice_id (custom), model, language_boost, text, … }
+ *     body: { file_id, voice_id (custom), model, language_boost, text, â€¦ }
  *
  * For the narration pipeline we use the synchronous endpoint for sub-page
- * text (≤ a few thousand chars) because it's faster, and we keep the async
+ * text (â‰¤ a few thousand chars) because it's faster, and we keep the async
  * endpoint as a future fallback for very long texts (>50k chars).
  *
  * `extra_info.audio_length_ms` gives us real duration in ms. The
@@ -39,6 +39,7 @@
  */
 import { appEnv, isFeatureEnabled } from "../config/env.js";
 import { mirrorToR2 } from "./cloudflare.js";
+import { narrationTransform } from "./mediaPostProcess.js";
 import {
   MINIMAX_TTS_USD_PER_1M_CHARS_HD,
   MINIMAX_TTS_USD_PER_1M_CHARS_TURBO,
@@ -49,7 +50,7 @@ const API_BASE = "https://api.minimax.io";
 const STUB_BASE = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=";
 
 /* --------------------------------------------------------------------- *
- * Public surface — same names + return shapes as services/elevenlabs.ts so
+ * Public surface â€” same names + return shapes as services/elevenlabs.ts so
  * the ttsProvider.ts selector can dispatch on TTS_PROVIDER without the
  * pipeline noticing.
  * --------------------------------------------------------------------- */
@@ -134,9 +135,9 @@ function authHeaders(): Record<string, string> {
 function baseRespError(label: string, r: { base_resp?: { status_code?: number; status_msg?: string } } | null): MinimaxSpeechError {
   const code = r?.base_resp?.status_code?.toString() ?? "unknown";
   const msg = r?.base_resp?.status_msg ?? label;
-  if (MODERATION_CODES.has(code)) return new MinimaxSpeechError(`MiniMax ${label}: ${msg} (${code}) — moderation`, false, true, code);
-  if (RETRYABLE_CODES.has(code)) return new MinimaxSpeechError(`MiniMax ${label}: ${msg} (${code}) — retryable`, true, false, code);
-  if (code === "2049" || code === "1004" || code === "1008") return new MinimaxSpeechError(`MiniMax ${label}: ${msg} (${code}) — auth/billing`, false, false, code);
+  if (MODERATION_CODES.has(code)) return new MinimaxSpeechError(`MiniMax ${label}: ${msg} (${code}) â€” moderation`, false, true, code);
+  if (RETRYABLE_CODES.has(code)) return new MinimaxSpeechError(`MiniMax ${label}: ${msg} (${code}) â€” retryable`, true, false, code);
+  if (code === "2049" || code === "1004" || code === "1008") return new MinimaxSpeechError(`MiniMax ${label}: ${msg} (${code}) â€” auth/billing`, false, false, code);
   return new MinimaxSpeechError(`MiniMax ${label}: ${msg} (${code})`, false, false, code);
 }
 
@@ -153,18 +154,18 @@ async function postJson<T>(path: string, body: unknown, attempts = 4): Promise<T
     }
     if (res.ok) return (await res.json()) as T;
     if (res.status === 429 || res.status >= 500) {
-      lastErr = new MinimaxSpeechError(`MiniMax ${path} → ${res.status}`, true);
+      lastErr = new MinimaxSpeechError(`MiniMax ${path} â†’ ${res.status}`, true);
       await new Promise((r) => setTimeout(r, Math.min(60_000, 3_000 * 2 ** i)));
       continue;
     }
     const detail = await res.text().catch(() => "");
-    throw new MinimaxSpeechError(`MiniMax ${path} → ${res.status}: ${detail.slice(0, 200)}`);
+    throw new MinimaxSpeechError(`MiniMax ${path} â†’ ${res.status}: ${detail.slice(0, 200)}`);
   }
   throw lastErr ?? new MinimaxSpeechError(`MiniMax ${path} gave up`);
 }
 
 /* --------------------------------------------------------------------- *
- * Internal: hex→bytes and VTT-from-subtitle helpers
+ * Internal: hexâ†’bytes and VTT-from-subtitle helpers
  * --------------------------------------------------------------------- */
 
 function hexToBuffer(hex: string): Buffer {
@@ -271,7 +272,7 @@ async function fetchSubtitleAsVtt(url: string): Promise<string | null> {
     const body = await res.text();
     if (!body.trim()) return null;
     // The MiniMax subtitle_file is a JSON array of { text, time_begin, time_end,
-    // timestamped_words? } segments (per the openapi spec, ≤ 50 chars per
+    // timestamped_words? } segments (per the openapi spec, â‰¤ 50 chars per
     // sentence, ms timestamps). We convert it into a VTT blob for the player.
     try {
       const parsed = JSON.parse(body);
@@ -286,7 +287,7 @@ async function fetchSubtitleAsVtt(url: string): Promise<string | null> {
 }
 
 /* --------------------------------------------------------------------- *
- * Public API surface — mirrors elevenlabs.ts:
+ * Public API surface â€” mirrors elevenlabs.ts:
  *
  *   - synthesizeSpeech(text, voiceId)                  -> Buffer (mp3)
  *   - generateNarration({...})                         -> NarrationResult
@@ -364,13 +365,13 @@ export async function characterQuota(): Promise<CharacterQuotaUsed> {
 }
 
 /** The marker flip a 404 orphan triggers on the user's record. We don't
- *  directly mutate the DB here — the route layer does. This returns
+ *  directly mutate the DB here â€” the route layer does. This returns
  *  whether we *recommend* the flip. Kept as a free function so the
  *  pipeline-side imports stay intact when we swap callsites. */
 export async function markVoiceOrphaned(userId: string, voiceId: string): Promise<boolean> {
   if (!userId || !voiceId) return false;
   if (!isFeatureEnabled("MINIMAX_TTS")) return false;
-  console.warn(`[minimax-speech] markVoiceOrphaned(${userId}, ${voiceId}) — caller handles DB flip`);
+  console.warn(`[minimax-speech] markVoiceOrphaned(${userId}, ${voiceId}) â€” caller handles DB flip`);
   return true;
 }
 
@@ -430,7 +431,7 @@ export async function generateNarration(opts: SynthesisOptions): Promise<Narrati
     let publicVttUrl: string | null = null;
 
     if (opts.storageKey) {
-      const audioAsset = await mirrorToR2(`data:audio/mpeg;base64,${audio.toString("base64")}`, opts.storageKey, "audio/mpeg");
+      const audioAsset = await mirrorToR2(`data:audio/mpeg;base64,${audio.toString("base64")}`, opts.storageKey, "audio/mpeg", 5, narrationTransform());
       publicAudioUrl = audioAsset.source === "r2" ? audioAsset.url : `data:audio/mpeg;base64,${audio.toString("base64")}`;
       if (vtt) {
         const vttKey = opts.storageKey.replace(/\.[a-z0-9]+$/i, ".vtt");
@@ -473,7 +474,7 @@ export async function generateNarration(opts: SynthesisOptions): Promise<Narrati
               const fallbackAudio = await fetchAudio(r.data.audio_url);
               return {
                 audioUrl: opts.storageKey
-                  ? (await mirrorToR2(`data:audio/mpeg;base64,${fallbackAudio.toString("base64")}`, opts.storageKey, "audio/mpeg")).url
+                  ? (await mirrorToR2(`data:audio/mpeg;base64,${fallbackAudio.toString("base64")}`, opts.storageKey, "audio/mpeg", 5, narrationTransform())).url
                   : `data:audio/mpeg;base64,${fallbackAudio.toString("base64")}`,
                 vttUrl: null,
                 durationSeconds: r.extra_info?.audio_length_ms ? Math.round(r.extra_info.audio_length_ms / 1000) : Math.round(fallbackAudio.length / 32000),
