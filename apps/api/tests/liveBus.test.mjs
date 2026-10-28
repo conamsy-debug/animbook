@@ -1,3 +1,4 @@
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { liveEventBus } from "../dist/modules/live/bus.js";

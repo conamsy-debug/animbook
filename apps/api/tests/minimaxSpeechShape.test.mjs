@@ -13,6 +13,7 @@
  * model id, (b) inlined the inline-image as data URI when one was passed,
  * (c) parsed subtitle timings, (d) wrote both audio + VTT to R2.
  */
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 

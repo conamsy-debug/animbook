@@ -11,6 +11,7 @@
  *
  * Run: `node --test apps/api/tests/migrationsBom.test.mjs`
  */
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";

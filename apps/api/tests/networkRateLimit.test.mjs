@@ -5,6 +5,7 @@
 // the math is regression-tested in CI without spinning up Express.
 //
 // Run with: `node --test apps/api/tests/networkRateLimit.test.mjs`
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 

@@ -47,6 +47,22 @@ import {
 
 const prisma = new PrismaClient();
 
+/**
+ * Options for the interactive transactions in this file.
+ *
+ * Prisma's DEFAULT interactive-transaction timeout is 5 seconds. These
+ * transactions write a handful of rows (the vocab card, the review log,
+ * the learner-stats row), and against a remote database - which is where
+ * this app runs - that regularly takes longer than 5s. Prisma then aborts
+ * the transaction with "Transaction not found" and the learner loses the
+ * rating and sees a 500.
+ *
+ * 30 seconds is plenty for four statements and still bounds a genuinely
+ * stuck transaction. The lesson importer exposes the same knob as
+ * `ImportOptions.transactionTimeoutMs`; this is the route-side twin.
+ */
+const TX_OPTS = { timeout: 30_000, maxWait: 30_000 };
+
 const router = Router();
 
 /* --------------------------------------------------------------------- *
@@ -1720,7 +1736,7 @@ router.post("/review/:userVocabId", authMiddleware, async (req: Request, res: Re
           xpTotal: xpDelta
         }
       });
-    });
+    }, TX_OPTS);
   } catch (err) {
     res.status(500).json({
       error: err instanceof Error ? err.message : "failed to record rating"

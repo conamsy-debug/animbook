@@ -7,6 +7,7 @@
  *
  * Run with: `node --test apps/api/tests/releaseSchedule.test.mjs`
  */
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 

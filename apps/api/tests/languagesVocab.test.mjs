@@ -12,6 +12,7 @@
  * ALLOW_DEMO_AUTH is set via apps/api/.env so the demo user is
  * resolved without a Clerk session.
  */
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
@@ -23,7 +24,12 @@ const __dirname = path.dirname(__filename);
 const fixturesDir = path.resolve(__dirname, "../prisma/languages-fixtures");
 const routerPath = path.resolve(__dirname, "../dist/modules/languages/routes.js");
 
-const DB_URL = process.env.DATABASE_URL || "";
+const DB_URL = process.env.TEST_DATABASE_URL || "";
+// The lesson importer writes ~30 rows in ONE interactive transaction. On a remote
+// database that is far slower than Prisma`s 5s default, which then fails with
+// "Transaction not found" / "Transaction already closed". The importer exposes
+// transactionTimeoutMs for exactly this case - see services/languages/importer.ts.
+const IMPORT_TX_TIMEOUT_MS = 120000;
 const DB_TESTS_ENABLED = DB_URL.length > 0 && existsSync(fixturesDir);
 const dbSuite = DB_TESTS_ENABLED ? test : test.skip;
 
@@ -54,7 +60,7 @@ async function loadFixture(prisma, slug) {
   // lexemes in the target_lang — the vocab tests assert exact card
   // counts and a stale row from a previous run would tip them.
   await prisma.userVocab.deleteMany({});
-  const result = await importLesson(prisma, raw);
+  const result = await importLesson(prisma, raw, { transactionTimeoutMs: IMPORT_TX_TIMEOUT_MS });
   await prisma.story.update({ where: { id: result.storyId }, data: { isPublished: true } });
   return result;
 }

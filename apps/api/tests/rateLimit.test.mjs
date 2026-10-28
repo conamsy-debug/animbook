@@ -6,6 +6,7 @@
  * - Request N+1 returns 429 with Retry-After.
  * - The headers are stamped on every response.
  */
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 

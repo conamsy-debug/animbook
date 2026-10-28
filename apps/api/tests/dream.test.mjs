@@ -7,6 +7,7 @@
  * where the npm registry is flaky. The `dream.ts` module is a pure
  * function so we can test it by importing the source via tsx.
  */
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 

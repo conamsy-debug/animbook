@@ -13,6 +13,7 @@
  *
  * Run with: `node --test apps/api/tests/studioDelete.test.mjs`
  */
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 

@@ -13,6 +13,7 @@
  * Strategy: stub global fetch, capture the first request body, return a
  * happy-path task-success response so animateStill returns cleanly.
  */
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 

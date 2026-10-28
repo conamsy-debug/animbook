@@ -20,6 +20,7 @@
  * The DB-backed tests gracefully no-op when DATABASE_URL isn't set,
  * so CI without a DB still runs the schema tests.
  */
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
@@ -135,7 +136,12 @@ test("validateLesson rejects when input is not an object", () => {
  *   postgres:16-alpine` then point DATABASE_URL at it.
  * */
 
-const DB_URL = process.env.DATABASE_URL || "";
+const DB_URL = process.env.TEST_DATABASE_URL || "";
+// The lesson importer writes ~30 rows in ONE interactive transaction. On a remote
+// database that is far slower than Prisma`s 5s default, which then fails with
+// "Transaction not found" / "Transaction already closed". The importer exposes
+// transactionTimeoutMs for exactly this case - see services/languages/importer.ts.
+const IMPORT_TX_TIMEOUT_MS = 120000;
 const DB_TESTS_ENABLED = DB_URL.length > 0 && existsSync(fixturesDir);
 
 const dbSuite = DB_TESTS_ENABLED ? test : test.skip;
@@ -162,7 +168,7 @@ dbSuite("importer writes the Spanish fixture to a fresh DB", async (t) => {
   await prisma.lexeme.deleteMany({ where: { targetLang: fixture.target_lang } });
   await prisma.exercise.deleteMany({});
 
-  const result = await importLesson(prisma, fixture);
+  const result = await importLesson(prisma, fixture, { transactionTimeoutMs: IMPORT_TX_TIMEOUT_MS });
 
   // Count expected values from the fixture.
   const expectedLines = fixture.scenes.reduce((acc, s) => acc + s.lines.length, 0);
@@ -195,8 +201,8 @@ dbSuite("importer is idempotent: re-importing the same fixture is a no-op (modul
 
   const fixture = JSON.parse(readFileSync(path.join(fixturesDir, "es-market-morning.json"), "utf8"));
 
-  const first = await importLesson(prisma, fixture);
-  const second = await importLesson(prisma, fixture);
+  const first = await importLesson(prisma, fixture, { transactionTimeoutMs: IMPORT_TX_TIMEOUT_MS });
+  const second = await importLesson(prisma, fixture, { transactionTimeoutMs: IMPORT_TX_TIMEOUT_MS });
 
   // Second run shouldn't create new lexemes — they're all reused.
   // Note: `first.lexemesCreated` may be 0 if a prior test (or this DB)
@@ -261,7 +267,7 @@ dbSuite("round-trip: import then export yields a parseable lesson for the Hebrew
   await prisma.story.deleteMany({ where: { masterStory: { slug: fixture.master_story_slug } } });
   await prisma.masterStory.deleteMany({ where: { slug: fixture.master_story_slug } });
 
-  const result = await importLesson(prisma, fixture);
+  const result = await importLesson(prisma, fixture, { transactionTimeoutMs: IMPORT_TX_TIMEOUT_MS });
   const exported = await exportStory(prisma, result.storyId);
 
   // Slug, target_lang, cefr_level, title round-trip exactly.

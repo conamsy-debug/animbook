@@ -11,6 +11,7 @@
  *
  * Run with: `node --test tests/manuscriptExtract.test.mjs`
  */
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 

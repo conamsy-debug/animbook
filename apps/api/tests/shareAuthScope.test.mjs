@@ -34,6 +34,7 @@
  *
  * Run with: `node --test apps/api/tests/shareAuthScope.test.mjs`
  */
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
@@ -48,7 +49,7 @@ import cors from "cors";
 process.env.CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY ?? "sk_test_fake_for_unit_tests";
 process.env.ALLOW_DEMO_AUTH = "false";
 process.env.LANGUAGES_ENABLED = "true";
-process.env.DATABASE_URL = process.env.DATABASE_URL ?? "postgresql://test:test@127.0.0.1:1/test";
+process.env.DATABASE_URL = process.env.DATABASE_URL || "postgresql://test:test@127.0.0.1:1/test";
 process.env.REDIS_URL = process.env.REDIS_URL ?? "redis://127.0.0.1:1";
 
 const shareMod = await import("../dist/modules/share/routes.js");

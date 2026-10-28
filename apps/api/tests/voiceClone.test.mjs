@@ -1,6 +1,7 @@
 // Pins the shape of the ElevenLabs /v1/voices/add request we send. The
 // real call happens server-side via the published API — here we just
 // assert that cloneVoiceFromSamples builds the right multipart envelope.
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 

@@ -14,6 +14,7 @@
  *
  * Skipped when DATABASE_URL is unset.
  */
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
@@ -31,7 +32,18 @@ const fixturesDir = path.resolve(__dirname, "../prisma/languages-fixtures");
 const routerPath = path.resolve(__dirname, "../dist/modules/languages/routes.js");
 const servicesPath = path.resolve(__dirname, "../dist/services/languages/index.js");
 
-const DB_URL = process.env.DATABASE_URL || "";
+const DB_URL = process.env.TEST_DATABASE_URL || "";
+// The lesson importer writes ~30 rows in ONE interactive transaction. On a remote
+// database that is far slower than Prisma`s 5s default, which then fails with
+// "Transaction not found" / "Transaction already closed". The importer exposes
+// transactionTimeoutMs for exactly this case - see services/languages/importer.ts.
+const IMPORT_TX_TIMEOUT_MS = 120000;
+// Master stories the admin endpoints below create with their OWN slugs.
+// Unlike the runAdaptationJob test, those tests never delete them, so
+// without a wipe here the file is not idempotent: a second run gets
+// 409 "slug already exists" instead of 201, and every test that depends
+// on the created id fails with it.
+const ADMIN_MASTER_STORY_SLUGS = ["the-lion-and-the-mouse", "dup-test", "lion-mouse", "job-status"];
 const DB_TESTS_ENABLED = DB_URL.length > 0 && existsSync(fixturesDir);
 const dbSuite = DB_TESTS_ENABLED ? test : test.skip;
 
@@ -70,6 +82,10 @@ async function loadFixture(prisma, slug) {
   // Patch 11: adaptation jobs can outlive their master story so we
   // don't CASCADE them — wipe explicitly between runs.
   await prisma.languagesAdaptationJob.deleteMany({});
+  // ...and the master stories the admin tests create for themselves.
+  // Runs AFTER the job wipe so no job can still reference them.
+  await prisma.story.deleteMany({ where: { masterStory: { slug: { in: ADMIN_MASTER_STORY_SLUGS } } } });
+  await prisma.masterStory.deleteMany({ where: { slug: { in: ADMIN_MASTER_STORY_SLUGS } } });
   // Promote the demo user to platform admin so the admin routes'
   // `requireAdmin()` check passes (CLERK=OFF, ALLOW_DEMO_AUTH=true
   // → authMiddleware falls through to `resolveDemoUserId()` →
@@ -82,7 +98,7 @@ async function loadFixture(prisma, slug) {
       data: { roles: [...demoUser.roles, "platform_admin"] }
     });
   }
-  const result = await importLesson(prisma, raw);
+  const result = await importLesson(prisma, raw, { transactionTimeoutMs: IMPORT_TX_TIMEOUT_MS });
   await prisma.story.update({
     where: { id: result.storyId },
     data: { isPublished: true }

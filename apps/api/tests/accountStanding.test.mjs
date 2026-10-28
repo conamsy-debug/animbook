@@ -5,6 +5,7 @@
  * come back protected, an unrecognised value must come back protected, and
  * only a plain adult account with no classroom place gets through.
  */
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 

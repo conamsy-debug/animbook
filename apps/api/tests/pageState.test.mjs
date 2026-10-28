@@ -10,6 +10,7 @@
  *
  * Run with: `node --test apps/api/tests/pageState.test.mjs`
  */
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 

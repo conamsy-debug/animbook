@@ -22,6 +22,17 @@ import {
   resolveTtsProvider
 } from "./tts.js";
 
+/**
+ * Options for the interactive transaction in editStory.
+ *
+ * Prisma's DEFAULT interactive-transaction timeout is 5 seconds. This
+ * transaction updates the story and then EVERY edited line, one UPDATE
+ * per line - on a remote database that regularly takes longer than 5s, at
+ * which point Prisma aborts the transaction with "Transaction not found"
+ * and the admin's edit is lost.
+ */
+const TX_OPTS = { timeout: 30_000, maxWait: 30_000 };
+
 /* --------------------------------------------------------------------- *
  * Shape types — what the routes return on the wire
  * --------------------------------------------------------------------- */
@@ -292,7 +303,7 @@ export async function editStory(
         }
       }
     }
-  });
+  }, TX_OPTS);
 
   return getStoryForReview(storyId);
 }

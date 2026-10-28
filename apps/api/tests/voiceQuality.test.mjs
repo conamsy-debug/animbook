@@ -2,6 +2,7 @@
 // scoring, preview synthesis endpoint. The /preview and /samples routes
 // depend on ElevenLabs + R2 + auth, so we test the scoring + envelope
 // parsing directly. End-to-end tests live in ops scripts (kick-audio.mjs).
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { scoreVoiceQuality, PREVIEW_SENTENCE } from "../dist/services/voiceQuality.js";

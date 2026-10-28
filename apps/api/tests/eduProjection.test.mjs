@@ -5,6 +5,7 @@
 // crashed with `TypeError: Cannot read properties of null (reading 'id')`
 // when `institution?.id` was treated as non-optional, which made every
 // projection click surface as "Failed to fetch" on the client.
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 

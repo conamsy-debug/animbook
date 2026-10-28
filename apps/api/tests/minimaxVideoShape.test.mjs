@@ -19,6 +19,7 @@
  * to return a download URL, then assert that animateStill inlined the
  * first_frame_image as a single data URI (not an array, not a bare URL).
  */
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 

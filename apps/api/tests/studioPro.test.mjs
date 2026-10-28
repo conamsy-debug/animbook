@@ -5,6 +5,7 @@
  * always produce the same marker hash and NFC tag id. Pinning the
  * format matters for QR-code re-printable journeys.
  */
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
@@ -16,6 +17,12 @@ import {
   findCompanionLinkByMarker,
   findCompanionLinkByNfc
 } from "../dist/services/studioPro.js";
+
+// The companion-link helpers hit the database. They run against the
+// disposable test database only (see tests/_guard.mjs).
+const DB_URL = process.env.TEST_DATABASE_URL || "";
+const DB_TESTS_ENABLED = DB_URL.length > 0;
+const dbSuite = DB_TESTS_ENABLED ? test : test.skip;
 
 test("generateMarkerHash: deterministic + sha256 of stable seed string", () => {
   const bookId = "cmsvoddhp00097k4opyzqnnwl";
@@ -47,7 +54,7 @@ test("generateNfcTagId: distinct books have distinct tags", () => {
   assert.notEqual(a, b);
 });
 
-test("ensureCompanionLink: idempotent — same book id produces same link record", async () => {
+dbSuite("ensureCompanionLink: idempotent — same book id produces same link record", async () => {
   const bookId = `test-book-idempotent-${Date.now()}`;
   const a = await ensureCompanionLink(bookId);
   const b = await ensureCompanionLink(bookId);
@@ -56,7 +63,7 @@ test("ensureCompanionLink: idempotent — same book id produces same link record
   assert.equal(a.nfcTagId, b.nfcTagId);
 });
 
-test("ensureCompanionLink: link is findable by marker hash and by NFC tag", async () => {
+dbSuite("ensureCompanionLink: link is findable by marker hash and by NFC tag", async () => {
   const bookId = `test-book-lookup-${Date.now()}`;
   const created = await ensureCompanionLink(bookId);
   const byMarker = await findCompanionLinkByMarker(created.markerHash);

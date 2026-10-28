@@ -5,11 +5,17 @@
  * against the live Neon DB (we don't have a per-test Prisma mock in
  * Node 24, see studioSplitRoutes.test.mjs for the rationale).
  */
+import "./_guard.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient();
+// The DB round-trip runs against the disposable test database only
+// (see tests/_guard.mjs). The pure cost helpers below need no database.
+const DB_URL = process.env.TEST_DATABASE_URL || "";
+const DB_TESTS_ENABLED = DB_URL.length > 0;
+const dbSuite = DB_TESTS_ENABLED ? test : test.skip;
+const prisma = DB_TESTS_ENABLED ? new PrismaClient({ datasourceUrl: DB_URL }) : null;
 
 const {
   estimateClipCostUsd,
@@ -98,7 +104,7 @@ test("narrationDurationLabel: >= 60 min → '~N hr narration'", () => {
  * mock in Node 24.
  * --------------------------------------------------------------------- */
 
-test("recordUsage + getUsageSummary: round-trip on a fresh test book", async () => {
+dbSuite("recordUsage + getUsageSummary: round-trip on a fresh test book", async () => {
   const tag = `usage-test-${Date.now()}`;
   // We need a real user + book to satisfy FK constraints. Find the
   // first user + book in the DB and use their ids. The data we insert
@@ -146,4 +152,4 @@ test("recordUsage + getUsageSummary: round-trip on a fresh test book", async () 
   await prisma.usageEvent.deleteMany({ where: { userId: user.id, bookId: book.id, metadata: { path: ["audit"], equals: tag } } });
 });
 
-await prisma.$disconnect();
+if (prisma) await prisma.$disconnect();
