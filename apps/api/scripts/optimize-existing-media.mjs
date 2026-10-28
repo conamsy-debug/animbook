@@ -6,13 +6,25 @@
  *
  *   - MP4   -> remuxed with `-movflags +faststart` (streams COPIED, no
  *              re-encode, no quality loss) so the moov index is at the FRONT.
+ *              The C2PA `uuid` box (Content Credentials / AI provenance) is
+ *              re-injected afterwards, because ffmpeg's mp4 muxer drops it.
  *   - PNG/JPG -> WebP (q80) at the size the asset is displayed at.
  *   - MP3  -> mono 48 kbps.
+ *
+ * The cover additionally gets a JPEG "social twin" (`<name>.social.jpg`):
+ * social platforms do not render WebP in a preview card.
  *
  * The originals are NEVER deleted or overwritten. Every optimised file is
  * written under a NEW key (`<name>.opt.<ext>`) and the database is
  * repointed at it. `rollback-optimized-media.mjs` restores the old URLs
  * using the manifest this script writes.
+ *
+ * RE-RUNNING IS SAFE. When the database already points at an optimised key,
+ * the previous manifest is used to find the ORIGINAL object again, and the
+ * asset is re-optimised from that original. That matters for the C2PA box:
+ * the plain remux dropped it, so re-optimising the ALREADY-OPTIMISED clip
+ * would optimise a clip that has no manifest to preserve. It also stops the
+ * script from creating a `.opt.opt.<ext>` key.
  *
  * Usage:
  *   node apps/api/scripts/optimize-existing-media.mjs <book-slug-or-id>
@@ -22,7 +34,7 @@
  * without an explicit target.
  */
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync, mkdirSync, openSync, readSync, closeSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, openSync, readSync, closeSync, statSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -42,12 +54,52 @@ function loadEnv(p) {
 
 const env = { ...loadEnv(fileURLToPath(new URL("../.env", import.meta.url))) };
 const HERE = dirname(fileURLToPath(import.meta.url));
-const MANIFEST_DIR = join(HERE, "..", "..", "..", "apps", "api", "scripts");
 const CDN = "https://media.animbook.com";
 
 const POSTER_MAX_WIDTH = 1280;
 const COVER_MAX_WIDTH = 800;
 const WEBP_QUALITY = 80;
+
+/**
+ * The database to use. Defaults to apps/api/.env, but an explicit
+ * DATABASE_URL in the environment wins — that is how you point this at the
+ * DIRECT (non-pooled) Neon endpoint when the pooler is flaky.
+ */
+const DB_URL = process.env.DATABASE_URL || env.DATABASE_URL;
+
+/** Every network call gets a deadline — a stalled CDN must not hang the run. */
+const FETCH_TIMEOUT_MS = 60_000;
+
+function fetchWithTimeout(url, init = {}) {
+  return fetch(url, { ...init, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+}
+
+/**
+ * Retry a database call.
+ *
+ * Neon (especially the pooled endpoint) occasionally refuses or drops the
+ * first connection after a cold start. A one-off script that repoints
+ * production rows must survive that, not abort half-way through.
+ */
+async function db(fn, attempts = 4) {
+  let lastErr;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const msg = String(err.message).split("\n").filter(Boolean).slice(0, 2).join(" ").slice(0, 140);
+      if (i < attempts) {
+        const wait = 1000 * i;
+        console.warn(`  db attempt ${i} failed (${msg}) - retrying in ${wait}ms`);
+        await new Promise((r) => setTimeout(r, wait));
+      } else {
+        console.error(`  db attempt ${i} failed: ${msg}`);
+      }
+    }
+  }
+  throw lastErr;
+}
 
 const r2 = new AwsClient({
   accessKeyId: env.CLOUDFLARE_R2_ACCESS_KEY_ID,
@@ -62,7 +114,7 @@ const objectUrl = (key) =>
     .map(encodeURIComponent)
     .join("/")}`;
 
-const prisma = new PrismaClient({ datasources: { db: { url: env.DATABASE_URL } } });
+const prisma = new PrismaClient({ datasources: { db: { url: DB_URL } } });
 
 /* ------------------------------------------------------------------ */
 
@@ -140,6 +192,61 @@ function moovPositionViaFfprobe(file) {
   return moov < mdat ? "front" : "back";
 }
 
+/* ------------------------------------------------------------------ *
+ * C2PA (Content Credentials)
+ *
+ * AI-generated clips carry a JUMBF manifest in a top-level `uuid` box.
+ * ffmpeg's mp4 muxer does not know that box, so a plain remux DROPS it —
+ * which strips the AI-content provenance from the optimised clip. We pull
+ * the box out of the source and splice it back into the remuxed file.
+ * ------------------------------------------------------------------ */
+
+/** The top-level `uuid` box of an MP4 buffer, or null. */
+function extractUuidBox(mp4) {
+  let off = 0;
+  while (off + 8 <= mp4.length) {
+    let size = mp4.readUInt32BE(off);
+    const type = mp4.toString("latin1", off + 4, off + 8);
+    if (size === 1) {
+      if (off + 16 > mp4.length) break;
+      size = Number(mp4.readBigUInt64BE(off + 8));
+    } else if (size === 0) {
+      size = mp4.length - off;
+    }
+    if (size < 8) break;
+    if (type === "uuid") return mp4.subarray(off, off + size);
+    off += size;
+  }
+  return null;
+}
+
+/**
+ * Splice a top-level box into an MP4, right after the `ftyp` box.
+ * Box sizes are self-contained, so inserting bytes does not invalidate any
+ * other box, and `moov` still ends up before `mdat` (faststart holds).
+ */
+function injectBox(mp4, box) {
+  let off = 0;
+  let at = 0;
+  while (off + 8 <= mp4.length) {
+    let size = mp4.readUInt32BE(off);
+    const type = mp4.toString("latin1", off + 4, off + 8);
+    if (size === 1) {
+      if (off + 16 > mp4.length) break;
+      size = Number(mp4.readBigUInt64BE(off + 8));
+    } else if (size === 0) {
+      size = mp4.length - off;
+    }
+    if (size < 8) break;
+    if (type === "ftyp") {
+      at = off + size;
+      break;
+    }
+    off += size;
+  }
+  return Buffer.concat([mp4.subarray(0, at), box, mp4.subarray(at)]);
+}
+
 /**
  * Run ffmpeg. `outputArgs` are the ENCODER options and must come AFTER
  * `-i <input>` -- ffmpeg treats anything before `-i` as an input option.
@@ -157,7 +264,7 @@ async function download(url, dest, attempts = 4) {
   let lastErr;
   for (let i = 1; i <= attempts; i++) {
     try {
-      const res = await fetch(url);
+      const res = await fetchWithTimeout(url);
       if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`);
       const buf = Buffer.from(await res.arrayBuffer());
       if (buf.length === 0) throw new Error(`GET ${url} -> empty body`);
@@ -187,7 +294,7 @@ async function upload(key, body, contentType) {
 
 /** Confirm the object really landed and is served with the right type + size. */
 async function headCdn(key) {
-  const res = await fetch(`${CDN}/${key}`, { method: "HEAD" });
+  const res = await fetchWithTimeout(`${CDN}/${key}`, { method: "HEAD" });
   return {
     ok: res.ok,
     status: res.status,
@@ -196,23 +303,91 @@ async function headCdn(key) {
   };
 }
 
+/** Does an object exist on the CDN? */
+async function cdnExists(key) {
+  try {
+    const res = await fetchWithTimeout(`${CDN}/${key}`, { method: "HEAD" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Resolve back to the ORIGINAL object
+ *
+ * The database may already point at an optimised key. Optimising THAT
+ * again would (a) create a `.opt.opt.<ext>` key and (b) work on a clip
+ * whose C2PA box was already dropped. The previous manifest maps the
+ * optimised URL back to the original; when it is missing we probe the CDN
+ * for the original extension next to the stem.
+ * ------------------------------------------------------------------ */
+
+let prevManifest = null;
+
+function manifestEntries(m) {
+  const out = [];
+  if (m?.cover) out.push(m.cover);
+  for (const p of m?.pages ?? []) {
+    for (const kind of ["video", "audio", "poster"]) if (p[kind]) out.push(p[kind]);
+  }
+  return out;
+}
+
+/**
+ * The original (url, key) behind a media URL that may already be optimised.
+ * Returns null when the original cannot be determined.
+ */
+async function originalOf(url) {
+  if (!url) return null;
+  const key = url.replace(`${CDN}/`, "");
+  if (!/\.opt\.[a-z0-9]+$/i.test(key)) return { url, key };
+
+  const hit = manifestEntries(prevManifest).find(
+    (e) => e.newKey === key || e.newUrl === url
+  );
+  if (hit?.oldUrl) return { url: hit.oldUrl, key: hit.oldKey };
+
+  // No manifest entry — probe for the original next to the stem.
+  const stem = key.replace(/\.opt\.[a-z0-9]+$/i, "");
+  for (const ext of ["png", "jpg", "jpeg", "mp4", "mp3", "webp"]) {
+    if (await cdnExists(`${stem}.${ext}`)) return { url: `${CDN}/${stem}.${ext}`, key: `${stem}.${ext}` };
+  }
+  console.warn(`  no original found for ${key} — leaving it alone`);
+  return null;
+}
+
 /* ------------------------------------------------------------------ */
 
-const book = await prisma.book.findFirst({
-  where: { OR: [{ id: target }, { slug: target }] },
-  select: { id: true, slug: true, title: true, coverUrl: true }
-});
+const book = await db(() =>
+  prisma.book.findFirst({
+    where: { OR: [{ id: target }, { slug: target }] },
+    select: { id: true, slug: true, title: true, coverUrl: true }
+  })
+);
 if (!book) {
   console.error(`No book matches "${target}".`);
   process.exit(1);
 }
 console.log(`BOOK  ${book.title}  (${book.slug})  id=${book.id}`);
 
-const pages = await prisma.page.findMany({
-  where: { bookId: book.id },
-  orderBy: { pageNum: "asc" },
-  select: { id: true, pageNum: true, videoUrl: true, audioUrl: true, posterUrl: true, vttUrl: true }
-});
+const manifestPath = join(HERE, `optimize-manifest-${book.slug}.json`);
+if (existsSync(manifestPath)) {
+  try {
+    prevManifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    console.log(`PREV  previous manifest found (${prevManifest.generatedAt}) - re-optimising from the ORIGINALS`);
+  } catch {
+    console.warn("PREV  previous manifest is unreadable - continuing");
+  }
+}
+
+const pages = await db(() =>
+  prisma.page.findMany({
+    where: { bookId: book.id },
+    orderBy: { pageNum: "asc" },
+    select: { id: true, pageNum: true, videoUrl: true, audioUrl: true, posterUrl: true, vttUrl: true }
+  })
+);
 console.log(`PAGES ${pages.length}\n`);
 
 const manifest = {
@@ -229,13 +404,14 @@ mkdirSync(tmp, { recursive: true });
 
 /* ---- cover ---- */
 if (book.coverUrl) {
-  const key = book.coverUrl.replace(`${CDN}/`, "");
-  const ext = key.split(".").pop()?.toLowerCase() ?? "png";
-  if (ext === "webp") {
-    console.log(`cover  already webp -- skipped`);
+  const orig = await originalOf(book.coverUrl);
+  if (!orig) {
+    console.log("cover  skipped - original could not be resolved");
   } else {
+    const key = orig.key;
+    const ext = key.split(".").pop()?.toLowerCase() ?? "png";
     const src = join(tmp, `cover.${ext}`);
-    await download(book.coverUrl, src);
+    await download(orig.url, src);
     const before = readFileSync(src).length;
     const out = join(tmp, "cover.webp");
     const r = runFfmpeg(
@@ -260,7 +436,46 @@ if (book.coverUrl) {
         }
       }
       console.log(`cover  ${before.toLocaleString()} B -> ${body.length.toLocaleString()} B  ${key} -> ${newKey}`);
-      manifest.cover = { oldUrl: book.coverUrl, newUrl: `${CDN}/${newKey}`, oldKey: key, newKey, bytesBefore: before, bytesAfter: body.length };
+
+      /* ---- cover social twin (JPEG) ---- */
+      const socialKey = key.replace(/\.[^.]+$/, "") + ".social.jpg";
+      const socialOut = join(tmp, "cover.social.jpg");
+      const rs = runFfmpeg(
+        [
+          "-vf", `scale='min(${COVER_MAX_WIDTH},iw)':-2:flags=lanczos`,
+          "-c:v", "mjpeg",
+          "-q:v", "3",
+          "-f", "mjpeg"
+        ],
+        src,
+        socialOut
+      );
+      let social = null;
+      if (rs.ok) {
+        const socialBody = readFileSync(socialOut);
+        if (!dryRun) {
+          await upload(socialKey, socialBody, "image/jpeg");
+          const hs = await headCdn(socialKey);
+          if (!hs.ok || hs.length !== socialBody.length) {
+            throw new Error(`social upload verification failed for ${socialKey}: ${JSON.stringify(hs)}`);
+          }
+        }
+        console.log(`cover  social twin ${socialKey}  ${socialBody.length.toLocaleString()} B`);
+        social = { socialKey, socialUrl: `${CDN}/${socialKey}`, bytesAfter: socialBody.length };
+      } else {
+        console.log(`cover  social twin FAILED: ${rs.stderr}`);
+      }
+
+      manifest.cover = {
+        oldUrl: orig.url,
+        newUrl: `${CDN}/${newKey}`,
+        oldKey: key,
+        newKey,
+        bytesBefore: before,
+        bytesAfter: body.length,
+        socialKey: social?.socialKey ?? null,
+        socialUrl: social?.socialUrl ?? null
+      };
     } else {
       console.log(`cover  FAILED: ${r.stderr}`);
     }
@@ -271,120 +486,151 @@ if (book.coverUrl) {
 for (const p of pages) {
   const entry = { pageId: p.id, pageNum: p.pageNum, video: null, audio: null, poster: null };
 
-  // Poster -> WebP
-  if (p.posterUrl && !/\.webp(\?|$)/i.test(p.posterUrl)) {
-    const key = p.posterUrl.replace(`${CDN}/`, "");
-    const ext = key.split(".").pop()?.toLowerCase() ?? "png";
-    const src = join(tmp, `p${p.pageNum}.${ext}`);
-    await download(p.posterUrl, src);
-    const before = readFileSync(src).length;
-    const out = join(tmp, `p${p.pageNum}.webp`);
-    const r = runFfmpeg(
-      [
-        "-vf", `scale='min(${POSTER_MAX_WIDTH},iw)':-2:flags=lanczos`,
-        "-c:v", "libwebp",
-        "-quality", String(WEBP_QUALITY),
-        "-compression_level", "6",
-        "-f", "webp"
-      ],
-      src,
-      out
-    );
-    if (r.ok) {
-      const body = readFileSync(out);
-      const newKey = key.replace(/\.[^.]+$/, "") + ".opt.webp";
-      if (!dryRun) {
-        await upload(newKey, body, "image/webp");
-        const h = await headCdn(newKey);
-        if (!h.ok || h.length !== body.length) {
-          throw new Error(`poster upload verification failed for ${newKey}: ${JSON.stringify(h)}`);
-        }
-      }
-      console.log(`p${p.pageNum} poster  ${before.toLocaleString()} B -> ${body.length.toLocaleString()} B`);
-      entry.poster = { oldUrl: p.posterUrl, newUrl: `${CDN}/${newKey}`, oldKey: key, newKey, bytesBefore: before, bytesAfter: body.length };
+  /* ---- poster -> WebP ---- */
+  if (p.posterUrl) {
+    const orig = await originalOf(p.posterUrl);
+    if (!orig) {
+      console.log(`p${p.pageNum} poster  skipped - original could not be resolved`);
     } else {
-      console.log(`p${p.pageNum} poster  FAILED: ${r.stderr}`);
+      const key = orig.key;
+      const ext = key.split(".").pop()?.toLowerCase() ?? "png";
+      const src = join(tmp, `p${p.pageNum}.${ext}`);
+      await download(orig.url, src);
+      const before = readFileSync(src).length;
+      const out = join(tmp, `p${p.pageNum}.webp`);
+      const r = runFfmpeg(
+        [
+          "-vf", `scale='min(${POSTER_MAX_WIDTH},iw)':-2:flags=lanczos`,
+          "-c:v", "libwebp",
+          "-quality", String(WEBP_QUALITY),
+          "-compression_level", "6",
+          "-f", "webp"
+        ],
+        src,
+        out
+      );
+      if (r.ok) {
+        const body = readFileSync(out);
+        const newKey = key.replace(/\.[^.]+$/, "") + ".opt.webp";
+        if (!dryRun) {
+          await upload(newKey, body, "image/webp");
+          const h = await headCdn(newKey);
+          if (!h.ok || h.length !== body.length) {
+            throw new Error(`poster upload verification failed for ${newKey}: ${JSON.stringify(h)}`);
+          }
+        }
+        console.log(`p${p.pageNum} poster  ${before.toLocaleString()} B -> ${body.length.toLocaleString()} B`);
+        entry.poster = {
+          oldUrl: orig.url,
+          newUrl: `${CDN}/${newKey}`,
+          oldKey: key,
+          newKey,
+          bytesBefore: before,
+          bytesAfter: body.length
+        };
+      } else {
+        console.log(`p${p.pageNum} poster  FAILED: ${r.stderr}`);
+      }
     }
   }
 
-  // Video -> faststart remux
-  if (p.videoUrl && /\.mp4(\?|$)/i.test(p.videoUrl)) {
-    const key = p.videoUrl.replace(`${CDN}/`, "");
-    const src = join(tmp, `p${p.pageNum}.mp4`);
-    await download(p.videoUrl, src);
-    const before = readFileSync(src).length;
-    const beforeMoov = moovPosition(src);
-    const beforeMoovFfprobe = moovPositionViaFfprobe(src);
-    const out = join(tmp, `p${p.pageNum}.fast.mp4`);
-    const r = runFfmpeg(["-c", "copy", "-movflags", "+faststart", "-f", "mp4"], src, out);
-    if (r.ok) {
-      const body = readFileSync(out);
-      const afterMoov = moovPosition(out);
-      const afterMoovFfprobe = moovPositionViaFfprobe(out);
-      const boxesBefore = topLevelBoxes(src).map((b) => `${b.type}:${b.size}`);
-      const boxesAfter = topLevelBoxes(out).map((b) => `${b.type}:${b.size}`);
-      const newKey = key.replace(/\.mp4$/, "") + ".opt.mp4";
-      if (!dryRun) {
-        await upload(newKey, body, "video/mp4");
-        const h = await headCdn(newKey);
-        if (!h.ok || h.length !== body.length) {
-          throw new Error(`video upload verification failed for ${newKey}: ${JSON.stringify(h)}`);
-        }
-      }
-      console.log(`p${p.pageNum} video   ${before.toLocaleString()} B -> ${body.length.toLocaleString()} B   moov ${beforeMoov} -> ${afterMoov}`);
-      entry.video = {
-        oldUrl: p.videoUrl,
-        newUrl: `${CDN}/${newKey}`,
-        oldKey: key,
-        newKey,
-        bytesBefore: before,
-        bytesAfter: body.length,
-        moovBefore: beforeMoov,
-        moovAfter: afterMoov,
-        moovBeforeFfprobe: beforeMoovFfprobe,
-        moovAfterFfprobe: afterMoovFfprobe,
-        boxesBefore,
-        boxesAfter
-      };
+  /* ---- video -> faststart remux + C2PA re-injection ---- */
+  if (p.videoUrl) {
+    const orig = await originalOf(p.videoUrl);
+    if (!orig) {
+      console.log(`p${p.pageNum} video   skipped - original could not be resolved`);
     } else {
-      console.log(`p${p.pageNum} video   FAILED: ${r.stderr}`);
+      const key = orig.key;
+      const src = join(tmp, `p${p.pageNum}.mp4`);
+      await download(orig.url, src);
+      const before = readFileSync(src).length;
+      const beforeMoov = moovPosition(src);
+      const beforeMoovFfprobe = moovPositionViaFfprobe(src);
+      const out = join(tmp, `p${p.pageNum}.fast.mp4`);
+      const r = runFfmpeg(["-c", "copy", "-movflags", "+faststart", "-f", "mp4"], src, out);
+      if (r.ok) {
+        /* --- re-inject the C2PA manifest the remux dropped --- */
+        const sourceBytes = readFileSync(src);
+        const c2pa = extractUuidBox(sourceBytes);
+        const remuxed = readFileSync(out);
+        const body = c2pa ? injectBox(remuxed, c2pa) : remuxed;
+
+        const afterMoov = moovPosition(out);
+        const afterMoovFfprobe = moovPositionViaFfprobe(out);
+        const boxesBefore = topLevelBoxes(src).map((b) => `${b.type}:${b.size}`);
+        const boxesAfter = topLevelBoxes(out).map((b) => `${b.type}:${b.size}`);
+        const newKey = key.replace(/\.mp4$/, "") + ".opt.mp4";
+        if (!dryRun) {
+          await upload(newKey, body, "video/mp4");
+          const h = await headCdn(newKey);
+          if (!h.ok || h.length !== body.length) {
+            throw new Error(`video upload verification failed for ${newKey}: ${JSON.stringify(h)}`);
+          }
+        }
+        console.log(
+          `p${p.pageNum} video   ${before.toLocaleString()} B -> ${body.length.toLocaleString()} B   moov ${beforeMoov} -> ${afterMoov}` +
+            (c2pa ? `   C2PA uuid ${c2pa.length.toLocaleString()} B preserved` : "   (no C2PA box in source)")
+        );
+        entry.video = {
+          oldUrl: orig.url,
+          newUrl: `${CDN}/${newKey}`,
+          oldKey: key,
+          newKey,
+          bytesBefore: before,
+          bytesAfter: body.length,
+          moovBefore: beforeMoov,
+          moovAfter: afterMoov,
+          moovBeforeFfprobe: beforeMoovFfprobe,
+          moovAfterFfprobe: afterMoovFfprobe,
+          c2paBytes: c2pa ? c2pa.length : 0,
+          boxesBefore,
+          boxesAfter
+        };
+      } else {
+        console.log(`p${p.pageNum} video   FAILED: ${r.stderr}`);
+      }
     }
   }
 
-  // Narration -> mono 48k
-  if (p.audioUrl && /\.mp3(\?|$)/i.test(p.audioUrl)) {
-    const key = p.audioUrl.replace(`${CDN}/`, "");
-    const src = join(tmp, `p${p.pageNum}.mp3`);
-    await download(p.audioUrl, src);
-    const before = readFileSync(src).length;
-    const out = join(tmp, `p${p.pageNum}.opt.mp3`);
-    const r = runFfmpeg(["-ac", "1", "-c:a", "libmp3lame", "-b:a", "48k", "-f", "mp3"], src, out);
-    if (r.ok) {
-      const body = readFileSync(out);
-      const newKey = key.replace(/\.mp3$/, "") + ".opt.mp3";
-      // Probe the LOCAL file: the CDN copy does not exist yet during a dry run.
-      const probe = ffprobeJson(out);
-      if (!dryRun) {
-        await upload(newKey, body, "audio/mpeg");
-        const h = await headCdn(newKey);
-        if (!h.ok || h.length !== body.length) {
-          throw new Error(`audio upload verification failed for ${newKey}: ${JSON.stringify(h)}`);
-        }
-      }
-      const a = probe.streams.find((s) => s.codec_type === "audio");
-      console.log(`p${p.pageNum} audio   ${before.toLocaleString()} B -> ${body.length.toLocaleString()} B   ${a?.channels}ch ${a?.sample_rate}Hz`);
-      entry.audio = {
-        oldUrl: p.audioUrl,
-        newUrl: `${CDN}/${newKey}`,
-        oldKey: key,
-        newKey,
-        bytesBefore: before,
-        bytesAfter: body.length,
-        channels: a?.channels ?? null,
-        sampleRate: a?.sample_rate ?? null
-      };
+  /* ---- narration -> mono 48k ---- */
+  if (p.audioUrl) {
+    const orig = await originalOf(p.audioUrl);
+    if (!orig) {
+      console.log(`p${p.pageNum} audio   skipped - original could not be resolved`);
     } else {
-      console.log(`p${p.audioUrl} audio   FAILED: ${r.stderr}`);
+      const key = orig.key;
+      const src = join(tmp, `p${p.pageNum}.mp3`);
+      await download(orig.url, src);
+      const before = readFileSync(src).length;
+      const out = join(tmp, `p${p.pageNum}.opt.mp3`);
+      const r = runFfmpeg(["-ac", "1", "-c:a", "libmp3lame", "-b:a", "48k", "-f", "mp3"], src, out);
+      if (r.ok) {
+        const body = readFileSync(out);
+        const newKey = key.replace(/\.mp3$/, "") + ".opt.mp3";
+        // Probe the LOCAL file: the CDN copy does not exist yet during a dry run.
+        const probe = ffprobeJson(out);
+        if (!dryRun) {
+          await upload(newKey, body, "audio/mpeg");
+          const h = await headCdn(newKey);
+          if (!h.ok || h.length !== body.length) {
+            throw new Error(`audio upload verification failed for ${newKey}: ${JSON.stringify(h)}`);
+          }
+        }
+        const a = probe.streams.find((s) => s.codec_type === "audio");
+        console.log(`p${p.pageNum} audio   ${before.toLocaleString()} B -> ${body.length.toLocaleString()} B   ${a?.channels}ch ${a?.sample_rate}Hz`);
+        entry.audio = {
+          oldUrl: orig.url,
+          newUrl: `${CDN}/${newKey}`,
+          oldKey: key,
+          newKey,
+          bytesBefore: before,
+          bytesAfter: body.length,
+          channels: a?.channels ?? null,
+          sampleRate: a?.sample_rate ?? null
+        };
+      } else {
+        console.log(`p${p.pageNum} audio   FAILED: ${r.stderr}`);
+      }
     }
   }
 
@@ -394,26 +640,27 @@ for (const p of pages) {
 /* ---- repoint the database ---- */
 if (!dryRun) {
   if (manifest.cover) {
-    await prisma.book.update({ where: { id: book.id }, data: { coverUrl: manifest.cover.newUrl } });
+    await db(() => prisma.book.update({ where: { id: book.id }, data: { coverUrl: manifest.cover.newUrl } }));
   }
   for (const e of manifest.pages) {
     const data = {};
     if (e.video) data.videoUrl = e.video.newUrl;
     if (e.poster) data.posterUrl = e.poster.newUrl;
     if (e.audio) data.audioUrl = e.audio.newUrl;
-    if (Object.keys(data).length) await prisma.page.update({ where: { id: e.pageId }, data });
+    if (Object.keys(data).length) await db(() => prisma.page.update({ where: { id: e.pageId }, data }));
   }
-  const manifestPath = join(MANIFEST_DIR, `optimize-manifest-${book.slug}.json`);
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
   console.log(`\nMANIFEST ${manifestPath}`);
   console.log("Database URLs repointed. Originals left untouched in R2.");
   console.log(`Roll back with: node apps/api/scripts/rollback-optimized-media.mjs ${book.slug}`);
 
   /* ---- read the rows back: prove the DB really points at the new keys ---- */
-  const after = await prisma.book.findUnique({
-    where: { id: book.id },
-    select: { coverUrl: true, pages: { orderBy: { pageNum: "asc" }, select: { pageNum: true, videoUrl: true, posterUrl: true, audioUrl: true } } }
-  });
+  const after = await db(() =>
+    prisma.book.findUnique({
+      where: { id: book.id },
+      select: { coverUrl: true, pages: { orderBy: { pageNum: "asc" }, select: { pageNum: true, videoUrl: true, posterUrl: true, audioUrl: true } } }
+    })
+  );
   console.log("\nVERIFY (read back from the database):");
   console.log(`  cover  ${after.coverUrl}`);
   for (const p of after.pages) {

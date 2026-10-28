@@ -14,7 +14,7 @@ import { emitPipelineEvent, subscribeProject, writeSseEvent, writeSseHeaders, ty
 import { rateLimit } from "../../middleware/rateLimit.js";
 import { ExtractError, extractManuscript } from "../../services/manuscriptExtract.js";
 import { deleteAsset, uploadAsset } from "../../services/cloudflare.js";
-import { COVER_MAX_WIDTH, uploadOptimized } from "../../services/mediaPostProcess.js";
+import { COVER_MAX_WIDTH, uploadOptimized, uploadSocialTwin } from "../../services/mediaPostProcess.js";
 import { isValidSubcategory } from "../../config/subcategories.js";
 import { applySchedule, lockSchedule, CHUNK_PERCENT_OPTIONS } from "../../services/releaseSchedule.js";
 import { enqueueAnimateJob, type SplitJobData } from "../../services/splitPipeline.js";
@@ -141,6 +141,9 @@ router.put(
       // PNG/JPG stays in the bucket; the optimised copy gets its own key.
       const originalKey = `books/${project.book.slug}/cover-${Date.now().toString(36)}.${ext === "jpeg" ? "jpg" : ext}`;
       const stored = await uploadOptimized(originalKey, body, "image", { maxWidth: COVER_MAX_WIDTH });
+      // Social platforms do not render WebP in a preview card, so keep a
+      // JPEG twin of the cover for og:image / twitter:image.
+      await uploadSocialTwin(originalKey, body);
       await prisma.book.update({ where: { id: project.book.id }, data: { coverUrl: stored.url } });
       res.json({ coverUrl: stored.url });
     } catch (err) {

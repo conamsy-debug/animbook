@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-28T01:19:06.838Z",
+  "generatedAt": "2026-10-28T08:10:50.300Z",
   "bookId": "cmu36a4fo00047kog0t9ldi03",
   "bookSlug": "lagos-nights-2-the-lagoon",
   "bookTitle": "Lagos Nights · The Lagoon",
@@ -9,7 +9,9 @@
     "oldKey": "books/lagos-nights-2-the-lagoon/cover-mu57drnn.png",
     "newKey": "books/lagos-nights-2-the-lagoon/cover-mu57drnn.opt.webp",
     "bytesBefore": 2003532,
-    "bytesAfter": 77704
+    "bytesAfter": 77704,
+    "socialKey": "books/lagos-nights-2-the-lagoon/cover-mu57drnn.social.jpg",
+    "socialUrl": "https://media.animbook.com/books/lagos-nights-2-the-lagoon/cover-mu57drnn.social.jpg"
   },
   "pages": [
     {
@@ -21,11 +23,12 @@
         "oldKey": "books/lagos-nights-2-the-lagoon/p1-mu4vrigb.mp4",
         "newKey": "books/lagos-nights-2-the-lagoon/p1-mu4vrigb.opt.mp4",
         "bytesBefore": 644196,
-        "bytesAfter": 488298,
+        "bytesAfter": 644216,
         "moovBefore": "back",
         "moovAfter": "front",
         "moovBeforeFfprobe": "back",
         "moovAfterFfprobe": "front",
+        "c2paBytes": 155918,
         "boxesBefore": [
           "ftyp:32",
           "uuid:155918",
@@ -68,11 +71,12 @@
         "oldKey": "books/lagos-nights-2-the-lagoon/p2-mu54i2ms.mp4",
         "newKey": "books/lagos-nights-2-the-lagoon/p2-mu54i2ms.opt.mp4",
         "bytesBefore": 2067111,
-        "bytesAfter": 1693643,
+        "bytesAfter": 2067131,
         "moovBefore": "back",
         "moovAfter": "front",
         "moovBeforeFfprobe": "back",
         "moovAfterFfprobe": "front",
+        "c2paBytes": 373488,
         "boxesBefore": [
           "ftyp:32",
           "uuid:373488",

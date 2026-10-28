@@ -75,3 +75,72 @@ export const ffmpegStatus = {
   ffprobe: resolveFfprobe()
 };
 
+/* --------------------------------------------------------------------- *
+ * Availability probe
+ *
+ * The health endpoint reports whether ffmpeg / ffprobe actually WORK on
+ * this machine — not just whether a path was resolved. `resolveFfmpeg()`
+ * falls back to the bare name "ffmpeg", which means "hope it is on PATH";
+ * the only way to know for sure is to run it.
+ *
+ * The result is cached for a minute: `/api/health/ready` is polled by the
+ * load balancer, and spawning two processes on every poll is wasteful.
+ * --------------------------------------------------------------------- */
+
+export interface MediaToolsStatus {
+  ffmpeg: boolean;
+  ffprobe: boolean;
+}
+
+const TOOLS_TTL_MS = 60_000;
+const PROBE_TIMEOUT_MS = 4_000;
+
+let toolsCache: { at: number; value: MediaToolsStatus } | null = null;
+
+/** Run `<bin> -version` and report whether it exited cleanly. */
+function probeBinary(bin: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn(bin, ["-version"], { stdio: ["ignore", "ignore", "ignore"] });
+    } catch {
+      resolve(false);
+      return;
+    }
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      resolve(ok);
+    };
+    child.on("error", () => finish(false));
+    child.on("close", (code) => finish(code === 0));
+    // A hung binary must never hang the health check.
+    const timer = setTimeout(() => {
+      try {
+        child.kill();
+      } catch {
+        /* already gone */
+      }
+      finish(false);
+    }, PROBE_TIMEOUT_MS);
+    if (typeof timer.unref === "function") timer.unref();
+  });
+}
+
+/**
+ * Whether ffmpeg and ffprobe can actually be executed on this server.
+ *
+ * Non-secret booleans only — no paths, no versions, no config.
+ */
+export async function mediaToolsAvailable(): Promise<MediaToolsStatus> {
+  const now = Date.now();
+  if (toolsCache && now - toolsCache.at < TOOLS_TTL_MS) return toolsCache.value;
+  const [ffmpeg, ffprobe] = await Promise.all([
+    probeBinary(resolveFfmpeg() ?? "ffmpeg"),
+    probeBinary(resolveFfprobe() ?? "ffprobe")
+  ]);
+  const value: MediaToolsStatus = { ffmpeg, ffprobe };
+  toolsCache = { at: now, value };
+  return value;
+}

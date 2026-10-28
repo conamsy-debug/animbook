@@ -45,7 +45,14 @@ export default function ShareLandingPage({ share }: Props) {
   const ogDescription = share.hook.length > 0
     ? share.hook
     : share.book.synopsis.slice(0, 200);
-  const ogImage = share.thumbnailUrl ?? share.book.coverUrl ?? "";
+  // Social crawlers (Facebook, X, LinkedIn, WhatsApp) do NOT render WebP in a
+  // preview card, so og:image / twitter:image must never point at a WebP.
+  // Candidates, best first: the PNG trailer thumbnail, the API's JPEG
+  // "social twin" of a WebP cover, then the cover itself when it is not WebP.
+  const ogImage =
+    [share.thumbnailUrl, share.socialImageUrl, share.book.coverUrl].find(
+      (u): u is string => Boolean(u) && !/\.webp(\?|$)/i.test(u as string)
+    ) ?? "";
   const ogUrl = `/share/${share.token}`;
 
   return (

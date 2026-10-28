@@ -9,6 +9,12 @@ export type ShareLandingData = {
   hook: string;
   trailerUrl: string | null;
   thumbnailUrl: string | null;
+  /**
+   * The image a social crawler should preview. Never a WebP — Facebook, X,
+   * LinkedIn and WhatsApp do not render WebP in a preview card. Null when
+   * the share has no preview-worthy image.
+   */
+  socialImageUrl: string | null;
   failureReason: string | null;
   book: {
     id: string;

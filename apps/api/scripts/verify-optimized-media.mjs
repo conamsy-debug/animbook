@@ -149,9 +149,14 @@ for (const r of rows) {
     const f = join(tmp, r.newKey.split("/").pop());
     await download(r.newUrl, f);
     const pos = moovPosition(f);
-    const boxes = topLevelBoxes(f).map((b) => `${b.type}:${b.size}`).join(" ");
-    extra = `  moov=${pos}  [${boxes}]`;
-    results.push({ ...r, ok: orig.status === 200 && opt.status === 200 && pos === "front", pos });
+    const boxList = topLevelBoxes(f);
+    const boxes = boxList.map((b) => `${b.type}:${b.size}`).join(" ");
+    const uuid = boxList.find((b) => b.type === "uuid");
+    const c2paBytes = uuid ? uuid.size : 0;
+    extra = `  moov=${pos}  c2pa=${c2paBytes} B  [${boxes}]`;
+    // When the source carried a C2PA manifest, the optimised clip must too.
+    const c2paOk = (r.c2paBytes ?? 0) === 0 || c2paBytes === r.c2paBytes;
+    results.push({ ...r, ok: orig.status === 200 && opt.status === 200 && pos === "front" && c2paOk, pos, c2paBytes });
   } else {
     results.push({ ...r, ok: orig.status === 200 && opt.status === 200 });
   }
@@ -161,6 +166,16 @@ for (const r of rows) {
       ` cors=${opt.cors ?? "(none)"}` +
       extra
   );
+  // The JPEG social twin must be live and must NOT be a WebP.
+  if (r.what === "cover" && r.socialUrl) {
+    const social = await head(r.socialUrl);
+    const socialOk = social.status === 200 && /jpeg/i.test(social.type ?? "");
+    console.log(
+      `${"cover social".padEnd(12)} social   ${String(social.status).padEnd(4)} ${String(social.length).padStart(9)} B  ` +
+        `${String(social.type).padEnd(12)} cors=${social.cors ?? "(none)"}`
+    );
+    results.push({ what: "cover social", ok: socialOk });
+  }
 }
 
 console.log("\nCORS header on the optimised object:", (await head(rows[0].newUrl)).cors ?? "(none)");

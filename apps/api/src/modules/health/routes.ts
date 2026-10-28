@@ -15,6 +15,7 @@ import { Router } from "express";
 import { featureStatus } from "../../config/env.js";
 import { prisma } from "../../db.js";
 import { ensureConnected as redisReady } from "../../cache/index.js";
+import { mediaToolsAvailable } from "../../services/ffmpegBin.js";
 
 const router = Router();
 
@@ -66,9 +67,17 @@ router.get("/ready", async (_req: Request, res: Response) => {
     allOk = false;
   }
 
+  // Media tooling — NON-SECRET booleans only. ffmpeg/ffprobe back the
+  // trailer pipeline and the voice-quality checks; without them those
+  // features degrade (media post-processing is skipped, the original is
+  // kept) but the API still serves the book. So this NEVER fails readiness
+  // — it is reported so the platform team can see the degradation.
+  const mediaTools = await mediaToolsAvailable();
+
   res.status(allOk ? 200 : 503).json({
     status: allOk ? "ready" : "not_ready",
     checks,
+    mediaTools,
     integrations: featureStatus,
     time: new Date().toISOString()
   });

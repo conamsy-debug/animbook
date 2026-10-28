@@ -10,6 +10,25 @@ import { authMiddleware, requireUserId, type AuthedRequest } from "../../auth/mi
 import { rateLimit } from "../../middleware/rateLimit.js";
 import { enqueuePipeline } from "../../services/pipeline.js";
 import { generateShareToken } from "../../services/trailer.js";
+import { socialImageUrl } from "../../services/mediaPostProcess.js";
+
+/**
+ * The image a social crawler should preview.
+ *
+ * Never a WebP: Facebook, X, LinkedIn and WhatsApp do not render WebP in a
+ * preview card. Preference order:
+ *   1. the PNG trailer thumbnail (it carries the book title),
+ *   2. the JPEG twin of a WebP cover,
+ *   3. the cover itself, when it is not a WebP.
+ */
+function resolveSocialImage(share: { thumbnailUrl: string | null; book: { coverUrl: string | null } }): string | null {
+  if (share.thumbnailUrl) return share.thumbnailUrl;
+  const cover = share.book.coverUrl;
+  if (!cover) return null;
+  const twin = socialImageUrl(cover);
+  if (twin) return twin;
+  return /\.webp(\?|$)/i.test(cover) ? null : cover;
+}
 
 export const sharePublicRouter = Router();
 const shareAuthedRouter = Router();
@@ -235,6 +254,7 @@ sharePublicRouter.get("/:token", async (req: Request, res: Response) => {
     failureReason: share.failureReason,
     trailerUrl: share.trailerUrl,
     thumbnailUrl: share.thumbnailUrl,
+    socialImageUrl: resolveSocialImage(share),
     book: share.book,
     bookUrl: `/book/${share.book.slug}`
   });

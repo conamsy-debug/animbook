@@ -36,6 +36,8 @@ export interface OptimizeOptions {
   maxWidth?: number;
   /** WebP quality, 1-100. */
   quality?: number;
+  /** Output format for images. Defaults to WebP. */
+  format?: "webp" | "jpeg";
 }
 
 export interface OptimizedMedia {
@@ -139,6 +141,60 @@ function runFfmpeg(
 }
 
 /**
+ * The top-level boxes of an MP4, as { type, offset, size }.
+ *
+ * The C2PA manifest lives in a top-level `uuid` box, and the faststart
+ * check looks at `moov` vs `mdat`.
+ */
+function topLevelBoxes(mp4: Buffer): { type: string; offset: number; size: number }[] {
+  const out: { type: string; offset: number; size: number }[] = [];
+  let offset = 0;
+  while (offset + 8 <= mp4.length && out.length < 64) {
+    let size = mp4.readUInt32BE(offset);
+    const type = mp4.toString("latin1", offset + 4, offset + 8);
+    if (size === 1) {
+      if (offset + 16 > mp4.length) break;
+      size = Number(mp4.readBigUInt64BE(offset + 8));
+    } else if (size === 0) {
+      size = mp4.length - offset;
+    }
+    if (size < 8) break;
+    out.push({ type, offset, size });
+    offset += size;
+  }
+  return out;
+}
+
+/**
+ * The C2PA (Content Credentials) manifest of an MP4, if it has one.
+ *
+ * AI-generated clips carry a JUMBF manifest in a top-level `uuid` box.
+ * ffmpeg's mp4 muxer does not know that box, so a plain remux DROPS it,
+ * which strips the AI-content provenance from the optimised clip. We pull
+ * the box out of the source and splice it back into the remuxed file.
+ */
+export function extractC2paBox(mp4: Buffer): Buffer | null {
+  for (const box of topLevelBoxes(mp4)) {
+    if (box.type === "uuid") return mp4.subarray(box.offset, box.offset + box.size);
+  }
+  return null;
+}
+
+/**
+ * Splice a top-level box into an MP4, right after the `ftyp` box.
+ *
+ * Box sizes are self-contained, so inserting bytes does not invalidate any
+ * other box. The `moov` box still ends up before `mdat`, so the file stays
+ * faststart.
+ */
+export function injectMp4Box(mp4: Buffer, box: Buffer): Buffer {
+  const boxes = topLevelBoxes(mp4);
+  const ftyp = boxes.find((b) => b.type === "ftyp");
+  const at = ftyp ? ftyp.offset + ftyp.size : 0;
+  return Buffer.concat([mp4.subarray(0, at), box, mp4.subarray(at)]);
+}
+
+/**
  * Remux an MP4 so the moov atom is at the front. `-c copy` means the
  * video and audio streams are copied bit-for-bit â€” no re-encode, no
  * quality loss, and the byte size barely changes.
@@ -161,13 +217,17 @@ export async function optimizeVideo(body: Buffer): Promise<OptimizedMedia> {
       note: result.stderr || "ffmpeg remux failed"
     };
   }
+  // Put the provenance manifest back - the remux drops it.
+  const c2pa = extractC2paBox(body);
+  const out = c2pa ? injectMp4Box(result.stdout, c2pa) : result.stdout;
   return {
-    body: result.stdout,
+    body: out,
     contentType: "video/mp4",
     extension: "mp4",
     bytesBefore: body.length,
-    bytesAfter: result.stdout.length,
-    applied: true
+    bytesAfter: out.length,
+    applied: true,
+    note: c2pa ? `c2pa manifest preserved (${c2pa.length} B)` : undefined
   };
 }
 
@@ -179,42 +239,69 @@ export async function optimizeVideo(body: Buffer): Promise<OptimizedMedia> {
 export async function optimizeImage(body: Buffer, options: OptimizeOptions = {}): Promise<OptimizedMedia> {
   const maxWidth = options.maxWidth ?? POSTER_MAX_WIDTH;
   const quality = options.quality ?? WEBP_QUALITY;
+  const jpeg = options.format === "jpeg";
   const result = await runFfmpeg(
-    [
-      "-vf",
-      `scale='min(${maxWidth},iw)':-2:flags=lanczos`,
-      "-c:v",
-      "libwebp",
-      "-quality",
-      String(quality),
-      "-compression_level",
-      "6",
-      "-f",
-      "webp"
-    ],
+    jpeg
+      ? [
+          "-vf",
+          `scale='min(${maxWidth},iw)':-2:flags=lanczos`,
+          "-c:v",
+          "mjpeg",
+          // mjpeg's qscale is 2 (best) .. 31 (worst); 3 is close to q85.
+          "-q:v",
+          "3",
+          "-f",
+          "mjpeg"
+        ]
+      : [
+          "-vf",
+          `scale='min(${maxWidth},iw)':-2:flags=lanczos`,
+          "-c:v",
+          "libwebp",
+          "-quality",
+          String(quality),
+          "-compression_level",
+          "6",
+          "-f",
+          "webp"
+        ],
     body,
     "png",
-    "webp"
+    jpeg ? "jpg" : "webp"
   );
   if (!result.ok || result.stdout.length === 0) {
     return {
       body,
-      contentType: "image/png",
-      extension: "png",
+      contentType: jpeg ? "image/jpeg" : "image/png",
+      extension: jpeg ? "jpg" : "png",
       bytesBefore: body.length,
       bytesAfter: body.length,
       applied: false,
-      note: result.stderr || "ffmpeg webp encode failed"
+      note: result.stderr || `ffmpeg ${jpeg ? "jpeg" : "webp"} encode failed`
     };
   }
   return {
     body: result.stdout,
-    contentType: "image/webp",
-    extension: "webp",
+    contentType: jpeg ? "image/jpeg" : "image/webp",
+    extension: jpeg ? "jpg" : "webp",
     bytesBefore: body.length,
     bytesAfter: result.stdout.length,
     applied: true
   };
+}
+
+/**
+ * Encode a JPEG for SOCIAL previews (og:image / twitter:image).
+ *
+ * Facebook, X, LinkedIn and WhatsApp do not render WebP in a preview card,
+ * so the WebP we serve to the app must never be the one we hand to a
+ * social crawler. This produces a JPEG twin of the same image.
+ */
+export async function optimizeSocialImage(
+  body: Buffer,
+  options: OptimizeOptions = {}
+): Promise<OptimizedMedia> {
+  return optimizeImage(body, { maxWidth: COVER_MAX_WIDTH, ...options, format: "jpeg" });
 }
 
 /** Re-encode narration to mono MP3 at 48 kbps. */
@@ -266,6 +353,70 @@ export function optimizedKey(originalKey: string, extension: string): string {
   const dot = originalKey.lastIndexOf(".");
   const stem = dot > 0 ? originalKey.slice(0, dot) : originalKey;
   return `${stem}.opt.${extension}`;
+}
+
+/**
+ * The key of the JPEG twin used for SOCIAL previews.
+ *
+ * Social platforms (Facebook, X, LinkedIn, WhatsApp) do not render WebP in
+ * a preview card, so the WebP we serve to the app must never be the one we
+ * hand to a social crawler. The twin sits next to the optimised WebP:
+ *
+ *   books/lagoon/cover-abc.png      (original, kept)
+ *   books/lagoon/cover-abc.opt.webp (served to the app)
+ *   books/lagoon/cover-abc.social.jpg (served to social crawlers)
+ *
+ * The same key can be derived from EITHER the original key or the optimised
+ * one, which is what lets the share route resolve it from `book.coverUrl`
+ * without a database round trip.
+ */
+export function socialImageKey(originalOrOptimizedKey: string): string {
+  const withoutOptimized = originalOrOptimizedKey.replace(/\.opt\.[a-z0-9]+$/i, "");
+  const dot = withoutOptimized.lastIndexOf(".");
+  const stem = dot > 0 ? withoutOptimized.slice(0, dot) : withoutOptimized;
+  return `${stem}.social.jpg`;
+}
+
+/**
+ * The social-preview URL for a cover URL.
+ *
+ * Returns null when the cover is not a WebP (in which case the cover
+ * itself is a valid og:image) or when no JPEG twin was written.
+ */
+export function socialImageUrl(coverUrl: string | null | undefined): string | null {
+  if (!coverUrl) return null;
+  // Either `...opt.webp` or a plain `....webp` maps to the same twin.
+  const m =
+    coverUrl.match(/^(.*)\.opt\.webp(\?.*)?$/i) ?? coverUrl.match(/^(.*)\.webp(\?.*)?$/i);
+  if (!m) return null;
+  return `${m[1]}.social.jpg${m[2] ?? ""}`;
+}
+
+/**
+ * Write the JPEG twin of a cover for social previews.
+ *
+ * Best-effort: a failure here must never fail the cover upload, it only
+ * means the share card falls back to the trailer thumbnail.
+ */
+export async function uploadSocialTwin(originalKey: string, body: Buffer): Promise<string | null> {
+  try {
+    const jpeg = await optimizeSocialImage(body);
+    if (!jpeg.applied) {
+      console.warn(`[media-opt] social JPEG skipped for ${originalKey}: ${jpeg.note ?? "unknown"}`);
+      return null;
+    }
+    const { uploadAsset } = await import("./cloudflare.js");
+    const stored = await uploadAsset({
+      key: socialImageKey(originalKey),
+      body: jpeg.body,
+      contentType: "image/jpeg"
+    });
+    console.log(`[media-opt] social preview ${originalKey} -> ${stored.key} (${jpeg.bytesAfter} B)`);
+    return stored.url;
+  } catch (err) {
+    console.warn(`[media-opt] social preview failed for ${originalKey}: ${(err as Error).message.slice(0, 160)}`);
+    return null;
+  }
 }
 
 /* --------------------------------------------------------------------- *

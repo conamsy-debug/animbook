@@ -33,7 +33,12 @@ const {
   optimizeImage,
   optimizeNarration,
   optimizeMedia,
+  optimizeSocialImage,
   optimizedKey,
+  socialImageKey,
+  socialImageUrl,
+  extractC2paBox,
+  injectMp4Box,
   posterTransform,
   coverTransform,
   videoTransform,
@@ -322,4 +327,102 @@ test("the display widths and quality are the documented ones", () => {
   assert.equal(POSTER_MAX_WIDTH, 1280);
   assert.equal(COVER_MAX_WIDTH, 800);
   assert.equal(WEBP_QUALITY, 80);
+});
+
+/* ------------------------------------------------------------------ */
+/* C2PA (Content Credentials)                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Build a synthetic top-level `uuid` box, the way a C2PA/JUMBF manifest is
+ * stored in an MP4: size(4) + "uuid"(4) + user type(16) + payload.
+ */
+function makeUuidBox(payload) {
+  const userType = Buffer.from("c2pa-test-manifest", "latin1");
+  const body = Buffer.concat([userType, payload]);
+  const head = Buffer.alloc(8);
+  head.writeUInt32BE(8 + body.length, 0);
+  head.write("uuid", 4, "latin1");
+  return Buffer.concat([head, body]);
+}
+
+test("extractC2paBox finds the uuid box and injectMp4Box splices it back after ftyp", () => {
+  const f = fixtures ?? makeFixtures();
+  const box = makeUuidBox(Buffer.alloc(2048, 0x5a));
+  const withBox = injectMp4Box(f.mp4, box);
+
+  const found = extractC2paBox(withBox);
+  assert.ok(found, "the uuid box must be found");
+  assert.deepEqual(found, box, "the extracted box must be byte-identical");
+
+  // The box must sit right after ftyp. The ftyp box header is 8 bytes
+  // (size + type) and its size covers the whole box, so the next box
+  // starts AT ftypSize and its type is the 4 bytes after that.
+  const ftypSize = withBox.readUInt32BE(0);
+  assert.equal(withBox.toString("latin1", 4, 8), "ftyp");
+  assert.equal(withBox.toString("latin1", ftypSize + 4, ftypSize + 8), "uuid");
+
+  // A clip without a uuid box has none to extract.
+  assert.equal(extractC2paBox(f.mp4), null);
+});
+
+test("optimizeVideo re-injects the C2PA box the remux drops", { skip }, async () => {
+  const f = fixtures ?? makeFixtures();
+  const box = makeUuidBox(Buffer.alloc(4096, 0x33));
+  const source = injectMp4Box(f.mp4, box);
+
+  const res = await optimizeVideo(source);
+  assert.equal(res.applied, true, res.note ?? "optimise should have applied");
+
+  const found = extractC2paBox(res.body);
+  assert.ok(found, "the optimised clip must still carry its C2PA manifest");
+  assert.deepEqual(found, box, "the manifest must be preserved byte-for-byte");
+  assert.match(res.note ?? "", /c2pa/i, "the outcome must say the manifest was preserved");
+
+  // The faststart property must survive the injection.
+  const out = join(f.dir, "clip.c2pa.mp4");
+  writeFileSync(out, res.body);
+  assert.equal(moovPosition(out), "front", "moov must still be at the front");
+});
+
+/* ------------------------------------------------------------------ */
+/* social previews                                                     */
+/* ------------------------------------------------------------------ */
+
+test("socialImageKey derives the same twin from the original or the optimised key", () => {
+  assert.equal(socialImageKey("books/lagoon/cover-abc.png"), "books/lagoon/cover-abc.social.jpg");
+  assert.equal(
+    socialImageKey("books/lagoon/cover-abc.opt.webp"),
+    socialImageKey("books/lagoon/cover-abc.png"),
+    "the twin key must not depend on whether the cover was already optimised"
+  );
+});
+
+test("socialImageUrl only ever points at a non-WebP image", () => {
+  assert.equal(
+    socialImageUrl("https://media.animbook.com/books/lagoon/cover-abc.opt.webp"),
+    "https://media.animbook.com/books/lagoon/cover-abc.social.jpg"
+  );
+  assert.equal(
+    socialImageUrl("https://media.animbook.com/books/lagoon/cover-abc.webp"),
+    "https://media.animbook.com/books/lagoon/cover-abc.social.jpg",
+    "a plain WebP cover must map to the twin too"
+  );
+  // A cover that is not a WebP is already a valid og:image -> no twin.
+  assert.equal(socialImageUrl("https://media.animbook.com/books/lagoon/cover-abc.png"), null);
+  assert.equal(socialImageUrl(null), null);
+  assert.equal(socialImageUrl(""), null);
+});
+
+test("optimizeSocialImage produces a JPEG", { skip }, async () => {
+  const f = fixtures ?? makeFixtures();
+  const res = await optimizeSocialImage(f.png);
+  assert.equal(res.applied, true, res.note ?? "optimise should have applied");
+  assert.equal(res.contentType, "image/jpeg");
+  assert.equal(res.extension, "jpg");
+  const out = join(f.dir, "cover.social.jpg");
+  writeFileSync(out, res.body);
+  const stream = probe(out).streams.find((s) => s.codec_type === "video");
+  assert.equal(stream.codec_name, "mjpeg");
+  assert.equal(stream.width, COVER_MAX_WIDTH);
 });
