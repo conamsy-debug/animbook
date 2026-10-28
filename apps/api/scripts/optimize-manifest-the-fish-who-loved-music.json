@@ -1,0 +1,73 @@
+{
+  "generatedAt": "2026-10-28T16:15:49.106Z",
+  "bookId": "cmu36br7w00317kkk22vlf8ih",
+  "bookSlug": "the-fish-who-loved-music",
+  "bookTitle": "The Fish Who Loved Music",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36brk800337kkksh22maxi",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-fish-who-loved-music/p1-voice-mu5cgqul.mp3",
+        "newUrl": "https://media.animbook.com/books/the-fish-who-loved-music/p1-voice-mu5cgqul.opt.mp3",
+        "oldKey": "books/the-fish-who-loved-music/p1-voice-mu5cgqul.mp3",
+        "newKey": "books/the-fish-who-loved-music/p1-voice-mu5cgqul.opt.mp3",
+        "bytesBefore": 120834,
+        "bytesAfter": 45366,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36brsk00357kkki8ppx1dc",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-fish-who-loved-music/p2-voice-mu5cgt9o.mp3",
+        "newUrl": "https://media.animbook.com/books/the-fish-who-loved-music/p2-voice-mu5cgt9o.opt.mp3",
+        "oldKey": "books/the-fish-who-loved-music/p2-voice-mu5cgt9o.mp3",
+        "newKey": "books/the-fish-who-loved-music/p2-voice-mu5cgt9o.opt.mp3",
+        "bytesBefore": 98264,
+        "bytesAfter": 36903,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bs4400377kkkh5xszkcs",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-fish-who-loved-music/p3-voice-mu5cgvf6.mp3",
+        "newUrl": "https://media.animbook.com/books/the-fish-who-loved-music/p3-voice-mu5cgvf6.opt.mp3",
+        "oldKey": "books/the-fish-who-loved-music/p3-voice-mu5cgvf6.mp3",
+        "newKey": "books/the-fish-who-loved-music/p3-voice-mu5cgvf6.opt.mp3",
+        "bytesBefore": 77784,
+        "bytesAfter": 29223,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bscs00397kkkwwmahpl8",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-fish-who-loved-music/p4-voice-mu5cgxcx.mp3",
+        "newUrl": "https://media.animbook.com/books/the-fish-who-loved-music/p4-voice-mu5cgxcx.opt.mp3",
+        "oldKey": "books/the-fish-who-loved-music/p4-voice-mu5cgxcx.mp3",
+        "newKey": "books/the-fish-who-loved-music/p4-voice-mu5cgxcx.opt.mp3",
+        "bytesBefore": 106623,
+        "bytesAfter": 40037,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

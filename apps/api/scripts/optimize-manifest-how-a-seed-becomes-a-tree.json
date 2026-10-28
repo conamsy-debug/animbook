@@ -1,0 +1,89 @@
+{
+  "generatedAt": "2026-10-28T16:13:41.151Z",
+  "bookId": "cmu36bsws003a7kkk8mcacwyc",
+  "bookSlug": "how-a-seed-becomes-a-tree",
+  "bookTitle": "How a Seed Becomes a Tree",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36bt5y003c7kkk0aqxqy45",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/how-a-seed-becomes-a-tree/p1-voice-mu5cgzl7.mp3",
+        "newUrl": "https://media.animbook.com/books/how-a-seed-becomes-a-tree/p1-voice-mu5cgzl7.opt.mp3",
+        "oldKey": "books/how-a-seed-becomes-a-tree/p1-voice-mu5cgzl7.mp3",
+        "newKey": "books/how-a-seed-becomes-a-tree/p1-voice-mu5cgzl7.opt.mp3",
+        "bytesBefore": 117908,
+        "bytesAfter": 44269,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bts5003e7kkkr0llf2if",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/how-a-seed-becomes-a-tree/p2-voice-mu5ch245.mp3",
+        "newUrl": "https://media.animbook.com/books/how-a-seed-becomes-a-tree/p2-voice-mu5ch245.opt.mp3",
+        "oldKey": "books/how-a-seed-becomes-a-tree/p2-voice-mu5ch245.mp3",
+        "newKey": "books/how-a-seed-becomes-a-tree/p2-voice-mu5ch245.opt.mp3",
+        "bytesBefore": 98264,
+        "bytesAfter": 36903,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bu1o003g7kkkpgyivu0w",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/how-a-seed-becomes-a-tree/p3-voice-mu5ch4eb.mp3",
+        "newUrl": "https://media.animbook.com/books/how-a-seed-becomes-a-tree/p3-voice-mu5ch4eb.opt.mp3",
+        "oldKey": "books/how-a-seed-becomes-a-tree/p3-voice-mu5ch4eb.mp3",
+        "newKey": "books/how-a-seed-becomes-a-tree/p3-voice-mu5ch4eb.opt.mp3",
+        "bytesBefore": 102026,
+        "bytesAfter": 38313,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bub7003i7kkkkfkbfiuy",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/how-a-seed-becomes-a-tree/p4-voice-mu5ch6eg.mp3",
+        "newUrl": "https://media.animbook.com/books/how-a-seed-becomes-a-tree/p4-voice-mu5ch6eg.opt.mp3",
+        "oldKey": "books/how-a-seed-becomes-a-tree/p4-voice-mu5ch6eg.mp3",
+        "newKey": "books/how-a-seed-becomes-a-tree/p4-voice-mu5ch6eg.opt.mp3",
+        "bytesBefore": 96174,
+        "bytesAfter": 36119,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bukx003k7kkkmted5r3l",
+      "pageNum": 5,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/how-a-seed-becomes-a-tree/p5-voice-mu5ch8t4.mp3",
+        "newUrl": "https://media.animbook.com/books/how-a-seed-becomes-a-tree/p5-voice-mu5ch8t4.opt.mp3",
+        "oldKey": "books/how-a-seed-becomes-a-tree/p5-voice-mu5ch8t4.mp3",
+        "newKey": "books/how-a-seed-becomes-a-tree/p5-voice-mu5ch8t4.opt.mp3",
+        "bytesBefore": 118326,
+        "bytesAfter": 44426,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

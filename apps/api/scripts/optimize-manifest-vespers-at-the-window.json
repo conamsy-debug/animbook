@@ -1,0 +1,73 @@
+{
+  "generatedAt": "2026-10-28T16:27:29.570Z",
+  "bookId": "cmu36c6jk004x7kkkidfdyzfl",
+  "bookSlug": "vespers-at-the-window",
+  "bookTitle": "Vespers at the Window",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36c6su004z7kkk3kbz4l3c",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/vespers-at-the-window/p1-voice-mu5cjb4m.mp3",
+        "newUrl": "https://media.animbook.com/books/vespers-at-the-window/p1-voice-mu5cjb4m.opt.mp3",
+        "oldKey": "books/vespers-at-the-window/p1-voice-mu5cjb4m.mp3",
+        "newKey": "books/vespers-at-the-window/p1-voice-mu5cjb4m.opt.mp3",
+        "bytesBefore": 106623,
+        "bytesAfter": 40037,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36c71h00517kkkra4sbqky",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/vespers-at-the-window/p2-voice-mu5cjdzt.mp3",
+        "newUrl": "https://media.animbook.com/books/vespers-at-the-window/p2-voice-mu5cjdzt.opt.mp3",
+        "oldKey": "books/vespers-at-the-window/p2-voice-mu5cjdzt.mp3",
+        "newKey": "books/vespers-at-the-window/p2-voice-mu5cjdzt.opt.mp3",
+        "bytesBefore": 103697,
+        "bytesAfter": 38940,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36c7ac00537kkk21fdadt3",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/vespers-at-the-window/p3-voice-mu5cjgbc.mp3",
+        "newUrl": "https://media.animbook.com/books/vespers-at-the-window/p3-voice-mu5cjgbc.opt.mp3",
+        "oldKey": "books/vespers-at-the-window/p3-voice-mu5cjgbc.mp3",
+        "newKey": "books/vespers-at-the-window/p3-voice-mu5cjgbc.opt.mp3",
+        "bytesBefore": 79874,
+        "bytesAfter": 30006,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36c7j800557kkksb5vjpif",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/vespers-at-the-window/p4-voice-mu5cjiju.mp3",
+        "newUrl": "https://media.animbook.com/books/vespers-at-the-window/p4-voice-mu5cjiju.opt.mp3",
+        "oldKey": "books/vespers-at-the-window/p4-voice-mu5cjiju.mp3",
+        "newKey": "books/vespers-at-the-window/p4-voice-mu5cjiju.opt.mp3",
+        "bytesBefore": 111639,
+        "bytesAfter": 41918,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

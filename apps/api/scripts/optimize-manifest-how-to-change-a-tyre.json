@@ -1,0 +1,306 @@
+{
+  "generatedAt": "2026-10-28T16:28:24.894Z",
+  "bookId": "cmu36b1e700007kkk8b42lmn5",
+  "bookSlug": "how-to-change-a-tyre",
+  "bookTitle": "How to Change a Tyre",
+  "cover": {
+    "oldUrl": "https://media.animbook.com/books/how-to-change-a-tyre/cover-mu5dxrrt.png",
+    "newUrl": "https://media.animbook.com/books/how-to-change-a-tyre/cover-mu5dxrrt.opt.webp",
+    "oldKey": "books/how-to-change-a-tyre/cover-mu5dxrrt.png",
+    "newKey": "books/how-to-change-a-tyre/cover-mu5dxrrt.opt.webp",
+    "bytesBefore": 1195854,
+    "bytesAfter": 82780,
+    "socialKey": "books/how-to-change-a-tyre/cover-mu5dxrrt.social.jpg",
+    "socialUrl": "https://media.animbook.com/books/how-to-change-a-tyre/cover-mu5dxrrt.social.jpg"
+  },
+  "pages": [
+    {
+      "pageId": "cmu36b1xn00027kkkyqj7g274",
+      "pageNum": 1,
+      "video": {
+        "oldUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p1-mu5e08ur.mp4",
+        "newUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p1-mu5e08ur.opt.mp4",
+        "oldKey": "books/how-to-change-a-tyre/p1-mu5e08ur.mp4",
+        "newKey": "books/how-to-change-a-tyre/p1-mu5e08ur.opt.mp4",
+        "bytesBefore": 1650124,
+        "bytesAfter": 1650144,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 187710,
+        "boxesBefore": [
+          "ftyp:32",
+          "uuid:187710",
+          "free:8",
+          "mdat:1460175",
+          "moov:2199"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2219",
+          "free:8",
+          "mdat:1460175"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p1-voice-mu5ccfuz.mp3",
+        "newUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p1-voice-mu5ccfuz.opt.mp3",
+        "oldKey": "books/how-to-change-a-tyre/p1-voice-mu5ccfuz.mp3",
+        "newKey": "books/how-to-change-a-tyre/p1-voice-mu5ccfuz.opt.mp3",
+        "bytesBefore": 145075,
+        "bytesAfter": 54457,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p1-mu5e08ur.png",
+        "newUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p1-mu5e08ur.opt.webp",
+        "oldKey": "books/how-to-change-a-tyre/p1-mu5e08ur.png",
+        "newKey": "books/how-to-change-a-tyre/p1-mu5e08ur.opt.webp",
+        "bytesBefore": 1144735,
+        "bytesAfter": 64792
+      }
+    },
+    {
+      "pageId": "cmu36b2ga00047kkkc1q6ubap",
+      "pageNum": 2,
+      "video": {
+        "oldUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p2-mu5dztr4.mp4",
+        "newUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p2-mu5dztr4.opt.mp4",
+        "oldKey": "books/how-to-change-a-tyre/p2-mu5dztr4.mp4",
+        "newKey": "books/how-to-change-a-tyre/p2-mu5dztr4.opt.mp4",
+        "bytesBefore": 1350604,
+        "bytesAfter": 1350624,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 195924,
+        "boxesBefore": [
+          "ftyp:32",
+          "uuid:195924",
+          "free:8",
+          "mdat:1152409",
+          "moov:2231"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2251",
+          "free:8",
+          "mdat:1152409"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p2-voice-mu5ccjn0.mp3",
+        "newUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p2-voice-mu5ccjn0.opt.mp3",
+        "oldKey": "books/how-to-change-a-tyre/p2-voice-mu5ccjn0.mp3",
+        "newKey": "books/how-to-change-a-tyre/p2-voice-mu5ccjn0.opt.mp3",
+        "bytesBefore": 146747,
+        "bytesAfter": 55084,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p2-mu5dztr4.png",
+        "newUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p2-mu5dztr4.opt.webp",
+        "oldKey": "books/how-to-change-a-tyre/p2-mu5dztr4.png",
+        "newKey": "books/how-to-change-a-tyre/p2-mu5dztr4.opt.webp",
+        "bytesBefore": 1227938,
+        "bytesAfter": 62354
+      }
+    },
+    {
+      "pageId": "cmu36b2pw00067kkkk7s5we56",
+      "pageNum": 3,
+      "video": {
+        "oldUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p3-mu5e1um1.mp4",
+        "newUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p3-mu5e1um1.opt.mp4",
+        "oldKey": "books/how-to-change-a-tyre/p3-mu5e1um1.mp4",
+        "newKey": "books/how-to-change-a-tyre/p3-mu5e1um1.opt.mp4",
+        "bytesBefore": 1421926,
+        "bytesAfter": 1421946,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 216072,
+        "boxesBefore": [
+          "ftyp:32",
+          "uuid:216072",
+          "free:8",
+          "mdat:1203575",
+          "moov:2239"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2259",
+          "free:8",
+          "mdat:1203575"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p3-voice-mu5ccmot.mp3",
+        "newUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p3-voice-mu5ccmot.opt.mp3",
+        "oldKey": "books/how-to-change-a-tyre/p3-voice-mu5ccmot.mp3",
+        "newKey": "books/how-to-change-a-tyre/p3-voice-mu5ccmot.opt.mp3",
+        "bytesBefore": 142150,
+        "bytesAfter": 53360,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p3-mu5e1um1.png",
+        "newUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p3-mu5e1um1.opt.webp",
+        "oldKey": "books/how-to-change-a-tyre/p3-mu5e1um1.png",
+        "newKey": "books/how-to-change-a-tyre/p3-mu5e1um1.opt.webp",
+        "bytesBefore": 1294126,
+        "bytesAfter": 78218
+      }
+    },
+    {
+      "pageId": "cmu36b2za00087kkks30icb74",
+      "pageNum": 4,
+      "video": {
+        "oldUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p4-mu5e2hrw.mp4",
+        "newUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p4-mu5e2hrw.opt.mp4",
+        "oldKey": "books/how-to-change-a-tyre/p4-mu5e2hrw.mp4",
+        "newKey": "books/how-to-change-a-tyre/p4-mu5e2hrw.opt.mp4",
+        "bytesBefore": 1641440,
+        "bytesAfter": 1641460,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 196988,
+        "boxesBefore": [
+          "ftyp:32",
+          "uuid:196988",
+          "free:8",
+          "mdat:1442157",
+          "moov:2255"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2275",
+          "free:8",
+          "mdat:1442157"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p4-voice-mu5ccpmu.mp3",
+        "newUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p4-voice-mu5ccpmu.opt.mp3",
+        "oldKey": "books/how-to-change-a-tyre/p4-voice-mu5ccpmu.mp3",
+        "newKey": "books/how-to-change-a-tyre/p4-voice-mu5ccpmu.opt.mp3",
+        "bytesBefore": 98264,
+        "bytesAfter": 36903,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p4-mu5e2hrw.png",
+        "newUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p4-mu5e2hrw.opt.webp",
+        "oldKey": "books/how-to-change-a-tyre/p4-mu5e2hrw.png",
+        "newKey": "books/how-to-change-a-tyre/p4-mu5e2hrw.opt.webp",
+        "bytesBefore": 1211289,
+        "bytesAfter": 64488
+      }
+    },
+    {
+      "pageId": "cmu36b3zs000a7kkkyydriben",
+      "pageNum": 5,
+      "video": {
+        "oldUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p5-mu5e6gps.mp4",
+        "newUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p5-mu5e6gps.opt.mp4",
+        "oldKey": "books/how-to-change-a-tyre/p5-mu5e6gps.mp4",
+        "newKey": "books/how-to-change-a-tyre/p5-mu5e6gps.opt.mp4",
+        "bytesBefore": 1509171,
+        "bytesAfter": 1509191,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 198788,
+        "boxesBefore": [
+          "ftyp:32",
+          "uuid:198788",
+          "free:8",
+          "mdat:1308096",
+          "moov:2247"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2267",
+          "free:8",
+          "mdat:1308096"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p5-voice-mu5ccs38.mp3",
+        "newUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p5-voice-mu5ccs38.opt.mp3",
+        "oldKey": "books/how-to-change-a-tyre/p5-voice-mu5ccs38.mp3",
+        "newKey": "books/how-to-change-a-tyre/p5-voice-mu5ccs38.opt.mp3",
+        "bytesBefore": 189797,
+        "bytesAfter": 71228,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p5-mu5e6gps.png",
+        "newUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p5-mu5e6gps.opt.webp",
+        "oldKey": "books/how-to-change-a-tyre/p5-mu5e6gps.png",
+        "newKey": "books/how-to-change-a-tyre/p5-mu5e6gps.opt.webp",
+        "bytesBefore": 1183462,
+        "bytesAfter": 58542
+      }
+    },
+    {
+      "pageId": "cmu36b49e000c7kkk5q9wxhzt",
+      "pageNum": 6,
+      "video": {
+        "oldUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p6-mu5e62rq.mp4",
+        "newUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p6-mu5e62rq.opt.mp4",
+        "oldKey": "books/how-to-change-a-tyre/p6-mu5e62rq.mp4",
+        "newKey": "books/how-to-change-a-tyre/p6-mu5e62rq.opt.mp4",
+        "bytesBefore": 1763856,
+        "bytesAfter": 1763876,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 150238,
+        "boxesBefore": [
+          "ftyp:32",
+          "uuid:150238",
+          "free:8",
+          "mdat:1611347",
+          "moov:2231"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2251",
+          "free:8",
+          "mdat:1611347"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p6-voice-mu5ccvbn.mp3",
+        "newUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p6-voice-mu5ccvbn.opt.mp3",
+        "oldKey": "books/how-to-change-a-tyre/p6-voice-mu5ccvbn.mp3",
+        "newKey": "books/how-to-change-a-tyre/p6-voice-mu5ccvbn.opt.mp3",
+        "bytesBefore": 103697,
+        "bytesAfter": 38940,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p6-mu5e62rq.png",
+        "newUrl": "https://media.animbook.com/books/how-to-change-a-tyre/p6-mu5e62rq.opt.webp",
+        "oldKey": "books/how-to-change-a-tyre/p6-mu5e62rq.png",
+        "newKey": "books/how-to-change-a-tyre/p6-mu5e62rq.opt.webp",
+        "bytesBefore": 964236,
+        "bytesAfter": 38752
+      }
+    }
+  ]
+}

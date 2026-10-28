@@ -1,0 +1,57 @@
+{
+  "generatedAt": "2026-10-28T16:07:12.298Z",
+  "bookId": "cmu36a5z400077kogxaer91gx",
+  "bookSlug": "lagos-nights-3-the-letter",
+  "bookTitle": "Lagos Nights · The Letter",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36a6gm00087kogplywoxf0",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/lagos-nights-3-the-letter/p1-voice-mu5cc65j.mp3",
+        "newUrl": "https://media.animbook.com/books/lagos-nights-3-the-letter/p1-voice-mu5cc65j.opt.mp3",
+        "oldKey": "books/lagos-nights-3-the-letter/p1-voice-mu5cc65j.mp3",
+        "newKey": "books/lagos-nights-3-the-letter/p1-voice-mu5cc65j.opt.mp3",
+        "bytesBefore": 107877,
+        "bytesAfter": 40508,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36a6gm00097kogj3jcu8ca",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/lagos-nights-3-the-letter/p2-voice-mu5cc9yn.mp3",
+        "newUrl": "https://media.animbook.com/books/lagos-nights-3-the-letter/p2-voice-mu5cc9yn.opt.mp3",
+        "oldKey": "books/lagos-nights-3-the-letter/p2-voice-mu5cc9yn.mp3",
+        "newKey": "books/lagos-nights-3-the-letter/p2-voice-mu5cc9yn.opt.mp3",
+        "bytesBefore": 119998,
+        "bytesAfter": 45053,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36a6gm000a7kog4ggfzcwq",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/lagos-nights-3-the-letter/p3-voice-mu5cccf3.mp3",
+        "newUrl": "https://media.animbook.com/books/lagos-nights-3-the-letter/p3-voice-mu5cccf3.opt.mp3",
+        "oldKey": "books/lagos-nights-3-the-letter/p3-voice-mu5cccf3.mp3",
+        "newKey": "books/lagos-nights-3-the-letter/p3-voice-mu5cccf3.opt.mp3",
+        "bytesBefore": 125013,
+        "bytesAfter": 46934,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

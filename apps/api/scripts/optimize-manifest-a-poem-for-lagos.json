@@ -1,0 +1,210 @@
+{
+  "generatedAt": "2026-10-28T16:00:03.074Z",
+  "bookId": "cmu369jxw000g7kbw03rc3u49",
+  "bookSlug": "a-poem-for-lagos",
+  "bookTitle": "A Poem for Lagos",
+  "cover": {
+    "oldUrl": "https://media.animbook.com/books/a-poem-for-lagos/cover-mu5dnv4v.png",
+    "newUrl": "https://media.animbook.com/books/a-poem-for-lagos/cover-mu5dnv4v.opt.webp",
+    "oldKey": "books/a-poem-for-lagos/cover-mu5dnv4v.png",
+    "newKey": "books/a-poem-for-lagos/cover-mu5dnv4v.opt.webp",
+    "bytesBefore": 901212,
+    "bytesAfter": 48992,
+    "socialKey": "books/a-poem-for-lagos/cover-mu5dnv4v.social.jpg",
+    "socialUrl": "https://media.animbook.com/books/a-poem-for-lagos/cover-mu5dnv4v.social.jpg"
+  },
+  "pages": [
+    {
+      "pageId": "cmu369kw3000h7kbwg0ixq1ft",
+      "pageNum": 1,
+      "video": {
+        "oldUrl": "https://media.animbook.com/books/a-poem-for-lagos/p1-mu5dr75i.mp4",
+        "newUrl": "https://media.animbook.com/books/a-poem-for-lagos/p1-mu5dr75i.opt.mp4",
+        "oldKey": "books/a-poem-for-lagos/p1-mu5dr75i.mp4",
+        "newKey": "books/a-poem-for-lagos/p1-mu5dr75i.opt.mp4",
+        "bytesBefore": 774943,
+        "bytesAfter": 774963,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 133856,
+        "boxesBefore": [
+          "ftyp:32",
+          "uuid:133856",
+          "free:8",
+          "mdat:638824",
+          "moov:2223"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2243",
+          "free:8",
+          "mdat:638824"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/a-poem-for-lagos/p1-voice-mu5c8yqd.mp3",
+        "newUrl": "https://media.animbook.com/books/a-poem-for-lagos/p1-voice-mu5c8yqd.opt.mp3",
+        "oldKey": "books/a-poem-for-lagos/p1-voice-mu5c8yqd.mp3",
+        "newKey": "books/a-poem-for-lagos/p1-voice-mu5c8yqd.opt.mp3",
+        "bytesBefore": 81128,
+        "bytesAfter": 30477,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/books/a-poem-for-lagos/p1-mu5dr75i.png",
+        "newUrl": "https://media.animbook.com/books/a-poem-for-lagos/p1-mu5dr75i.opt.webp",
+        "oldKey": "books/a-poem-for-lagos/p1-mu5dr75i.png",
+        "newKey": "books/a-poem-for-lagos/p1-mu5dr75i.opt.webp",
+        "bytesBefore": 1111654,
+        "bytesAfter": 28938
+      }
+    },
+    {
+      "pageId": "cmu369kw3000i7kbwfkf73rfe",
+      "pageNum": 2,
+      "video": {
+        "oldUrl": "https://media.animbook.com/books/a-poem-for-lagos/p2-mu5dqopp.mp4",
+        "newUrl": "https://media.animbook.com/books/a-poem-for-lagos/p2-mu5dqopp.opt.mp4",
+        "oldKey": "books/a-poem-for-lagos/p2-mu5dqopp.mp4",
+        "newKey": "books/a-poem-for-lagos/p2-mu5dqopp.opt.mp4",
+        "bytesBefore": 2395669,
+        "bytesAfter": 2395689,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 180064,
+        "boxesBefore": [
+          "ftyp:32",
+          "uuid:180064",
+          "free:8",
+          "mdat:2213302",
+          "moov:2263"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2283",
+          "free:8",
+          "mdat:2213302"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/a-poem-for-lagos/p2-voice-mu5c92hg.mp3",
+        "newUrl": "https://media.animbook.com/books/a-poem-for-lagos/p2-voice-mu5c92hg.opt.mp3",
+        "oldKey": "books/a-poem-for-lagos/p2-voice-mu5c92hg.mp3",
+        "newKey": "books/a-poem-for-lagos/p2-voice-mu5c92hg.opt.mp3",
+        "bytesBefore": 94084,
+        "bytesAfter": 35335,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/books/a-poem-for-lagos/p2-mu5dqopp.png",
+        "newUrl": "https://media.animbook.com/books/a-poem-for-lagos/p2-mu5dqopp.opt.webp",
+        "oldKey": "books/a-poem-for-lagos/p2-mu5dqopp.png",
+        "newKey": "books/a-poem-for-lagos/p2-mu5dqopp.opt.webp",
+        "bytesBefore": 1142286,
+        "bytesAfter": 54558
+      }
+    },
+    {
+      "pageId": "cmu369kw3000j7kbwlbprwv76",
+      "pageNum": 3,
+      "video": {
+        "oldUrl": "https://media.animbook.com/books/a-poem-for-lagos/p3-mu5dt601.mp4",
+        "newUrl": "https://media.animbook.com/books/a-poem-for-lagos/p3-mu5dt601.opt.mp4",
+        "oldKey": "books/a-poem-for-lagos/p3-mu5dt601.mp4",
+        "newKey": "books/a-poem-for-lagos/p3-mu5dt601.opt.mp4",
+        "bytesBefore": 2166814,
+        "bytesAfter": 2166834,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 256830,
+        "boxesBefore": [
+          "ftyp:32",
+          "uuid:256830",
+          "free:8",
+          "mdat:1907689",
+          "moov:2255"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2275",
+          "free:8",
+          "mdat:1907689"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/a-poem-for-lagos/p3-voice-mu5c98tx.mp3",
+        "newUrl": "https://media.animbook.com/books/a-poem-for-lagos/p3-voice-mu5c98tx.opt.mp3",
+        "oldKey": "books/a-poem-for-lagos/p3-voice-mu5c98tx.mp3",
+        "newKey": "books/a-poem-for-lagos/p3-voice-mu5c98tx.opt.mp3",
+        "bytesBefore": 64827,
+        "bytesAfter": 24364,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/books/a-poem-for-lagos/p3-mu5dt601.png",
+        "newUrl": "https://media.animbook.com/books/a-poem-for-lagos/p3-mu5dt601.opt.webp",
+        "oldKey": "books/a-poem-for-lagos/p3-mu5dt601.png",
+        "newKey": "books/a-poem-for-lagos/p3-mu5dt601.opt.webp",
+        "bytesBefore": 1184027,
+        "bytesAfter": 93348
+      }
+    },
+    {
+      "pageId": "cmu369kw3000k7kbwxevxbdjx",
+      "pageNum": 4,
+      "video": {
+        "oldUrl": "https://media.animbook.com/books/a-poem-for-lagos/p4-mu5dudxi.mp4",
+        "newUrl": "https://media.animbook.com/books/a-poem-for-lagos/p4-mu5dudxi.opt.mp4",
+        "oldKey": "books/a-poem-for-lagos/p4-mu5dudxi.mp4",
+        "newKey": "books/a-poem-for-lagos/p4-mu5dudxi.opt.mp4",
+        "bytesBefore": 1236974,
+        "bytesAfter": 1236994,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 126452,
+        "boxesBefore": [
+          "ftyp:32",
+          "uuid:126452",
+          "free:8",
+          "mdat:1108243",
+          "moov:2239"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2259",
+          "free:8",
+          "mdat:1108243"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/a-poem-for-lagos/p4-voice-mu5c9e17.mp3",
+        "newUrl": "https://media.animbook.com/books/a-poem-for-lagos/p4-voice-mu5c9e17.opt.mp3",
+        "oldKey": "books/a-poem-for-lagos/p4-voice-mu5c9e17.mp3",
+        "newKey": "books/a-poem-for-lagos/p4-voice-mu5c9e17.opt.mp3",
+        "bytesBefore": 97010,
+        "bytesAfter": 36432,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/books/a-poem-for-lagos/p4-mu5dudxi.png",
+        "newUrl": "https://media.animbook.com/books/a-poem-for-lagos/p4-mu5dudxi.opt.webp",
+        "oldKey": "books/a-poem-for-lagos/p4-mu5dudxi.png",
+        "newKey": "books/a-poem-for-lagos/p4-mu5dudxi.opt.webp",
+        "bytesBefore": 1055196,
+        "bytesAfter": 29074
+      }
+    }
+  ]
+}

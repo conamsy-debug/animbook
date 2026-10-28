@@ -1,0 +1,73 @@
+{
+  "generatedAt": "2026-10-28T16:11:33.719Z",
+  "bookId": "cmu36b7ke000m7kkkjt5pqriq",
+  "bookSlug": "boil-an-egg-and-other-kitchen-basics",
+  "bookTitle": "Boil an Egg (and Other Kitchen Basics)",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36b7s7000o7kkk652j31fw",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/boil-an-egg-and-other-kitchen-basics/p1-voice-mu5cdc55.mp3",
+        "newUrl": "https://media.animbook.com/books/boil-an-egg-and-other-kitchen-basics/p1-voice-mu5cdc55.opt.mp3",
+        "oldKey": "books/boil-an-egg-and-other-kitchen-basics/p1-voice-mu5cdc55.mp3",
+        "newKey": "books/boil-an-egg-and-other-kitchen-basics/p1-voice-mu5cdc55.opt.mp3",
+        "bytesBefore": 191469,
+        "bytesAfter": 71855,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36b80b000q7kkkixksxxmx",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/boil-an-egg-and-other-kitchen-basics/p2-voice-mu5cdi3n.mp3",
+        "newUrl": "https://media.animbook.com/books/boil-an-egg-and-other-kitchen-basics/p2-voice-mu5cdi3n.opt.mp3",
+        "oldKey": "books/boil-an-egg-and-other-kitchen-basics/p2-voice-mu5cdi3n.mp3",
+        "newKey": "books/boil-an-egg-and-other-kitchen-basics/p2-voice-mu5cdi3n.opt.mp3",
+        "bytesBefore": 152599,
+        "bytesAfter": 57278,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36b8a4000s7kkk016yvxm7",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/boil-an-egg-and-other-kitchen-basics/p3-voice-mu5cdp3b.mp3",
+        "newUrl": "https://media.animbook.com/books/boil-an-egg-and-other-kitchen-basics/p3-voice-mu5cdp3b.opt.mp3",
+        "oldKey": "books/boil-an-egg-and-other-kitchen-basics/p3-voice-mu5cdp3b.mp3",
+        "newKey": "books/boil-an-egg-and-other-kitchen-basics/p3-voice-mu5cdp3b.opt.mp3",
+        "bytesBefore": 147583,
+        "bytesAfter": 55397,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36b8iy000u7kkkzezamylt",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/boil-an-egg-and-other-kitchen-basics/p4-voice-mu5cdsn8.mp3",
+        "newUrl": "https://media.animbook.com/books/boil-an-egg-and-other-kitchen-basics/p4-voice-mu5cdsn8.opt.mp3",
+        "oldKey": "books/boil-an-egg-and-other-kitchen-basics/p4-voice-mu5cdsn8.mp3",
+        "newKey": "books/boil-an-egg-and-other-kitchen-basics/p4-voice-mu5cdsn8.opt.mp3",
+        "bytesBefore": 152599,
+        "bytesAfter": 57278,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "generatedAt": "2026-10-28T16:22:03.634Z",
+  "bookId": "cmu36eva400097klszvaf3v3d",
+  "bookSlug": "the-lords-prayer-illuminated",
+  "bookTitle": "The Lord's Prayer · Illuminated",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36ewad000a7kls2txhb17r",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-lords-prayer-illuminated/p1-voice-mu5cmoq7.mp3",
+        "newUrl": "https://media.animbook.com/books/the-lords-prayer-illuminated/p1-voice-mu5cmoq7.opt.mp3",
+        "oldKey": "books/the-lords-prayer-illuminated/p1-voice-mu5cmoq7.mp3",
+        "newKey": "books/the-lords-prayer-illuminated/p1-voice-mu5cmoq7.opt.mp3",
+        "bytesBefore": 53960,
+        "bytesAfter": 20289,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36ewad000b7klsdj0w7wgq",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-lords-prayer-illuminated/p2-voice-mu5cmqx7.mp3",
+        "newUrl": "https://media.animbook.com/books/the-lords-prayer-illuminated/p2-voice-mu5cmqx7.opt.mp3",
+        "oldKey": "books/the-lords-prayer-illuminated/p2-voice-mu5cmqx7.mp3",
+        "newKey": "books/the-lords-prayer-illuminated/p2-voice-mu5cmqx7.opt.mp3",
+        "bytesBefore": 66499,
+        "bytesAfter": 24991,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36ewad000c7kls0v51dd4m",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-lords-prayer-illuminated/p3-voice-mu5cmutx.mp3",
+        "newUrl": "https://media.animbook.com/books/the-lords-prayer-illuminated/p3-voice-mu5cmutx.opt.mp3",
+        "oldKey": "books/the-lords-prayer-illuminated/p3-voice-mu5cmutx.mp3",
+        "newKey": "books/the-lords-prayer-illuminated/p3-voice-mu5cmutx.opt.mp3",
+        "bytesBefore": 34316,
+        "bytesAfter": 12922,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

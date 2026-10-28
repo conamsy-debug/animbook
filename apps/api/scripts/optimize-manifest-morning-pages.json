@@ -1,0 +1,73 @@
+{
+  "generatedAt": "2026-10-28T16:14:46.359Z",
+  "bookId": "cmu36c81000567kkkfb3cl8ep",
+  "bookSlug": "morning-pages",
+  "bookTitle": "Morning Pages",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36c8al00587kkkolv2li4o",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/morning-pages/p1-voice-mu5cjktz.mp3",
+        "newUrl": "https://media.animbook.com/books/morning-pages/p1-voice-mu5cjktz.opt.mp3",
+        "oldKey": "books/morning-pages/p1-voice-mu5cjktz.mp3",
+        "newKey": "books/morning-pages/p1-voice-mu5cjktz.opt.mp3",
+        "bytesBefore": 105787,
+        "bytesAfter": 39724,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36c8ju005a7kkkr9y5mryt",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/morning-pages/p2-voice-mu5cjnw1.mp3",
+        "newUrl": "https://media.animbook.com/books/morning-pages/p2-voice-mu5cjnw1.opt.mp3",
+        "oldKey": "books/morning-pages/p2-voice-mu5cjnw1.mp3",
+        "newKey": "books/morning-pages/p2-voice-mu5cjnw1.opt.mp3",
+        "bytesBefore": 139224,
+        "bytesAfter": 52263,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36c8sn005c7kkkqcg9g25m",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/morning-pages/p3-voice-mu5cjrl4.mp3",
+        "newUrl": "https://media.animbook.com/books/morning-pages/p3-voice-mu5cjrl4.opt.mp3",
+        "oldKey": "books/morning-pages/p3-voice-mu5cjrl4.mp3",
+        "newKey": "books/morning-pages/p3-voice-mu5cjrl4.opt.mp3",
+        "bytesBefore": 85725,
+        "bytesAfter": 32201,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36c91s005e7kkky76pky0o",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/morning-pages/p4-voice-mu5cjtj8.mp3",
+        "newUrl": "https://media.animbook.com/books/morning-pages/p4-voice-mu5cjtj8.opt.mp3",
+        "oldKey": "books/morning-pages/p4-voice-mu5cjtj8.mp3",
+        "newKey": "books/morning-pages/p4-voice-mu5cjtj8.opt.mp3",
+        "bytesBefore": 107877,
+        "bytesAfter": 40508,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

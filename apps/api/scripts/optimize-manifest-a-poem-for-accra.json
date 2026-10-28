@@ -1,0 +1,73 @@
+{
+  "generatedAt": "2026-10-28T16:07:51.520Z",
+  "bookId": "cmu36bcv2001f7kkkyoihj75j",
+  "bookSlug": "a-poem-for-accra",
+  "bookTitle": "A Poem for Accra",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36bdit001h7kkk3t2xvcpq",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/a-poem-for-accra/p1-voice-mu5ceves.mp3",
+        "newUrl": "https://media.animbook.com/books/a-poem-for-accra/p1-voice-mu5ceves.opt.mp3",
+        "oldKey": "books/a-poem-for-accra/p1-voice-mu5ceves.mp3",
+        "newKey": "books/a-poem-for-accra/p1-voice-mu5ceves.opt.mp3",
+        "bytesBefore": 178512,
+        "bytesAfter": 66996,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bdtu001j7kkk10l8fn2f",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/a-poem-for-accra/p2-voice-mu5cf0lo.mp3",
+        "newUrl": "https://media.animbook.com/books/a-poem-for-accra/p2-voice-mu5cf0lo.opt.mp3",
+        "oldKey": "books/a-poem-for-accra/p2-voice-mu5cf0lo.mp3",
+        "newKey": "books/a-poem-for-accra/p2-voice-mu5cf0lo.opt.mp3",
+        "bytesBefore": 124595,
+        "bytesAfter": 46777,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36be2s001l7kkkii94ioy6",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/a-poem-for-accra/p3-voice-mu5cf2vp.mp3",
+        "newUrl": "https://media.animbook.com/books/a-poem-for-accra/p3-voice-mu5cf2vp.opt.mp3",
+        "oldKey": "books/a-poem-for-accra/p3-voice-mu5cf2vp.mp3",
+        "newKey": "books/a-poem-for-accra/p3-voice-mu5cf2vp.opt.mp3",
+        "bytesBefore": 142986,
+        "bytesAfter": 53673,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bebq001n7kkkbjif95l0",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/a-poem-for-accra/p4-voice-mu5cf5ls.mp3",
+        "newUrl": "https://media.animbook.com/books/a-poem-for-accra/p4-voice-mu5cf5ls.opt.mp3",
+        "oldKey": "books/a-poem-for-accra/p4-voice-mu5cf5ls.mp3",
+        "newKey": "books/a-poem-for-accra/p4-voice-mu5cf5ls.opt.mp3",
+        "bytesBefore": 107877,
+        "bytesAfter": 40508,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

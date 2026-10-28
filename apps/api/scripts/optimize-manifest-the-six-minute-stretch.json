@@ -1,0 +1,73 @@
+{
+  "generatedAt": "2026-10-28T16:25:26.602Z",
+  "bookId": "cmu36bb2e00167kkkql1b4tx3",
+  "bookSlug": "the-six-minute-stretch",
+  "bookTitle": "The Six-Minute Daily Stretch",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36bbd600187kkkuid9r5dc",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-six-minute-stretch/p1-voice-mu5cekq0.mp3",
+        "newUrl": "https://media.animbook.com/books/the-six-minute-stretch/p1-voice-mu5cekq0.opt.mp3",
+        "oldKey": "books/the-six-minute-stretch/p1-voice-mu5cekq0.mp3",
+        "newKey": "books/the-six-minute-stretch/p1-voice-mu5cekq0.opt.mp3",
+        "bytesBefore": 144657,
+        "bytesAfter": 54300,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bbln001a7kkk7iu99gzu",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-six-minute-stretch/p2-voice-mu5cenql.mp3",
+        "newUrl": "https://media.animbook.com/books/the-six-minute-stretch/p2-voice-mu5cenql.opt.mp3",
+        "oldKey": "books/the-six-minute-stretch/p2-voice-mu5cenql.mp3",
+        "newKey": "books/the-six-minute-stretch/p2-voice-mu5cenql.opt.mp3",
+        "bytesBefore": 90323,
+        "bytesAfter": 33925,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bbu5001c7kkk1r2gewxm",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-six-minute-stretch/p3-voice-mu5cepyu.mp3",
+        "newUrl": "https://media.animbook.com/books/the-six-minute-stretch/p3-voice-mu5cepyu.opt.mp3",
+        "oldKey": "books/the-six-minute-stretch/p3-voice-mu5cepyu.mp3",
+        "newKey": "books/the-six-minute-stretch/p3-voice-mu5cepyu.opt.mp3",
+        "bytesBefore": 148001,
+        "bytesAfter": 55554,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bc3h001e7kkk9157u1p9",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-six-minute-stretch/p4-voice-mu5cesu8.mp3",
+        "newUrl": "https://media.animbook.com/books/the-six-minute-stretch/p4-voice-mu5cesu8.opt.mp3",
+        "oldKey": "books/the-six-minute-stretch/p4-voice-mu5cesu8.mp3",
+        "newKey": "books/the-six-minute-stretch/p4-voice-mu5cesu8.opt.mp3",
+        "bytesBefore": 115400,
+        "bytesAfter": 43329,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "generatedAt": "2026-10-28T16:14:17.975Z",
+  "bookId": "cmu36besu001o7kkkt3nfhuyl",
+  "bookSlug": "lagos-nights-prologue-the-bridge",
+  "bookTitle": "Lagos Nights · Prologue · The Bridge",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36bfey001q7kkklwv3p7l7",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/lagos-nights-prologue-the-bridge/p1-voice-mu5cf8gu.mp3",
+        "newUrl": "https://media.animbook.com/books/lagos-nights-prologue-the-bridge/p1-voice-mu5cf8gu.opt.mp3",
+        "oldKey": "books/lagos-nights-prologue-the-bridge/p1-voice-mu5cf8gu.mp3",
+        "newKey": "books/lagos-nights-prologue-the-bridge/p1-voice-mu5cf8gu.opt.mp3",
+        "bytesBefore": 125013,
+        "bytesAfter": 46934,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bg6k001s7kkkvgi5dxj0",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/lagos-nights-prologue-the-bridge/p2-voice-mu5cfcz2.mp3",
+        "newUrl": "https://media.animbook.com/books/lagos-nights-prologue-the-bridge/p2-voice-mu5cfcz2.opt.mp3",
+        "oldKey": "books/lagos-nights-prologue-the-bridge/p2-voice-mu5cfcz2.mp3",
+        "newKey": "books/lagos-nights-prologue-the-bridge/p2-voice-mu5cfcz2.opt.mp3",
+        "bytesBefore": 158450,
+        "bytesAfter": 59472,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bh1p001u7kkkg10vbgad",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/lagos-nights-prologue-the-bridge/p3-voice-mu5cffx3.mp3",
+        "newUrl": "https://media.animbook.com/books/lagos-nights-prologue-the-bridge/p3-voice-mu5cffx3.opt.mp3",
+        "oldKey": "books/lagos-nights-prologue-the-bridge/p3-voice-mu5cffx3.mp3",
+        "newKey": "books/lagos-nights-prologue-the-bridge/p3-voice-mu5cffx3.opt.mp3",
+        "bytesBefore": 187707,
+        "bytesAfter": 70444,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bhdz001w7kkk8o2vwesa",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/lagos-nights-prologue-the-bridge/p4-voice-mu5cfj6w.mp3",
+        "newUrl": "https://media.animbook.com/books/lagos-nights-prologue-the-bridge/p4-voice-mu5cfj6w.opt.mp3",
+        "oldKey": "books/lagos-nights-prologue-the-bridge/p4-voice-mu5cfj6w.mp3",
+        "newKey": "books/lagos-nights-prologue-the-bridge/p4-voice-mu5cfj6w.opt.mp3",
+        "bytesBefore": 63573,
+        "bytesAfter": 23894,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

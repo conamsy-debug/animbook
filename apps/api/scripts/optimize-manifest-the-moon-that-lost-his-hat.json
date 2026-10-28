@@ -1,0 +1,89 @@
+{
+  "generatedAt": "2026-10-28T16:17:14.143Z",
+  "bookId": "cmu36bnos002q7kkk8avpcy70",
+  "bookSlug": "the-moon-that-lost-his-hat",
+  "bookTitle": "The Moon That Lost His Hat",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36bodt002s7kkkhticep5r",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-moon-that-lost-his-hat/p1-voice-mu5cgfzt.mp3",
+        "newUrl": "https://media.animbook.com/books/the-moon-that-lost-his-hat/p1-voice-mu5cgfzt.opt.mp3",
+        "oldKey": "books/the-moon-that-lost-his-hat/p1-voice-mu5cgfzt.mp3",
+        "newKey": "books/the-moon-that-lost-his-hat/p1-voice-mu5cgfzt.opt.mp3",
+        "bytesBefore": 125013,
+        "bytesAfter": 46934,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bp8t002u7kkkba7qxk8t",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-moon-that-lost-his-hat/p2-voice-mu5cgiar.mp3",
+        "newUrl": "https://media.animbook.com/books/the-moon-that-lost-his-hat/p2-voice-mu5cgiar.opt.mp3",
+        "oldKey": "books/the-moon-that-lost-his-hat/p2-voice-mu5cgiar.mp3",
+        "newKey": "books/the-moon-that-lost-his-hat/p2-voice-mu5cgiar.opt.mp3",
+        "bytesBefore": 116236,
+        "bytesAfter": 43642,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bpur002w7kkk99b5zngz",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-moon-that-lost-his-hat/p3-voice-mu5cgkvw.mp3",
+        "newUrl": "https://media.animbook.com/books/the-moon-that-lost-his-hat/p3-voice-mu5cgkvw.opt.mp3",
+        "oldKey": "books/the-moon-that-lost-his-hat/p3-voice-mu5cgkvw.mp3",
+        "newKey": "books/the-moon-that-lost-his-hat/p3-voice-mu5cgkvw.opt.mp3",
+        "bytesBefore": 102862,
+        "bytesAfter": 38627,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bq3s002y7kkklyjs9lnb",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-moon-that-lost-his-hat/p4-voice-mu5cgn5a.mp3",
+        "newUrl": "https://media.animbook.com/books/the-moon-that-lost-his-hat/p4-voice-mu5cgn5a.opt.mp3",
+        "oldKey": "books/the-moon-that-lost-his-hat/p4-voice-mu5cgn5a.mp3",
+        "newKey": "books/the-moon-that-lost-his-hat/p4-voice-mu5cgn5a.opt.mp3",
+        "bytesBefore": 87815,
+        "bytesAfter": 32984,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bqd000307kkk2dcgk9my",
+      "pageNum": 5,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-moon-that-lost-his-hat/p5-voice-mu5cgp66.mp3",
+        "newUrl": "https://media.animbook.com/books/the-moon-that-lost-his-hat/p5-voice-mu5cgp66.opt.mp3",
+        "oldKey": "books/the-moon-that-lost-his-hat/p5-voice-mu5cgp66.mp3",
+        "newKey": "books/the-moon-that-lost-his-hat/p5-voice-mu5cgp66.opt.mp3",
+        "bytesBefore": 71097,
+        "bytesAfter": 26715,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

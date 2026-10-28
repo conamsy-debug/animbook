@@ -1,0 +1,73 @@
+{
+  "generatedAt": "2026-10-28T16:20:42.118Z",
+  "bookId": "cmu369ejz00097kbwre0r7o1p",
+  "bookSlug": "the-coast-of-mombasa",
+  "bookTitle": "The Coast of Mombasa",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu369f24000a7kbwgehp08u3",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-coast-of-mombasa/p1-voice-mu5c8j99.mp3",
+        "newUrl": "https://media.animbook.com/books/the-coast-of-mombasa/p1-voice-mu5c8j99.opt.mp3",
+        "oldKey": "books/the-coast-of-mombasa/p1-voice-mu5c8j99.mp3",
+        "newKey": "books/the-coast-of-mombasa/p1-voice-mu5c8j99.opt.mp3",
+        "bytesBefore": 128775,
+        "bytesAfter": 48344,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu369f24000b7kbwybnoborb",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-coast-of-mombasa/p2-voice-mu5c8m0l.mp3",
+        "newUrl": "https://media.animbook.com/books/the-coast-of-mombasa/p2-voice-mu5c8m0l.opt.mp3",
+        "oldKey": "books/the-coast-of-mombasa/p2-voice-mu5c8m0l.mp3",
+        "newKey": "books/the-coast-of-mombasa/p2-voice-mu5c8m0l.opt.mp3",
+        "bytesBefore": 148001,
+        "bytesAfter": 55554,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu369f24000c7kbwujt4lx0h",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-coast-of-mombasa/p3-voice-mu5c8pf4.mp3",
+        "newUrl": "https://media.animbook.com/books/the-coast-of-mombasa/p3-voice-mu5c8pf4.opt.mp3",
+        "oldKey": "books/the-coast-of-mombasa/p3-voice-mu5c8pf4.mp3",
+        "newKey": "books/the-coast-of-mombasa/p3-voice-mu5c8pf4.opt.mp3",
+        "bytesBefore": 111639,
+        "bytesAfter": 41918,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu369f24000d7kbw315a77in",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-coast-of-mombasa/p4-voice-mu5c8u1q.mp3",
+        "newUrl": "https://media.animbook.com/books/the-coast-of-mombasa/p4-voice-mu5c8u1q.opt.mp3",
+        "oldKey": "books/the-coast-of-mombasa/p4-voice-mu5c8u1q.mp3",
+        "newKey": "books/the-coast-of-mombasa/p4-voice-mu5c8u1q.opt.mp3",
+        "bytesBefore": 97846,
+        "bytesAfter": 36746,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

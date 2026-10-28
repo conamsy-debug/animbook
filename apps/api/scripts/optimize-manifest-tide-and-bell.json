@@ -1,0 +1,89 @@
+{
+  "generatedAt": "2026-10-28T16:26:50.237Z",
+  "bookId": "cmu36bjsr00267kkklbsi55f0",
+  "bookSlug": "tide-and-bell",
+  "bookTitle": "Tide and Bell",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36bk1h00287kkkv9z6yfal",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/tide-and-bell/p1-voice-mu5cfvhl.mp3",
+        "newUrl": "https://media.animbook.com/books/tide-and-bell/p1-voice-mu5cfvhl.opt.mp3",
+        "oldKey": "books/tide-and-bell/p1-voice-mu5cfvhl.mp3",
+        "newKey": "books/tide-and-bell/p1-voice-mu5cfvhl.opt.mp3",
+        "bytesBefore": 115400,
+        "bytesAfter": 43329,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bka7002a7kkk4dhaspo1",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/tide-and-bell/p2-voice-mu5cfxzt.mp3",
+        "newUrl": "https://media.animbook.com/books/tide-and-bell/p2-voice-mu5cfxzt.opt.mp3",
+        "oldKey": "books/tide-and-bell/p2-voice-mu5cfxzt.mp3",
+        "newKey": "books/tide-and-bell/p2-voice-mu5cfxzt.opt.mp3",
+        "bytesBefore": 76948,
+        "bytesAfter": 28909,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bkjx002c7kkkv1b25ybc",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/tide-and-bell/p3-voice-mu5cfzpx.mp3",
+        "newUrl": "https://media.animbook.com/books/tide-and-bell/p3-voice-mu5cfzpx.opt.mp3",
+        "oldKey": "books/tide-and-bell/p3-voice-mu5cfzpx.mp3",
+        "newKey": "books/tide-and-bell/p3-voice-mu5cfzpx.opt.mp3",
+        "bytesBefore": 70261,
+        "bytesAfter": 26401,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bkuu002e7kkk6bt68d5z",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/tide-and-bell/p4-voice-mu5cg1oa.mp3",
+        "newUrl": "https://media.animbook.com/books/tide-and-bell/p4-voice-mu5cg1oa.opt.mp3",
+        "oldKey": "books/tide-and-bell/p4-voice-mu5cg1oa.mp3",
+        "newKey": "books/tide-and-bell/p4-voice-mu5cg1oa.opt.mp3",
+        "bytesBefore": 104533,
+        "bytesAfter": 39254,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bl4c002g7kkkfo2ytq2v",
+      "pageNum": 5,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/tide-and-bell/p5-voice-mu5cg3k3.mp3",
+        "newUrl": "https://media.animbook.com/books/tide-and-bell/p5-voice-mu5cg3k3.opt.mp3",
+        "oldKey": "books/tide-and-bell/p5-voice-mu5cg3k3.mp3",
+        "newKey": "books/tide-and-bell/p5-voice-mu5cg3k3.opt.mp3",
+        "bytesBefore": 78202,
+        "bytesAfter": 29379,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

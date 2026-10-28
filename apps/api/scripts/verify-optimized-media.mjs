@@ -44,7 +44,34 @@ if (!slug) {
   process.exit(1);
 }
 
-const prisma = new PrismaClient({ datasources: { db: { url: env.DATABASE_URL } } });
+const prisma = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL || env.DATABASE_URL } } });
+
+/**
+ * Retry a database call.
+ *
+ * Neon occasionally refuses or drops the first connection after a cold start.
+ * A one-off script that only READS the live state must not abort half-way
+ * through a book because of a transient network blip.
+ */
+async function db(fn, attempts = 8) {
+  let lastErr;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const msg = String(err.message).split("\n").filter(Boolean).slice(0, 2).join(" ").slice(0, 140);
+      if (i < attempts) {
+        const wait = Math.min(15_000, 1000 * 2 ** (i - 1));
+        console.warn(`  db attempt ${i} failed (${msg}) - retrying in ${wait}ms`);
+        await new Promise((r) => setTimeout(r, wait));
+      } else {
+        console.error(`  db attempt ${i} failed: ${msg}`);
+      }
+    }
+  }
+  throw lastErr;
+}
 
 /** Top-level MP4 boxes, straight from the bytes. */
 function topLevelBoxes(file) {
@@ -84,35 +111,113 @@ function moovPosition(file) {
   return moov < mdat ? "front" : "back";
 }
 
-async function head(url) {
-  const res = await fetch(url, { method: "HEAD" });
-  return {
-    status: res.status,
-    type: res.headers.get("content-type"),
-    length: Number(res.headers.get("content-length") ?? 0),
-    cache: res.headers.get("cache-control"),
-    cors: res.headers.get("access-control-allow-origin")
-  };
+/**
+ * Every CDN call gets a deadline and a retry.
+ *
+ * The link between this machine and the Cloudflare edge is unreliable: a
+ * read-only HEAD/GET occasionally dies with ECONNRESET. One reset used to
+ * abort the whole verification half-way through a book, so a transient network
+ * blip looked like a broken asset. Retry a few times before giving up.
+ */
+const FETCH_TIMEOUT_MS = 180_000;
+
+function fetchWithTimeout(url, init = {}) {
+  return fetch(url, { ...init, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
 }
 
-async function download(url, dest) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  writeFileSync(dest, buf);
-  return buf;
-}
-
-const book = await prisma.book.findUnique({
-  where: { slug },
-  select: {
-    id: true,
-    slug: true,
-    title: true,
-    coverUrl: true,
-    pages: { orderBy: { pageNum: "asc" }, select: { pageNum: true, videoUrl: true, posterUrl: true, audioUrl: true } }
+async function head(url, attempts = 4) {
+  let lastErr;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      const res = await fetchWithTimeout(url, { method: "HEAD" });
+      // A 5xx from the edge is transient - it comes back for objects that are
+      // perfectly fine. Retry it. A 4xx is a real answer, so return it.
+      if (res.status >= 500) throw new Error(`HEAD ${url} -> ${res.status}`);
+      return {
+        status: res.status,
+        type: res.headers.get("content-type"),
+        length: Number(res.headers.get("content-length") ?? 0),
+        cache: res.headers.get("cache-control"),
+        cors: res.headers.get("access-control-allow-origin")
+      };
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts) {
+        console.warn(`  HEAD ${url} failed (${err.message}) - retry ${i}/${attempts - 1}`);
+        await new Promise((r) => setTimeout(r, 500 * i));
+      }
+    }
   }
-});
+  throw lastErr;
+}
+
+/**
+ * Download a CDN object, in Range chunks.
+ *
+ * The media edge kills a connection that has been transferring for about a
+ * minute, so a single GET of a multi-megabyte clip comes back truncated.
+ * Ranges keep every request inside that window.
+ */
+const RANGE_CHUNK_BYTES = 256 * 1024;
+const RANGE_MIN_CHUNK_BYTES = 8 * 1024;
+const RANGE_DEADLINE_MS = 40_000;
+
+async function download(url, dest, attempts = 12) {
+  const total = await head(url).then((h) => (h.status === 200 ? h.length : 0));
+  if (!total) {
+    const res = await fetchWithTimeout(url);
+    if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    writeFileSync(dest, buf);
+    return buf;
+  }
+
+  const out = Buffer.alloc(total);
+  let start = 0;
+  while (start < total) {
+    let end = Math.min(start + RANGE_CHUNK_BYTES, total) - 1;
+    let done = false;
+    for (let a = 1; a <= attempts && !done; a++) {
+      try {
+        const res = await fetch(url, {
+          headers: { Range: `bytes=${start}-${end}` },
+          signal: AbortSignal.timeout(RANGE_DEADLINE_MS)
+        });
+        if (res.status !== 206 && res.status !== 200) throw new Error(`range ${start}-${end} -> ${res.status}`);
+        const buf = Buffer.from(await res.arrayBuffer());
+        if (buf.length !== end - start + 1) throw new Error(`short range ${start}-${end} (${buf.length} B)`);
+        buf.copy(out, start);
+        done = true;
+      } catch (err) {
+        const span = end - start + 1;
+        if (span > RANGE_MIN_CHUNK_BYTES) {
+          end = start + Math.floor(span / 2) - 1;
+          console.warn(`  ${url} range ${start}-${end} stalled (${err.message}) - retrying in halves`);
+        } else {
+          console.warn(`  ${url} range ${start}-${end} failed (${err.message}) - retry ${a}/${attempts}`);
+          await new Promise((r) => setTimeout(r, Math.min(15_000, 400 * 2 ** (a - 1))));
+        }
+      }
+    }
+    if (!done) throw new Error(`GET ${url} -> could not fetch bytes ${start}-${end}`);
+    start = end + 1;
+  }
+  writeFileSync(dest, out);
+  return out;
+}
+
+const book = await db(() =>
+  prisma.book.findUnique({
+    where: { slug },
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      coverUrl: true,
+      pages: { orderBy: { pageNum: "asc" }, select: { pageNum: true, videoUrl: true, posterUrl: true, audioUrl: true } }
+    }
+  })
+);
 if (!book) {
   console.error(`No book with slug "${slug}".`);
   process.exit(1);

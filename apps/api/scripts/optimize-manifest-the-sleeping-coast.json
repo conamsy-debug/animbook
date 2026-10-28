@@ -1,0 +1,89 @@
+{
+  "generatedAt": "2026-10-28T16:23:50.302Z",
+  "bookId": "cmu36f3cw00007kwse22glyn6",
+  "bookSlug": "the-sleeping-coast",
+  "bookTitle": "The Sleeping Coast",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36f4hr00017kwsjlmri0r0",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-sleeping-coast/p1-voice-mu5cmwsq.mp3",
+        "newUrl": "https://media.animbook.com/books/the-sleeping-coast/p1-voice-mu5cmwsq.opt.mp3",
+        "oldKey": "books/the-sleeping-coast/p1-voice-mu5cmwsq.mp3",
+        "newKey": "books/the-sleeping-coast/p1-voice-mu5cmwsq.opt.mp3",
+        "bytesBefore": 79038,
+        "bytesAfter": 29693,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36f4hs00027kws034q7t8n",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-sleeping-coast/p2-voice-mu5cn1sn.mp3",
+        "newUrl": "https://media.animbook.com/books/the-sleeping-coast/p2-voice-mu5cn1sn.opt.mp3",
+        "oldKey": "books/the-sleeping-coast/p2-voice-mu5cn1sn.mp3",
+        "newKey": "books/the-sleeping-coast/p2-voice-mu5cn1sn.opt.mp3",
+        "bytesBefore": 117072,
+        "bytesAfter": 43956,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36f4hs00037kws8eadu4t8",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-sleeping-coast/p3-voice-mu5cn6qh.mp3",
+        "newUrl": "https://media.animbook.com/books/the-sleeping-coast/p3-voice-mu5cn6qh.opt.mp3",
+        "oldKey": "books/the-sleeping-coast/p3-voice-mu5cn6qh.mp3",
+        "newKey": "books/the-sleeping-coast/p3-voice-mu5cn6qh.opt.mp3",
+        "bytesBefore": 97846,
+        "bytesAfter": 36746,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36f4hs00047kwspwhx8plm",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-sleeping-coast/p4-voice-mu5cnb7j.mp3",
+        "newUrl": "https://media.animbook.com/books/the-sleeping-coast/p4-voice-mu5cnb7j.opt.mp3",
+        "oldKey": "books/the-sleeping-coast/p4-voice-mu5cnb7j.mp3",
+        "newKey": "books/the-sleeping-coast/p4-voice-mu5cnb7j.opt.mp3",
+        "bytesBefore": 83635,
+        "bytesAfter": 31417,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36f4hs00057kwsaavdl8ny",
+      "pageNum": 5,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-sleeping-coast/p5-voice-mu5cndsa.mp3",
+        "newUrl": "https://media.animbook.com/books/the-sleeping-coast/p5-voice-mu5cndsa.opt.mp3",
+        "oldKey": "books/the-sleeping-coast/p5-voice-mu5cndsa.mp3",
+        "newKey": "books/the-sleeping-coast/p5-voice-mu5cndsa.opt.mp3",
+        "bytesBefore": 90323,
+        "bytesAfter": 33925,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

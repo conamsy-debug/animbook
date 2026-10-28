@@ -1,0 +1,73 @@
+{
+  "generatedAt": "2026-10-28T16:12:25.701Z",
+  "bookId": "cmu36b4rr000d7kkkyoa8cb6b",
+  "bookSlug": "first-aid-for-the-road",
+  "bookTitle": "First Aid for the Road",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36b51a000f7kkkg9y1p8y5",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/first-aid-for-the-road/p1-voice-mu5ccxpw.mp3",
+        "newUrl": "https://media.animbook.com/books/first-aid-for-the-road/p1-voice-mu5ccxpw.opt.mp3",
+        "oldKey": "books/first-aid-for-the-road/p1-voice-mu5ccxpw.mp3",
+        "newKey": "books/first-aid-for-the-road/p1-voice-mu5ccxpw.opt.mp3",
+        "bytesBefore": 166809,
+        "bytesAfter": 62607,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36b5aj000h7kkkodzsvc0j",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/first-aid-for-the-road/p2-voice-mu5cd155.mp3",
+        "newUrl": "https://media.animbook.com/books/first-aid-for-the-road/p2-voice-mu5cd155.opt.mp3",
+        "oldKey": "books/first-aid-for-the-road/p2-voice-mu5cd155.mp3",
+        "newKey": "books/first-aid-for-the-road/p2-voice-mu5cd155.opt.mp3",
+        "bytesBefore": 165137,
+        "bytesAfter": 61980,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36b5k1000j7kkkfzzm73l6",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/first-aid-for-the-road/p3-voice-mu5cd472.mp3",
+        "newUrl": "https://media.animbook.com/books/first-aid-for-the-road/p3-voice-mu5cd472.opt.mp3",
+        "oldKey": "books/first-aid-for-the-road/p3-voice-mu5cd472.mp3",
+        "newKey": "books/first-aid-for-the-road/p3-voice-mu5cd472.opt.mp3",
+        "bytesBefore": 142986,
+        "bytesAfter": 53673,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36b6n4000l7kkkrktkv926",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/first-aid-for-the-road/p4-voice-mu5cd6vd.mp3",
+        "newUrl": "https://media.animbook.com/books/first-aid-for-the-road/p4-voice-mu5cd6vd.opt.mp3",
+        "oldKey": "books/first-aid-for-the-road/p4-voice-mu5cd6vd.mp3",
+        "newKey": "books/first-aid-for-the-road/p4-voice-mu5cd6vd.opt.mp3",
+        "bytesBefore": 138388,
+        "bytesAfter": 51949,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

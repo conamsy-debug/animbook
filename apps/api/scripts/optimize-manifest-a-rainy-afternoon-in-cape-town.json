@@ -1,0 +1,89 @@
+{
+  "generatedAt": "2026-10-28T16:10:05.401Z",
+  "bookId": "cmu36bxvm003y7kkkgqfcn1k4",
+  "bookSlug": "a-rainy-afternoon-in-cape-town",
+  "bookTitle": "A Rainy Afternoon in Cape Town",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36by4w00407kkkhc039zx4",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/a-rainy-afternoon-in-cape-town/p1-voice-mu5ci0mq.mp3",
+        "newUrl": "https://media.animbook.com/books/a-rainy-afternoon-in-cape-town/p1-voice-mu5ci0mq.opt.mp3",
+        "oldKey": "books/a-rainy-afternoon-in-cape-town/p1-voice-mu5ci0mq.mp3",
+        "newKey": "books/a-rainy-afternoon-in-cape-town/p1-voice-mu5ci0mq.opt.mp3",
+        "bytesBefore": 192723,
+        "bytesAfter": 72325,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36byds00427kkk0zbu1nzm",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/a-rainy-afternoon-in-cape-town/p2-voice-mu5ci40j.mp3",
+        "newUrl": "https://media.animbook.com/books/a-rainy-afternoon-in-cape-town/p2-voice-mu5ci40j.opt.mp3",
+        "oldKey": "books/a-rainy-afternoon-in-cape-town/p2-voice-mu5ci40j.mp3",
+        "newKey": "books/a-rainy-afternoon-in-cape-town/p2-voice-mu5ci40j.opt.mp3",
+        "bytesBefore": 147583,
+        "bytesAfter": 55397,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bz0200447kkkh04oez4s",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/a-rainy-afternoon-in-cape-town/p3-voice-mu5ci6uj.mp3",
+        "newUrl": "https://media.animbook.com/books/a-rainy-afternoon-in-cape-town/p3-voice-mu5ci6uj.opt.mp3",
+        "oldKey": "books/a-rainy-afternoon-in-cape-town/p3-voice-mu5ci6uj.mp3",
+        "newKey": "books/a-rainy-afternoon-in-cape-town/p3-voice-mu5ci6uj.opt.mp3",
+        "bytesBefore": 144657,
+        "bytesAfter": 54300,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bz8l00467kkkcf0t44bz",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/a-rainy-afternoon-in-cape-town/p4-voice-mu5ci9de.mp3",
+        "newUrl": "https://media.animbook.com/books/a-rainy-afternoon-in-cape-town/p4-voice-mu5ci9de.opt.mp3",
+        "oldKey": "books/a-rainy-afternoon-in-cape-town/p4-voice-mu5ci9de.mp3",
+        "newKey": "books/a-rainy-afternoon-in-cape-town/p4-voice-mu5ci9de.opt.mp3",
+        "bytesBefore": 138388,
+        "bytesAfter": 51949,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bzog00487kkkmmqdgkno",
+      "pageNum": 5,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/a-rainy-afternoon-in-cape-town/p5-voice-mu5cic5u.mp3",
+        "newUrl": "https://media.animbook.com/books/a-rainy-afternoon-in-cape-town/p5-voice-mu5cic5u.opt.mp3",
+        "oldKey": "books/a-rainy-afternoon-in-cape-town/p5-voice-mu5cic5u.mp3",
+        "newKey": "books/a-rainy-afternoon-in-cape-town/p5-voice-mu5cic5u.opt.mp3",
+        "bytesBefore": 102862,
+        "bytesAfter": 38627,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

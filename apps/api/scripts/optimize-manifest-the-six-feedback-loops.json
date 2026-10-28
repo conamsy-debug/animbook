@@ -1,0 +1,105 @@
+{
+  "generatedAt": "2026-10-28T16:24:34.441Z",
+  "bookId": "cmu36bv3s003l7kkklate05kx",
+  "bookSlug": "the-six-feedback-loops",
+  "bookTitle": "The Six Feedback Loops",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36bvd0003n7kkkqdknwoem",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-six-feedback-loops/p1-voice-mu5chl62.mp3",
+        "newUrl": "https://media.animbook.com/books/the-six-feedback-loops/p1-voice-mu5chl62.opt.mp3",
+        "oldKey": "books/the-six-feedback-loops/p1-voice-mu5chl62.mp3",
+        "newKey": "books/the-six-feedback-loops/p1-voice-mu5chl62.opt.mp3",
+        "bytesBefore": 162212,
+        "bytesAfter": 60883,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bvzv003p7kkkljk37xxo",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-six-feedback-loops/p2-voice-mu5cho4m.mp3",
+        "newUrl": "https://media.animbook.com/books/the-six-feedback-loops/p2-voice-mu5cho4m.opt.mp3",
+        "oldKey": "books/the-six-feedback-loops/p2-voice-mu5cho4m.mp3",
+        "newKey": "books/the-six-feedback-loops/p2-voice-mu5cho4m.opt.mp3",
+        "bytesBefore": 163884,
+        "bytesAfter": 61510,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bw8u003r7kkkdiuvgvak",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-six-feedback-loops/p3-voice-mu5chr6b.mp3",
+        "newUrl": "https://media.animbook.com/books/the-six-feedback-loops/p3-voice-mu5chr6b.opt.mp3",
+        "oldKey": "books/the-six-feedback-loops/p3-voice-mu5chr6b.mp3",
+        "newKey": "books/the-six-feedback-loops/p3-voice-mu5chr6b.opt.mp3",
+        "bytesBefore": 137134,
+        "bytesAfter": 51479,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bwjm003t7kkkuqs82dva",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-six-feedback-loops/p4-voice-mu5cht6a.mp3",
+        "newUrl": "https://media.animbook.com/books/the-six-feedback-loops/p4-voice-mu5cht6a.opt.mp3",
+        "oldKey": "books/the-six-feedback-loops/p4-voice-mu5cht6a.mp3",
+        "newKey": "books/the-six-feedback-loops/p4-voice-mu5cht6a.opt.mp3",
+        "bytesBefore": 122924,
+        "bytesAfter": 46150,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bws8003v7kkkqkjlg14r",
+      "pageNum": 5,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-six-feedback-loops/p5-voice-mu5chw0d.mp3",
+        "newUrl": "https://media.animbook.com/books/the-six-feedback-loops/p5-voice-mu5chw0d.opt.mp3",
+        "oldKey": "books/the-six-feedback-loops/p5-voice-mu5chw0d.mp3",
+        "newKey": "books/the-six-feedback-loops/p5-voice-mu5chw0d.opt.mp3",
+        "bytesBefore": 142986,
+        "bytesAfter": 53673,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bx0r003x7kkkgbtm1z8j",
+      "pageNum": 6,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-six-feedback-loops/p6-voice-mu5chyl3.mp3",
+        "newUrl": "https://media.animbook.com/books/the-six-feedback-loops/p6-voice-mu5chyl3.opt.mp3",
+        "oldKey": "books/the-six-feedback-loops/p6-voice-mu5chyl3.mp3",
+        "newKey": "books/the-six-feedback-loops/p6-voice-mu5chyl3.opt.mp3",
+        "bytesBefore": 95338,
+        "bytesAfter": 35806,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

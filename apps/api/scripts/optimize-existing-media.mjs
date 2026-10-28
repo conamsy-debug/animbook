@@ -61,14 +61,36 @@ const COVER_MAX_WIDTH = 800;
 const WEBP_QUALITY = 80;
 
 /**
+ * What the optimiser can actually work on.
+ *
+ * Two kinds of URL are NOT real media and must be skipped:
+ *
+ *  - placeholder art (placehold.co), which is a generated PNG standing in for
+ *    a video frame or a cover that was never produced. It is not an R2 object
+ *    key, and turning it into a temp filename produces an illegal path on
+ *    Windows, which aborted the whole book.
+ *  - inline `data:` / `blob:` URLs, which some scaffolded books carry instead
+ *    of a stored object. There is nothing in the bucket to re-encode.
+ */
+const SKIPPABLE_RE = /placehold\.co|placeholder|dummy|^data:|^blob:/i;
+const isSkippable = (url) => Boolean(url) && (SKIPPABLE_RE.test(url) || !/^https?:\/\//i.test(url));
+
+/**
  * The database to use. Defaults to apps/api/.env, but an explicit
  * DATABASE_URL in the environment wins — that is how you point this at the
  * DIRECT (non-pooled) Neon endpoint when the pooler is flaky.
  */
 const DB_URL = process.env.DATABASE_URL || env.DATABASE_URL;
 
-/** Every network call gets a deadline — a stalled CDN must not hang the run. */
-const FETCH_TIMEOUT_MS = 60_000;
+/**
+ * Every network call gets a deadline — a stalled CDN must not hang the run.
+ *
+ * The deadline is generous because this link can run at well under 5 KB/s: a
+ * 2 MB cover legitimately needs minutes. A connection that is killed
+ * mid-transfer still fails immediately, so the long deadline only bounds
+ * genuinely stuck sockets - it does not slow down the common retry path.
+ */
+const FETCH_TIMEOUT_MS = 180_000;
 
 function fetchWithTimeout(url, init = {}) {
   return fetch(url, { ...init, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
@@ -81,7 +103,7 @@ function fetchWithTimeout(url, init = {}) {
  * first connection after a cold start. A one-off script that repoints
  * production rows must survive that, not abort half-way through.
  */
-async function db(fn, attempts = 4) {
+async function db(fn, attempts = 8) {
   let lastErr;
   for (let i = 1; i <= attempts; i++) {
     try {
@@ -90,7 +112,9 @@ async function db(fn, attempts = 4) {
       lastErr = err;
       const msg = String(err.message).split("\n").filter(Boolean).slice(0, 2).join(" ").slice(0, 140);
       if (i < attempts) {
-        const wait = 1000 * i;
+        // The link to Neon goes down for a while at a time. Back off
+        // exponentially (capped) and ride the outage out.
+        const wait = Math.min(15_000, 1000 * 2 ** (i - 1));
         console.warn(`  db attempt ${i} failed (${msg}) - retrying in ${wait}ms`);
         await new Promise((r) => setTimeout(r, wait));
       } else {
@@ -259,48 +283,153 @@ function runFfmpeg(outputArgs, inputPath, outputPath) {
   return { ok: r.status === 0, stderr: (r.stderr || "").slice(0, 400) };
 }
 
-/** Download a CDN object to a local path. Retries transient network errors. */
-async function download(url, dest, attempts = 4) {
+/**
+ * Download a CDN object to a local path, in Range chunks.
+ *
+ * The media edge kills a connection that has been transferring for about a
+ * minute: a single GET of a multi-megabyte file dies part-way through, at
+ * whatever byte it had reached. Measured on this link, a 917 KB object came
+ * back truncated at 60.008 s, while the very next range request pulled
+ * 131 KB in 1.26 s.
+ *
+ * So the object is fetched as small ranges instead, each one its own
+ * connection and each one comfortably inside that window. A range that stalls
+ * is retried, and retried in halves, because a throttled connection gets
+ * through far more often when it carries less data.
+ */
+const RANGE_CHUNK_BYTES = 256 * 1024;
+const RANGE_MIN_CHUNK_BYTES = 8 * 1024;
+/** Below the edge's ~60 s kill window, so a stall is detected by us first. */
+const RANGE_DEADLINE_MS = 40_000;
+
+async function fetchRange(url, start, end, deadlineMs) {
+  const res = await fetch(url, {
+    headers: { Range: `bytes=${start}-${end}` },
+    signal: AbortSignal.timeout(deadlineMs)
+  });
+  if (res.status !== 206 && res.status !== 200) {
+    throw new Error(`range ${start}-${end} -> ${res.status}`);
+  }
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.length !== end - start + 1) {
+    throw new Error(`short range ${start}-${end} (${buf.length} B)`);
+  }
+  return buf;
+}
+
+/**
+ * The size of an object, via HEAD.
+ *
+ * The edge returns the occasional 5xx for a perfectly good object, so this
+ * retries - without it one transient 500 loses the whole book.
+ */
+async function headContentLength(url, attempts = 4) {
   let lastErr;
   for (let i = 1; i <= attempts; i++) {
     try {
-      const res = await fetchWithTimeout(url);
-      if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`);
-      const buf = Buffer.from(await res.arrayBuffer());
-      if (buf.length === 0) throw new Error(`GET ${url} -> empty body`);
-      writeFileSync(dest, buf);
-      return buf.length;
+      const res = await fetchWithTimeout(url, { method: "HEAD" });
+      if (!res.ok) throw new Error(`HEAD ${url} -> ${res.status}`);
+      return Number(res.headers.get("content-length") ?? 0);
     } catch (err) {
       lastErr = err;
       if (i < attempts) {
-        const wait = 500 * i;
-        console.warn(`  download ${url} failed (${err.message}) - retry ${i}/${attempts - 1} in ${wait}ms`);
-        await new Promise((r) => setTimeout(r, wait));
+        console.warn(`  HEAD ${url} failed (${err.message}) - retry ${i}/${attempts - 1}`);
+        await new Promise((r) => setTimeout(r, 500 * i));
       }
     }
   }
   throw lastErr;
 }
 
-async function upload(key, body, contentType) {
-  const res = await r2.fetch(objectUrl(key), {
-    method: "PUT",
-    headers: { "Content-Type": contentType, "Content-Length": String(body.byteLength) },
-    body: new Uint8Array(body)
-  });
-  if (!res.ok) throw new Error(`PUT ${key} -> ${res.status} ${(await res.text().catch(() => "")).slice(0, 200)}`);
-  return `${CDN}/${key}`;
+async function download(url, dest, attempts = 12) {
+  const total = await headContentLength(url);
+  if (!total) {
+    // No content-length to range over - fall back to a plain GET.
+    const res = await fetchWithTimeout(url);
+    if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length === 0) throw new Error(`GET ${url} -> empty body`);
+    writeFileSync(dest, buf);
+    return buf.length;
+  }
+
+  const out = Buffer.alloc(total);
+  let start = 0;
+  while (start < total) {
+    let end = Math.min(start + RANGE_CHUNK_BYTES, total) - 1;
+    let done = false;
+    for (let a = 1; a <= attempts && !done; a++) {
+      try {
+        const buf = await fetchRange(url, start, end, RANGE_DEADLINE_MS);
+        buf.copy(out, start);
+        done = true;
+      } catch (err) {
+        const span = end - start + 1;
+        if (span > RANGE_MIN_CHUNK_BYTES) {
+          // Halve the range: a throttled connection usually gets through with
+          // less data on it.
+          end = start + Math.floor(span / 2) - 1;
+          console.warn(`  ${url} range ${start}-${end} stalled (${err.message}) - retrying in halves`);
+        } else {
+          console.warn(`  ${url} range ${start}-${end} failed (${err.message}) - retry ${a}/${attempts}`);
+          // The link goes through patches where every connection dies. Back off
+          // exponentially (capped) so a patch that clears in a minute is ridden
+          // out instead of failing the asset.
+          await new Promise((r) => setTimeout(r, Math.min(15_000, 400 * 2 ** (a - 1))));
+        }
+      }
+    }
+    if (!done) throw new Error(`GET ${url} -> could not fetch bytes ${start}-${end}`);
+    start = end + 1;
+  }
+  writeFileSync(dest, out);
+  return out.length;
+}
+
+async function upload(key, body, contentType, attempts = 4) {
+  let lastErr;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      const res = await r2.fetch(objectUrl(key), {
+        method: "PUT",
+        headers: { "Content-Type": contentType, "Content-Length": String(body.byteLength) },
+        body: new Uint8Array(body),
+        signal: AbortSignal.timeout(180_000)
+      });
+      if (!res.ok) throw new Error(`PUT ${key} -> ${res.status} ${(await res.text().catch(() => "")).slice(0, 200)}`);
+      return `${CDN}/${key}`;
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts) {
+        console.warn(`  upload ${key} failed (${err.message}) - retry ${i}/${attempts - 1}`);
+        await new Promise((r) => setTimeout(r, 500 * i));
+      }
+    }
+  }
+  throw lastErr;
 }
 
 /** Confirm the object really landed and is served with the right type + size. */
-async function headCdn(key) {
-  const res = await fetchWithTimeout(`${CDN}/${key}`, { method: "HEAD" });
-  return {
-    ok: res.ok,
-    status: res.status,
-    type: res.headers.get("content-type"),
-    length: Number(res.headers.get("content-length") ?? 0)
-  };
+async function headCdn(key, attempts = 4) {
+  let lastErr;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      const res = await fetchWithTimeout(`${CDN}/${key}`, { method: "HEAD" });
+      return {
+        ok: res.ok,
+        status: res.status,
+        type: res.headers.get("content-type"),
+        length: Number(res.headers.get("content-length") ?? 0)
+      };
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts) {
+        console.warn(`  HEAD ${key} failed (${err.message}) - retry ${i}/${attempts - 1}`);
+        await new Promise((r) => setTimeout(r, 500 * i));
+      }
+    }
+  }
+  throw lastErr;
 }
 
 /** Does an object exist on the CDN? */
@@ -340,6 +469,10 @@ function manifestEntries(m) {
  */
 async function originalOf(url) {
   if (!url) return null;
+  if (isSkippable(url)) {
+    console.warn(`  skipped (not a real media object): ${url.slice(0, 90)}`);
+    return null;
+  }
   const key = url.replace(`${CDN}/`, "");
   if (!/\.opt\.[a-z0-9]+$/i.test(key)) return { url, key };
 
@@ -604,11 +737,22 @@ for (const p of pages) {
       const before = readFileSync(src).length;
       const out = join(tmp, `p${p.pageNum}.opt.mp3`);
       const r = runFfmpeg(["-ac", "1", "-c:a", "libmp3lame", "-b:a", "48k", "-f", "mp3"], src, out);
+      // Probe the LOCAL file: the CDN copy does not exist yet during a dry run.
+      // A malformed source produces a file ffprobe cannot read - that is a
+      // failed ASSET, not a failed book, so it must not throw.
+      let probe = null;
       if (r.ok) {
+        try {
+          probe = ffprobeJson(out);
+        } catch (err) {
+          console.log(
+            `p${p.pageNum} audio   FAILED: ffprobe could not read the converted file (${String(err.message).slice(0, 120)})`
+          );
+        }
+      }
+      if (r.ok && probe) {
         const body = readFileSync(out);
         const newKey = key.replace(/\.mp3$/, "") + ".opt.mp3";
-        // Probe the LOCAL file: the CDN copy does not exist yet during a dry run.
-        const probe = ffprobeJson(out);
         if (!dryRun) {
           await upload(newKey, body, "audio/mpeg");
           const h = await headCdn(newKey);
@@ -628,7 +772,7 @@ for (const p of pages) {
           channels: a?.channels ?? null,
           sampleRate: a?.sample_rate ?? null
         };
-      } else {
+      } else if (!r.ok) {
         console.log(`p${p.pageNum} audio   FAILED: ${r.stderr}`);
       }
     }
@@ -639,6 +783,12 @@ for (const p of pages) {
 
 /* ---- repoint the database ---- */
 if (!dryRun) {
+  /* Write the manifest BEFORE the database is repointed. If the process dies
+     between the two, the manifest is already on disk, so the book can still be
+     rolled back on its own. */
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
+  console.log(`\nMANIFEST ${manifestPath}`);
+
   if (manifest.cover) {
     await db(() => prisma.book.update({ where: { id: book.id }, data: { coverUrl: manifest.cover.newUrl } }));
   }
@@ -650,7 +800,6 @@ if (!dryRun) {
     if (Object.keys(data).length) await db(() => prisma.page.update({ where: { id: e.pageId }, data }));
   }
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
-  console.log(`\nMANIFEST ${manifestPath}`);
   console.log("Database URLs repointed. Originals left untouched in R2.");
   console.log(`Roll back with: node apps/api/scripts/rollback-optimized-media.mjs ${book.slug}`);
 

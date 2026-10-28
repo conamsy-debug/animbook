@@ -1,0 +1,89 @@
+{
+  "generatedAt": "2026-10-28T16:22:31.872Z",
+  "bookId": "cmu36997u00017kbwfxhlgbci",
+  "bookSlug": "the-night-train",
+  "bookTitle": "The Night Train",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu369aal00027kbw3hxlj8c0",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-night-train/p1-voice-mu5c85mt.mp3",
+        "newUrl": "https://media.animbook.com/books/the-night-train/p1-voice-mu5c85mt.opt.mp3",
+        "oldKey": "books/the-night-train/p1-voice-mu5c85mt.mp3",
+        "newKey": "books/the-night-train/p1-voice-mu5c85mt.opt.mp3",
+        "bytesBefore": 123759,
+        "bytesAfter": 46463,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu369aal00037kbw3l40q8rh",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-night-train/p2-voice-mu5c89j7.mp3",
+        "newUrl": "https://media.animbook.com/books/the-night-train/p2-voice-mu5c89j7.opt.mp3",
+        "oldKey": "books/the-night-train/p2-voice-mu5c89j7.mp3",
+        "newKey": "books/the-night-train/p2-voice-mu5c89j7.opt.mp3",
+        "bytesBefore": 105787,
+        "bytesAfter": 39724,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu369aal00047kbw6o8dq6ty",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-night-train/p3-voice-mu5c8bwi.mp3",
+        "newUrl": "https://media.animbook.com/books/the-night-train/p3-voice-mu5c8bwi.opt.mp3",
+        "oldKey": "books/the-night-train/p3-voice-mu5c8bwi.mp3",
+        "newKey": "books/the-night-train/p3-voice-mu5c8bwi.opt.mp3",
+        "bytesBefore": 106623,
+        "bytesAfter": 40037,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu369aal00057kbwp0yy6trq",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-night-train/p4-voice-mu5c8ec2.mp3",
+        "newUrl": "https://media.animbook.com/books/the-night-train/p4-voice-mu5c8ec2.opt.mp3",
+        "oldKey": "books/the-night-train/p4-voice-mu5c8ec2.mp3",
+        "newKey": "books/the-night-train/p4-voice-mu5c8ec2.opt.mp3",
+        "bytesBefore": 88651,
+        "bytesAfter": 33298,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu369aal00067kbwj1c70ud3",
+      "pageNum": 5,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-night-train/p5-voice-mu5c8gch.mp3",
+        "newUrl": "https://media.animbook.com/books/the-night-train/p5-voice-mu5c8gch.opt.mp3",
+        "oldKey": "books/the-night-train/p5-voice-mu5c8gch.mp3",
+        "newKey": "books/the-night-train/p5-voice-mu5c8gch.opt.mp3",
+        "bytesBefore": 109549,
+        "bytesAfter": 41135,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

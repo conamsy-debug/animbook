@@ -1,0 +1,105 @@
+{
+  "generatedAt": "2026-10-28T16:25:57.030Z",
+  "bookId": "cmu36c0kg00497kkk1yv5jeyg",
+  "bookSlug": "the-third-floor",
+  "bookTitle": "The Third Floor",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36c0sy004b7kkk2p664i95",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-third-floor/p1-voice-mu5ciebn.mp3",
+        "newUrl": "https://media.animbook.com/books/the-third-floor/p1-voice-mu5ciebn.opt.mp3",
+        "oldKey": "books/the-third-floor/p1-voice-mu5ciebn.mp3",
+        "newKey": "books/the-third-floor/p1-voice-mu5ciebn.opt.mp3",
+        "bytesBefore": 112475,
+        "bytesAfter": 42232,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36c1bq004d7kkkzu2rlvhr",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-third-floor/p2-voice-mu5cigi0.mp3",
+        "newUrl": "https://media.animbook.com/books/the-third-floor/p2-voice-mu5cigi0.opt.mp3",
+        "oldKey": "books/the-third-floor/p2-voice-mu5cigi0.mp3",
+        "newKey": "books/the-third-floor/p2-voice-mu5cigi0.opt.mp3",
+        "bytesBefore": 137134,
+        "bytesAfter": 51479,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36c1ko004f7kkk28ggogad",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-third-floor/p3-voice-mu5ciivg.mp3",
+        "newUrl": "https://media.animbook.com/books/the-third-floor/p3-voice-mu5ciivg.opt.mp3",
+        "oldKey": "books/the-third-floor/p3-voice-mu5ciivg.mp3",
+        "newKey": "books/the-third-floor/p3-voice-mu5ciivg.opt.mp3",
+        "bytesBefore": 92413,
+        "bytesAfter": 34708,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36c1ty004h7kkki6yq5j81",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-third-floor/p4-voice-mu5cimuh.mp3",
+        "newUrl": "https://media.animbook.com/books/the-third-floor/p4-voice-mu5cimuh.opt.mp3",
+        "oldKey": "books/the-third-floor/p4-voice-mu5cimuh.mp3",
+        "newKey": "books/the-third-floor/p4-voice-mu5cimuh.opt.mp3",
+        "bytesBefore": 94084,
+        "bytesAfter": 35335,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36c2il004j7kkkpy8i7ivc",
+      "pageNum": 5,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-third-floor/p5-voice-mu5cipnj.mp3",
+        "newUrl": "https://media.animbook.com/books/the-third-floor/p5-voice-mu5cipnj.opt.mp3",
+        "oldKey": "books/the-third-floor/p5-voice-mu5cipnj.mp3",
+        "newKey": "books/the-third-floor/p5-voice-mu5cipnj.opt.mp3",
+        "bytesBefore": 137134,
+        "bytesAfter": 51479,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36c2ri004l7kkkk1gmebr9",
+      "pageNum": 6,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-third-floor/p6-voice-mu5cis80.mp3",
+        "newUrl": "https://media.animbook.com/books/the-third-floor/p6-voice-mu5cis80.opt.mp3",
+        "oldKey": "books/the-third-floor/p6-voice-mu5cis80.mp3",
+        "newKey": "books/the-third-floor/p6-voice-mu5cis80.opt.mp3",
+        "bytesBefore": 160958,
+        "bytesAfter": 60413,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

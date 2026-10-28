@@ -1,0 +1,73 @@
+{
+  "generatedAt": "2026-10-28T16:10:57.425Z",
+  "bookId": "cmu36bi07001x7kkkpqy6rh37",
+  "bookSlug": "a-walk-through-the-rain",
+  "bookTitle": "A Walk Through the Rain",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36bia9001z7kkk4im0u6eb",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/a-walk-through-the-rain/p1-voice-mu5cfl90.mp3",
+        "newUrl": "https://media.animbook.com/books/a-walk-through-the-rain/p1-voice-mu5cfl90.opt.mp3",
+        "oldKey": "books/a-walk-through-the-rain/p1-voice-mu5cfl90.mp3",
+        "newKey": "books/a-walk-through-the-rain/p1-voice-mu5cfl90.opt.mp3",
+        "bytesBefore": 169735,
+        "bytesAfter": 63704,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36biks00217kkkg8qqifnn",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/a-walk-through-the-rain/p2-voice-mu5cfnz5.mp3",
+        "newUrl": "https://media.animbook.com/books/a-walk-through-the-rain/p2-voice-mu5cfnz5.opt.mp3",
+        "oldKey": "books/a-walk-through-the-rain/p2-voice-mu5cfnz5.mp3",
+        "newKey": "books/a-walk-through-the-rain/p2-voice-mu5cfnz5.opt.mp3",
+        "bytesBefore": 94084,
+        "bytesAfter": 35335,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36biyj00237kkkwbznrcsl",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/a-walk-through-the-rain/p3-voice-mu5cfq5l.mp3",
+        "newUrl": "https://media.animbook.com/books/a-walk-through-the-rain/p3-voice-mu5cfq5l.opt.mp3",
+        "oldKey": "books/a-walk-through-the-rain/p3-voice-mu5cfq5l.mp3",
+        "newKey": "books/a-walk-through-the-rain/p3-voice-mu5cfq5l.opt.mp3",
+        "bytesBefore": 118326,
+        "bytesAfter": 44426,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bj7e00257kkkhuvfag5i",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/a-walk-through-the-rain/p4-voice-mu5cfsoq.mp3",
+        "newUrl": "https://media.animbook.com/books/a-walk-through-the-rain/p4-voice-mu5cfsoq.opt.mp3",
+        "oldKey": "books/a-walk-through-the-rain/p4-voice-mu5cfsoq.mp3",
+        "newKey": "books/a-walk-through-the-rain/p4-voice-mu5cfsoq.opt.mp3",
+        "bytesBefore": 127521,
+        "bytesAfter": 47874,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

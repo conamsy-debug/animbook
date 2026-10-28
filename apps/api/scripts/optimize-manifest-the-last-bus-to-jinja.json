@@ -1,0 +1,89 @@
+{
+  "generatedAt": "2026-10-28T16:16:21.967Z",
+  "bookId": "cmu36c41y004m7kkkt2vwsmc8",
+  "bookSlug": "the-last-bus-to-jinja",
+  "bookTitle": "The Last Bus to Jinja",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36c4bf004o7kkk3q0jwfyv",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-last-bus-to-jinja/p1-voice-mu5civbe.mp3",
+        "newUrl": "https://media.animbook.com/books/the-last-bus-to-jinja/p1-voice-mu5civbe.opt.mp3",
+        "oldKey": "books/the-last-bus-to-jinja/p1-voice-mu5civbe.mp3",
+        "newKey": "books/the-last-bus-to-jinja/p1-voice-mu5civbe.opt.mp3",
+        "bytesBefore": 145911,
+        "bytesAfter": 54770,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36c4pq004q7kkk68nt8fk2",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-last-bus-to-jinja/p2-voice-mu5ciy59.mp3",
+        "newUrl": "https://media.animbook.com/books/the-last-bus-to-jinja/p2-voice-mu5ciy59.opt.mp3",
+        "oldKey": "books/the-last-bus-to-jinja/p2-voice-mu5ciy59.mp3",
+        "newKey": "books/the-last-bus-to-jinja/p2-voice-mu5ciy59.opt.mp3",
+        "bytesBefore": 148001,
+        "bytesAfter": 55554,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36c4yj004s7kkknsfuqfj1",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-last-bus-to-jinja/p3-voice-mu5cj1fe.mp3",
+        "newUrl": "https://media.animbook.com/books/the-last-bus-to-jinja/p3-voice-mu5cj1fe.opt.mp3",
+        "oldKey": "books/the-last-bus-to-jinja/p3-voice-mu5cj1fe.mp3",
+        "newKey": "books/the-last-bus-to-jinja/p3-voice-mu5cj1fe.opt.mp3",
+        "bytesBefore": 145075,
+        "bytesAfter": 54457,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36c5aa004u7kkketruky4f",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-last-bus-to-jinja/p4-voice-mu5cj4i9.mp3",
+        "newUrl": "https://media.animbook.com/books/the-last-bus-to-jinja/p4-voice-mu5cj4i9.opt.mp3",
+        "oldKey": "books/the-last-bus-to-jinja/p4-voice-mu5cj4i9.mp3",
+        "newKey": "books/the-last-bus-to-jinja/p4-voice-mu5cj4i9.opt.mp3",
+        "bytesBefore": 198574,
+        "bytesAfter": 74519,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36c60i004w7kkkwywbcld8",
+      "pageNum": 5,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-last-bus-to-jinja/p5-voice-mu5cj7uc.mp3",
+        "newUrl": "https://media.animbook.com/books/the-last-bus-to-jinja/p5-voice-mu5cj7uc.opt.mp3",
+        "oldKey": "books/the-last-bus-to-jinja/p5-voice-mu5cj7uc.mp3",
+        "newKey": "books/the-last-bus-to-jinja/p5-voice-mu5cj7uc.opt.mp3",
+        "bytesBefore": 182274,
+        "bytesAfter": 68406,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

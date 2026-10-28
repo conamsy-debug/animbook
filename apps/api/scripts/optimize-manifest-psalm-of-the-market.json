@@ -1,0 +1,73 @@
+{
+  "generatedAt": "2026-10-28T16:15:18.087Z",
+  "bookId": "cmu36bllu002h7kkku4x5rioz",
+  "bookSlug": "psalm-of-the-market",
+  "bookTitle": "Psalm of the Market",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36bm0t002j7kkklw939suv",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/psalm-of-the-market/p1-voice-mu5cg5sq.mp3",
+        "newUrl": "https://media.animbook.com/books/psalm-of-the-market/p1-voice-mu5cg5sq.opt.mp3",
+        "oldKey": "books/psalm-of-the-market/p1-voice-mu5cg5sq.mp3",
+        "newKey": "books/psalm-of-the-market/p1-voice-mu5cg5sq.opt.mp3",
+        "bytesBefore": 151345,
+        "bytesAfter": 56808,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bm9w002l7kkkyxz83fp4",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/psalm-of-the-market/p2-voice-mu5cg8eu.mp3",
+        "newUrl": "https://media.animbook.com/books/psalm-of-the-market/p2-voice-mu5cg8eu.opt.mp3",
+        "oldKey": "books/psalm-of-the-market/p2-voice-mu5cg8eu.mp3",
+        "newKey": "books/psalm-of-the-market/p2-voice-mu5cg8eu.opt.mp3",
+        "bytesBefore": 135462,
+        "bytesAfter": 50852,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bmw2002n7kkkk4jmod5e",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/psalm-of-the-market/p3-voice-mu5cgbqk.mp3",
+        "newUrl": "https://media.animbook.com/books/psalm-of-the-market/p3-voice-mu5cgbqk.opt.mp3",
+        "oldKey": "books/psalm-of-the-market/p3-voice-mu5cgbqk.mp3",
+        "newKey": "books/psalm-of-the-market/p3-voice-mu5cgbqk.opt.mp3",
+        "bytesBefore": 112475,
+        "bytesAfter": 42232,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bn70002p7kkku00p186h",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/psalm-of-the-market/p4-voice-mu5cgdr7.mp3",
+        "newUrl": "https://media.animbook.com/books/psalm-of-the-market/p4-voice-mu5cgdr7.opt.mp3",
+        "oldKey": "books/psalm-of-the-market/p4-voice-mu5cgdr7.mp3",
+        "newKey": "books/psalm-of-the-market/p4-voice-mu5cgdr7.opt.mp3",
+        "bytesBefore": 116236,
+        "bytesAfter": 43642,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

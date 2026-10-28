@@ -1,0 +1,194 @@
+{
+  "generatedAt": "2026-10-28T16:35:08.020Z",
+  "bookId": "cmu36crq700007ku4i8682ybf",
+  "bookSlug": "the-tale-of-peter-rabbit",
+  "bookTitle": "The Tale of Peter Rabbit",
+  "cover": {
+    "oldUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/cover-mu5i8sss.png",
+    "newUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/cover-mu5i8sss.opt.webp",
+    "oldKey": "books/the-tale-of-peter-rabbit/cover-mu5i8sss.png",
+    "newKey": "books/the-tale-of-peter-rabbit/cover-mu5i8sss.opt.webp",
+    "bytesBefore": 1231865,
+    "bytesAfter": 78518,
+    "socialKey": "books/the-tale-of-peter-rabbit/cover-mu5i8sss.social.jpg",
+    "socialUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/cover-mu5i8sss.social.jpg"
+  },
+  "pages": [
+    {
+      "pageId": "cmu36csqy00017ku48dtbxdr6",
+      "pageNum": 1,
+      "video": {
+        "oldUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p1-mu5iagxf.mp4",
+        "newUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p1-mu5iagxf.opt.mp4",
+        "oldKey": "books/the-tale-of-peter-rabbit/p1-mu5iagxf.mp4",
+        "newKey": "books/the-tale-of-peter-rabbit/p1-mu5iagxf.opt.mp4",
+        "bytesBefore": 2466883,
+        "bytesAfter": 2466903,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 283792,
+        "boxesBefore": [
+          "ftyp:32",
+          "uuid:283792",
+          "free:8",
+          "mdat:2180780",
+          "moov:2271"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2291",
+          "free:8",
+          "mdat:2180780"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p1-voice-mu5ckw0j.mp3",
+        "newUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p1-voice-mu5ckw0j.opt.mp3",
+        "oldKey": "books/the-tale-of-peter-rabbit/p1-voice-mu5ckw0j.mp3",
+        "newKey": "books/the-tale-of-peter-rabbit/p1-voice-mu5ckw0j.opt.mp3",
+        "bytesBefore": 102026,
+        "bytesAfter": 38313,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p1-mu5iagxf.png",
+        "newUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p1-mu5iagxf.opt.webp",
+        "oldKey": "books/the-tale-of-peter-rabbit/p1-mu5iagxf.png",
+        "newKey": "books/the-tale-of-peter-rabbit/p1-mu5iagxf.opt.webp",
+        "bytesBefore": 1609615,
+        "bytesAfter": 115020
+      }
+    },
+    {
+      "pageId": "cmu36csqy00027ku430esatp7",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p2-voice-mu5cl34i.mp3",
+        "newUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p2-voice-mu5cl34i.opt.mp3",
+        "oldKey": "books/the-tale-of-peter-rabbit/p2-voice-mu5cl34i.mp3",
+        "newKey": "books/the-tale-of-peter-rabbit/p2-voice-mu5cl34i.opt.mp3",
+        "bytesBefore": 94502,
+        "bytesAfter": 35492,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36csqy00037ku4fxhpz0zm",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p3-voice-mu5cl61g.mp3",
+        "newUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p3-voice-mu5cl61g.opt.mp3",
+        "oldKey": "books/the-tale-of-peter-rabbit/p3-voice-mu5cl61g.mp3",
+        "newKey": "books/the-tale-of-peter-rabbit/p3-voice-mu5cl61g.opt.mp3",
+        "bytesBefore": 87815,
+        "bytesAfter": 32984,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36csqy00047ku498rp8ete",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p4-voice-mu5cl8v6.mp3",
+        "newUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p4-voice-mu5cl8v6.opt.mp3",
+        "oldKey": "books/the-tale-of-peter-rabbit/p4-voice-mu5cl8v6.mp3",
+        "newKey": "books/the-tale-of-peter-rabbit/p4-voice-mu5cl8v6.opt.mp3",
+        "bytesBefore": 71515,
+        "bytesAfter": 26872,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36csqy00057ku4dz1ej3sv",
+      "pageNum": 5,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p5-voice-mu5clk19.mp3",
+        "newUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p5-voice-mu5clk19.opt.mp3",
+        "oldKey": "books/the-tale-of-peter-rabbit/p5-voice-mu5clk19.mp3",
+        "newKey": "books/the-tale-of-peter-rabbit/p5-voice-mu5clk19.opt.mp3",
+        "bytesBefore": 72351,
+        "bytesAfter": 27185,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36csqy00067ku4i8gvyhgw",
+      "pageNum": 6,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p6-voice-mu5cln5a.mp3",
+        "newUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p6-voice-mu5cln5a.opt.mp3",
+        "oldKey": "books/the-tale-of-peter-rabbit/p6-voice-mu5cln5a.mp3",
+        "newKey": "books/the-tale-of-peter-rabbit/p6-voice-mu5cln5a.opt.mp3",
+        "bytesBefore": 107877,
+        "bytesAfter": 40508,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36csqy00077ku4ooxdzikc",
+      "pageNum": 7,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p7-voice-mu5clqd1.mp3",
+        "newUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p7-voice-mu5clqd1.opt.mp3",
+        "oldKey": "books/the-tale-of-peter-rabbit/p7-voice-mu5clqd1.mp3",
+        "newKey": "books/the-tale-of-peter-rabbit/p7-voice-mu5clqd1.opt.mp3",
+        "bytesBefore": 104533,
+        "bytesAfter": 39254,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36csqy00087ku44us5o73e",
+      "pageNum": 8,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p8-voice-mu5cltvs.mp3",
+        "newUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p8-voice-mu5cltvs.opt.mp3",
+        "oldKey": "books/the-tale-of-peter-rabbit/p8-voice-mu5cltvs.mp3",
+        "newKey": "books/the-tale-of-peter-rabbit/p8-voice-mu5cltvs.opt.mp3",
+        "bytesBefore": 125013,
+        "bytesAfter": 46934,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36csqy00097ku4nxj5gniu",
+      "pageNum": 9,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p9-voice-mu5clyee.mp3",
+        "newUrl": "https://media.animbook.com/books/the-tale-of-peter-rabbit/p9-voice-mu5clyee.opt.mp3",
+        "oldKey": "books/the-tale-of-peter-rabbit/p9-voice-mu5clyee.mp3",
+        "newKey": "books/the-tale-of-peter-rabbit/p9-voice-mu5clyee.opt.mp3",
+        "bytesBefore": 85725,
+        "bytesAfter": 32201,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

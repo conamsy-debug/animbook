@@ -1,0 +1,105 @@
+{
+  "generatedAt": "2026-10-28T16:21:14.959Z",
+  "bookId": "cmu36esmp00027kls2cfazaj4",
+  "bookSlug": "the-first-90-days",
+  "bookTitle": "The First 90 Days at Your New Job",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36eu3n00037klswjx1myso",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-first-90-days/p1-voice-mu5cm106.mp3",
+        "newUrl": "https://media.animbook.com/books/the-first-90-days/p1-voice-mu5cm106.opt.mp3",
+        "oldKey": "books/the-first-90-days/p1-voice-mu5cm106.mp3",
+        "newKey": "books/the-first-90-days/p1-voice-mu5cm106.opt.mp3",
+        "bytesBefore": 82799,
+        "bytesAfter": 31103,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36eu3n00047klsu6lbd1bl",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-first-90-days/p2-voice-mu5cm5zs.mp3",
+        "newUrl": "https://media.animbook.com/books/the-first-90-days/p2-voice-mu5cm5zs.opt.mp3",
+        "oldKey": "books/the-first-90-days/p2-voice-mu5cm5zs.mp3",
+        "newKey": "books/the-first-90-days/p2-voice-mu5cm5zs.opt.mp3",
+        "bytesBefore": 137134,
+        "bytesAfter": 51479,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36eu3n00057klsj27vyl05",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-first-90-days/p3-voice-mu5cm93t.mp3",
+        "newUrl": "https://media.animbook.com/books/the-first-90-days/p3-voice-mu5cm93t.opt.mp3",
+        "oldKey": "books/the-first-90-days/p3-voice-mu5cm93t.mp3",
+        "newKey": "books/the-first-90-days/p3-voice-mu5cm93t.opt.mp3",
+        "bytesBefore": 145911,
+        "bytesAfter": 54770,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36eu3n00067klsltw0gaiv",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-first-90-days/p4-voice-mu5cmews.mp3",
+        "newUrl": "https://media.animbook.com/books/the-first-90-days/p4-voice-mu5cmews.opt.mp3",
+        "oldKey": "books/the-first-90-days/p4-voice-mu5cmews.mp3",
+        "newKey": "books/the-first-90-days/p4-voice-mu5cmews.opt.mp3",
+        "bytesBefore": 148837,
+        "bytesAfter": 55868,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36eu3n00077klsmahg9pzq",
+      "pageNum": 5,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-first-90-days/p5-voice-mu5cmi8l.mp3",
+        "newUrl": "https://media.animbook.com/books/the-first-90-days/p5-voice-mu5cmi8l.opt.mp3",
+        "oldKey": "books/the-first-90-days/p5-voice-mu5cmi8l.mp3",
+        "newKey": "books/the-first-90-days/p5-voice-mu5cmi8l.opt.mp3",
+        "bytesBefore": 117908,
+        "bytesAfter": 44269,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36eu3n00087klssx94m6f6",
+      "pageNum": 6,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/the-first-90-days/p6-voice-mu5cmlcu.mp3",
+        "newUrl": "https://media.animbook.com/books/the-first-90-days/p6-voice-mu5cmlcu.opt.mp3",
+        "oldKey": "books/the-first-90-days/p6-voice-mu5cmlcu.mp3",
+        "newKey": "books/the-first-90-days/p6-voice-mu5cmlcu.opt.mp3",
+        "bytesBefore": 132537,
+        "bytesAfter": 49755,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

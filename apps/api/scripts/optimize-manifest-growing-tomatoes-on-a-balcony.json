@@ -1,0 +1,89 @@
+{
+  "generatedAt": "2026-10-28T16:13:04.834Z",
+  "bookId": "cmu36b912000v7kkk72k96pcg",
+  "bookSlug": "growing-tomatoes-on-a-balcony",
+  "bookTitle": "Growing Tomatoes on a Balcony",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36b9bq000x7kkkkr8y6w0v",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/growing-tomatoes-on-a-balcony/p1-voice-mu5cdvrt.mp3",
+        "newUrl": "https://media.animbook.com/books/growing-tomatoes-on-a-balcony/p1-voice-mu5cdvrt.opt.mp3",
+        "oldKey": "books/growing-tomatoes-on-a-balcony/p1-voice-mu5cdvrt.mp3",
+        "newKey": "books/growing-tomatoes-on-a-balcony/p1-voice-mu5cdvrt.opt.mp3",
+        "bytesBefore": 121252,
+        "bytesAfter": 45523,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36b9ne000z7kkk8dwrmr25",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/growing-tomatoes-on-a-balcony/p2-voice-mu5ce5ah.mp3",
+        "newUrl": "https://media.animbook.com/books/growing-tomatoes-on-a-balcony/p2-voice-mu5ce5ah.opt.mp3",
+        "oldKey": "books/growing-tomatoes-on-a-balcony/p2-voice-mu5ce5ah.mp3",
+        "newKey": "books/growing-tomatoes-on-a-balcony/p2-voice-mu5ce5ah.opt.mp3",
+        "bytesBefore": 142150,
+        "bytesAfter": 53360,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36ba0z00117kkk1da37daj",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/growing-tomatoes-on-a-balcony/p3-voice-mu5ce9io.mp3",
+        "newUrl": "https://media.animbook.com/books/growing-tomatoes-on-a-balcony/p3-voice-mu5ce9io.opt.mp3",
+        "oldKey": "books/growing-tomatoes-on-a-balcony/p3-voice-mu5ce9io.mp3",
+        "newKey": "books/growing-tomatoes-on-a-balcony/p3-voice-mu5ce9io.opt.mp3",
+        "bytesBefore": 148837,
+        "bytesAfter": 55868,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36ba9700137kkkexcy4wxp",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/growing-tomatoes-on-a-balcony/p4-voice-mu5ced62.mp3",
+        "newUrl": "https://media.animbook.com/books/growing-tomatoes-on-a-balcony/p4-voice-mu5ced62.opt.mp3",
+        "oldKey": "books/growing-tomatoes-on-a-balcony/p4-voice-mu5ced62.mp3",
+        "newKey": "books/growing-tomatoes-on-a-balcony/p4-voice-mu5ced62.opt.mp3",
+        "bytesBefore": 111639,
+        "bytesAfter": 41918,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36bai800157kkk3b726rmm",
+      "pageNum": 5,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/growing-tomatoes-on-a-balcony/p5-voice-mu5cehof.mp3",
+        "newUrl": "https://media.animbook.com/books/growing-tomatoes-on-a-balcony/p5-voice-mu5cehof.opt.mp3",
+        "oldKey": "books/growing-tomatoes-on-a-balcony/p5-voice-mu5cehof.mp3",
+        "newKey": "books/growing-tomatoes-on-a-balcony/p5-voice-mu5cehof.opt.mp3",
+        "bytesBefore": 136298,
+        "bytesAfter": 51166,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

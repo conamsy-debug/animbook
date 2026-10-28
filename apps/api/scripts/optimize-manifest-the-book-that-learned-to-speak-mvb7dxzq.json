@@ -1,0 +1,488 @@
+{
+  "generatedAt": "2026-10-28T16:37:11.238Z",
+  "bookId": "cmvb7dxzs00017kukbsf9sxcx",
+  "bookSlug": "the-book-that-learned-to-speak-mvb7dxzq",
+  "bookTitle": "The Book That Learned to Speak",
+  "cover": {
+    "oldUrl": "https://media.animbook.com/books/the-book-that-learned-to-speak-mvb7dxzq/cover-mvbflq26.png",
+    "newUrl": "https://media.animbook.com/books/the-book-that-learned-to-speak-mvb7dxzq/cover-mvbflq26.opt.webp",
+    "oldKey": "books/the-book-that-learned-to-speak-mvb7dxzq/cover-mvbflq26.png",
+    "newKey": "books/the-book-that-learned-to-speak-mvb7dxzq/cover-mvbflq26.opt.webp",
+    "bytesBefore": 164114,
+    "bytesAfter": 25992,
+    "socialKey": "books/the-book-that-learned-to-speak-mvb7dxzq/cover-mvbflq26.social.jpg",
+    "socialUrl": "https://media.animbook.com/books/the-book-that-learned-to-speak-mvb7dxzq/cover-mvbflq26.social.jpg"
+  },
+  "pages": [
+    {
+      "pageId": "cmvb7dzhq00047kuk8tqxpetx",
+      "pageNum": 1,
+      "video": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p1-mvb7ics2.mp4",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p1-mvb7ics2.opt.mp4",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p1-mvb7ics2.mp4",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p1-mvb7ics2.opt.mp4",
+        "bytesBefore": 878722,
+        "bytesAfter": 877417,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 0,
+        "boxesBefore": [
+          "ftyp:32",
+          "free:8",
+          "mdat:874873",
+          "moov:3809"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2504",
+          "free:8",
+          "mdat:874873"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p1-mvb8g03z.mp3",
+        "newUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p1-mvb8g03z.opt.mp3",
+        "oldKey": "narration/cmvb7dyr200037kukmly9g58s/p1-mvb8g03z.mp3",
+        "newKey": "narration/cmvb7dyr200037kukmly9g58s/p1-mvb8g03z.opt.mp3",
+        "bytesBefore": 399732,
+        "bytesAfter": 150828,
+        "channels": 1,
+        "sampleRate": "32000"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p1-mvb7ics2.png",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p1-mvb7ics2.opt.webp",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p1-mvb7ics2.png",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p1-mvb7ics2.opt.webp",
+        "bytesBefore": 264135,
+        "bytesAfter": 44042
+      }
+    },
+    {
+      "pageId": "cmvb7dzhq00057kukplwtjeyx",
+      "pageNum": 2,
+      "video": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p2-mvb7gvt2.mp4",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p2-mvb7gvt2.opt.mp4",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p2-mvb7gvt2.mp4",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p2-mvb7gvt2.opt.mp4",
+        "bytesBefore": 579566,
+        "bytesAfter": 578261,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 0,
+        "boxesBefore": [
+          "ftyp:32",
+          "free:8",
+          "mdat:575717",
+          "moov:3809"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2504",
+          "free:8",
+          "mdat:575717"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p2-mvb8gki0.mp3",
+        "newUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p2-mvb8gki0.opt.mp3",
+        "oldKey": "narration/cmvb7dyr200037kukmly9g58s/p2-mvb8gki0.mp3",
+        "newKey": "narration/cmvb7dyr200037kukmly9g58s/p2-mvb8gki0.opt.mp3",
+        "bytesBefore": 359988,
+        "bytesAfter": 135924,
+        "channels": 1,
+        "sampleRate": "32000"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p2-mvb7gvt2.png",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p2-mvb7gvt2.opt.webp",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p2-mvb7gvt2.png",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p2-mvb7gvt2.opt.webp",
+        "bytesBefore": 268769,
+        "bytesAfter": 43498
+      }
+    },
+    {
+      "pageId": "cmvb7dzhq00067kukmko4emf2",
+      "pageNum": 3,
+      "video": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p3-mvb7jrv0.mp4",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p3-mvb7jrv0.opt.mp4",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p3-mvb7jrv0.mp4",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p3-mvb7jrv0.opt.mp4",
+        "bytesBefore": 1201509,
+        "bytesAfter": 1200204,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 0,
+        "boxesBefore": [
+          "ftyp:32",
+          "free:8",
+          "mdat:1197660",
+          "moov:3809"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2504",
+          "free:8",
+          "mdat:1197660"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p3-mvb8h5zl.mp3",
+        "newUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p3-mvb8h5zl.opt.mp3",
+        "oldKey": "narration/cmvb7dyr200037kukmly9g58s/p3-mvb8h5zl.mp3",
+        "newKey": "narration/cmvb7dyr200037kukmly9g58s/p3-mvb8h5zl.opt.mp3",
+        "bytesBefore": 408948,
+        "bytesAfter": 154284,
+        "channels": 1,
+        "sampleRate": "32000"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p3-mvb7jrv0.png",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p3-mvb7jrv0.opt.webp",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p3-mvb7jrv0.png",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p3-mvb7jrv0.opt.webp",
+        "bytesBefore": 333513,
+        "bytesAfter": 67402
+      }
+    },
+    {
+      "pageId": "cmvb7dzhq00077kuk6syhc0mr",
+      "pageNum": 4,
+      "video": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p4-mvb7lffk.mp4",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p4-mvb7lffk.opt.mp4",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p4-mvb7lffk.mp4",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p4-mvb7lffk.opt.mp4",
+        "bytesBefore": 1142493,
+        "bytesAfter": 1141188,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 0,
+        "boxesBefore": [
+          "ftyp:32",
+          "free:8",
+          "mdat:1138628",
+          "moov:3825"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2520",
+          "free:8",
+          "mdat:1138628"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p4-mvb8hmmp.mp3",
+        "newUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p4-mvb8hmmp.opt.mp3",
+        "oldKey": "narration/cmvb7dyr200037kukmly9g58s/p4-mvb8hmmp.mp3",
+        "newKey": "narration/cmvb7dyr200037kukmly9g58s/p4-mvb8hmmp.opt.mp3",
+        "bytesBefore": 361140,
+        "bytesAfter": 136356,
+        "channels": 1,
+        "sampleRate": "32000"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p4-mvb7lffk.png",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p4-mvb7lffk.opt.webp",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p4-mvb7lffk.png",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p4-mvb7lffk.opt.webp",
+        "bytesBefore": 328639,
+        "bytesAfter": 65876
+      }
+    },
+    {
+      "pageId": "cmvb7dzhq00087kukym6j3cg5",
+      "pageNum": 5,
+      "video": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p5-mvb7ma7j.mp4",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p5-mvb7ma7j.opt.mp4",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p5-mvb7ma7j.mp4",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p5-mvb7ma7j.opt.mp4",
+        "bytesBefore": 1074419,
+        "bytesAfter": 1073114,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 0,
+        "boxesBefore": [
+          "ftyp:32",
+          "free:8",
+          "mdat:1070554",
+          "moov:3825"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2520",
+          "free:8",
+          "mdat:1070554"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p5-mvb8i95f.mp3",
+        "newUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p5-mvb8i95f.opt.mp3",
+        "oldKey": "narration/cmvb7dyr200037kukmly9g58s/p5-mvb8i95f.mp3",
+        "newKey": "narration/cmvb7dyr200037kukmly9g58s/p5-mvb8i95f.opt.mp3",
+        "bytesBefore": 339828,
+        "bytesAfter": 128364,
+        "channels": 1,
+        "sampleRate": "32000"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p5-mvb7ma7j.png",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p5-mvb7ma7j.opt.webp",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p5-mvb7ma7j.png",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p5-mvb7ma7j.opt.webp",
+        "bytesBefore": 344397,
+        "bytesAfter": 66750
+      }
+    },
+    {
+      "pageId": "cmvb7dzhq00097kuk2qxru2xc",
+      "pageNum": 6,
+      "video": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p6-mvb7od82.mp4",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p6-mvb7od82.opt.mp4",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p6-mvb7od82.mp4",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p6-mvb7od82.opt.mp4",
+        "bytesBefore": 1070778,
+        "bytesAfter": 1069473,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 0,
+        "boxesBefore": [
+          "ftyp:32",
+          "free:8",
+          "mdat:1066913",
+          "moov:3825"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2520",
+          "free:8",
+          "mdat:1066913"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p6-mvb8is0c.mp3",
+        "newUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p6-mvb8is0c.opt.mp3",
+        "oldKey": "narration/cmvb7dyr200037kukmly9g58s/p6-mvb8is0c.mp3",
+        "newKey": "narration/cmvb7dyr200037kukmly9g58s/p6-mvb8is0c.opt.mp3",
+        "bytesBefore": 342132,
+        "bytesAfter": 129228,
+        "channels": 1,
+        "sampleRate": "32000"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p6-mvb7od82.png",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p6-mvb7od82.opt.webp",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p6-mvb7od82.png",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p6-mvb7od82.opt.webp",
+        "bytesBefore": 337840,
+        "bytesAfter": 62074
+      }
+    },
+    {
+      "pageId": "cmvb7dzhq000a7kuk4qj5uukj",
+      "pageNum": 7,
+      "video": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p7-mvb7p6m9.mp4",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p7-mvb7p6m9.opt.mp4",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p7-mvb7p6m9.mp4",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p7-mvb7p6m9.opt.mp4",
+        "bytesBefore": 525131,
+        "bytesAfter": 523826,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 0,
+        "boxesBefore": [
+          "ftyp:32",
+          "free:8",
+          "mdat:521290",
+          "moov:3801"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2496",
+          "free:8",
+          "mdat:521290"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p7-mvb8jf46.mp3",
+        "newUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p7-mvb8jf46.opt.mp3",
+        "oldKey": "narration/cmvb7dyr200037kukmly9g58s/p7-mvb8jf46.mp3",
+        "newKey": "narration/cmvb7dyr200037kukmly9g58s/p7-mvb8jf46.opt.mp3",
+        "bytesBefore": 381876,
+        "bytesAfter": 144132,
+        "channels": 1,
+        "sampleRate": "32000"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p7-mvb7p6m9.png",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p7-mvb7p6m9.opt.webp",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p7-mvb7p6m9.png",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p7-mvb7p6m9.opt.webp",
+        "bytesBefore": 235125,
+        "bytesAfter": 36426
+      }
+    },
+    {
+      "pageId": "cmvb7dzhq000b7kukpzvzbirz",
+      "pageNum": 8,
+      "video": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p8-mvb7rmoo.mp4",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p8-mvb7rmoo.opt.mp4",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p8-mvb7rmoo.mp4",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p8-mvb7rmoo.opt.mp4",
+        "bytesBefore": 779064,
+        "bytesAfter": 777759,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 0,
+        "boxesBefore": [
+          "ftyp:32",
+          "free:8",
+          "mdat:775215",
+          "moov:3809"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2504",
+          "free:8",
+          "mdat:775215"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p8-mvb8k0rx.mp3",
+        "newUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p8-mvb8k0rx.opt.mp3",
+        "oldKey": "narration/cmvb7dyr200037kukmly9g58s/p8-mvb8k0rx.mp3",
+        "newKey": "narration/cmvb7dyr200037kukmly9g58s/p8-mvb8k0rx.opt.mp3",
+        "bytesBefore": 345012,
+        "bytesAfter": 130308,
+        "channels": 1,
+        "sampleRate": "32000"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p8-mvb7rmoo.png",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p8-mvb7rmoo.opt.webp",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p8-mvb7rmoo.png",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p8-mvb7rmoo.opt.webp",
+        "bytesBefore": 238200,
+        "bytesAfter": 36194
+      }
+    },
+    {
+      "pageId": "cmvb7dzhq000c7kukvibyy1fy",
+      "pageNum": 9,
+      "video": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p9-mvb7rjh3.mp4",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p9-mvb7rjh3.opt.mp4",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p9-mvb7rjh3.mp4",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p9-mvb7rjh3.opt.mp4",
+        "bytesBefore": 896421,
+        "bytesAfter": 895116,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 0,
+        "boxesBefore": [
+          "ftyp:32",
+          "free:8",
+          "mdat:892572",
+          "moov:3809"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2504",
+          "free:8",
+          "mdat:892572"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p9-mvb8kik5.mp3",
+        "newUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p9-mvb8kik5.opt.mp3",
+        "oldKey": "narration/cmvb7dyr200037kukmly9g58s/p9-mvb8kik5.mp3",
+        "newKey": "narration/cmvb7dyr200037kukmly9g58s/p9-mvb8kik5.opt.mp3",
+        "bytesBefore": 385908,
+        "bytesAfter": 145644,
+        "channels": 1,
+        "sampleRate": "32000"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p9-mvb7rjh3.png",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p9-mvb7rjh3.opt.webp",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p9-mvb7rjh3.png",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p9-mvb7rjh3.opt.webp",
+        "bytesBefore": 294731,
+        "bytesAfter": 52630
+      }
+    },
+    {
+      "pageId": "cmvb7dzhq000d7kukxayi3xd3",
+      "pageNum": 10,
+      "video": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p10-mvb7u8b7.mp4",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p10-mvb7u8b7.opt.mp4",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p10-mvb7u8b7.mp4",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p10-mvb7u8b7.opt.mp4",
+        "bytesBefore": 918138,
+        "bytesAfter": 916833,
+        "moovBefore": "back",
+        "moovAfter": "front",
+        "moovBeforeFfprobe": "back",
+        "moovAfterFfprobe": "front",
+        "c2paBytes": 0,
+        "boxesBefore": [
+          "ftyp:32",
+          "free:8",
+          "mdat:914289",
+          "moov:3809"
+        ],
+        "boxesAfter": [
+          "ftyp:32",
+          "moov:2504",
+          "free:8",
+          "mdat:914289"
+        ]
+      },
+      "audio": {
+        "oldUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p10-mvb8l0yx.mp3",
+        "newUrl": "https://media.animbook.com/narration/cmvb7dyr200037kukmly9g58s/p10-mvb8l0yx.opt.mp3",
+        "oldKey": "narration/cmvb7dyr200037kukmly9g58s/p10-mvb8l0yx.mp3",
+        "newKey": "narration/cmvb7dyr200037kukmly9g58s/p10-mvb8l0yx.opt.mp3",
+        "bytesBefore": 357684,
+        "bytesAfter": 135060,
+        "channels": 1,
+        "sampleRate": "32000"
+      },
+      "poster": {
+        "oldUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p10-mvb7u8b7.png",
+        "newUrl": "https://media.animbook.com/studio/cmvb7dyr200037kukmly9g58s/p10-mvb7u8b7.opt.webp",
+        "oldKey": "studio/cmvb7dyr200037kukmly9g58s/p10-mvb7u8b7.png",
+        "newKey": "studio/cmvb7dyr200037kukmly9g58s/p10-mvb7u8b7.opt.webp",
+        "bytesBefore": 252955,
+        "bytesAfter": 39924
+      }
+    }
+  ]
+}

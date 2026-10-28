@@ -1,0 +1,89 @@
+{
+  "generatedAt": "2026-10-28T16:19:33.442Z",
+  "bookId": "cmu36ciml00007k9g9fs6coc5",
+  "bookSlug": "mitosis-a-living-cell-divides",
+  "bookTitle": "Mitosis · A Living Cell Divides",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36ck7o00017k9gko6zomxd",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/mitosis-a-living-cell-divides/p1-voice-mu5cjxr7.mp3",
+        "newUrl": "https://media.animbook.com/books/mitosis-a-living-cell-divides/p1-voice-mu5cjxr7.opt.mp3",
+        "oldKey": "books/mitosis-a-living-cell-divides/p1-voice-mu5cjxr7.mp3",
+        "newKey": "books/mitosis-a-living-cell-divides/p1-voice-mu5cjxr7.opt.mp3",
+        "bytesBefore": 266284,
+        "bytesAfter": 99910,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36ck7o00027k9gpmg7ecij",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/mitosis-a-living-cell-divides/p2-voice-mu5ck4qb.mp3",
+        "newUrl": "https://media.animbook.com/books/mitosis-a-living-cell-divides/p2-voice-mu5ck4qb.opt.mp3",
+        "oldKey": "books/mitosis-a-living-cell-divides/p2-voice-mu5ck4qb.mp3",
+        "newKey": "books/mitosis-a-living-cell-divides/p2-voice-mu5ck4qb.opt.mp3",
+        "bytesBefore": 278822,
+        "bytesAfter": 104612,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36ck7o00037k9g5a9ft2hd",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/mitosis-a-living-cell-divides/p3-voice-mu5ckbzp.mp3",
+        "newUrl": "https://media.animbook.com/books/mitosis-a-living-cell-divides/p3-voice-mu5ckbzp.opt.mp3",
+        "oldKey": "books/mitosis-a-living-cell-divides/p3-voice-mu5ckbzp.mp3",
+        "newKey": "books/mitosis-a-living-cell-divides/p3-voice-mu5ckbzp.opt.mp3",
+        "bytesBefore": 204008,
+        "bytesAfter": 76557,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36ck7o00047k9gf3c0f1hm",
+      "pageNum": 4,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/mitosis-a-living-cell-divides/p4-voice-mu5ckglk.mp3",
+        "newUrl": "https://media.animbook.com/books/mitosis-a-living-cell-divides/p4-voice-mu5ckglk.opt.mp3",
+        "oldKey": "books/mitosis-a-living-cell-divides/p4-voice-mu5ckglk.mp3",
+        "newKey": "books/mitosis-a-living-cell-divides/p4-voice-mu5ckglk.opt.mp3",
+        "bytesBefore": 183110,
+        "bytesAfter": 68720,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36ck7o00057k9ggg5nw4x8",
+      "pageNum": 5,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/mitosis-a-living-cell-divides/p5-voice-mu5ckn9j.mp3",
+        "newUrl": "https://media.animbook.com/books/mitosis-a-living-cell-divides/p5-voice-mu5ckn9j.opt.mp3",
+        "oldKey": "books/mitosis-a-living-cell-divides/p5-voice-mu5ckn9j.mp3",
+        "newKey": "books/mitosis-a-living-cell-divides/p5-voice-mu5ckn9j.opt.mp3",
+        "bytesBefore": 220308,
+        "bytesAfter": 82669,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}

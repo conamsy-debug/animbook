@@ -1,0 +1,57 @@
+{
+  "generatedAt": "2026-10-28T16:06:32.300Z",
+  "bookId": "cmu36a1us00007kog6iyx5zwu",
+  "bookSlug": "lagos-nights-1-the-last-train",
+  "bookTitle": "Lagos Nights · The Last Train",
+  "cover": null,
+  "pages": [
+    {
+      "pageId": "cmu36a2z600017kogzxzshriy",
+      "pageNum": 1,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/lagos-nights-1-the-last-train/p1-voice-mu5c9ho2.mp3",
+        "newUrl": "https://media.animbook.com/books/lagos-nights-1-the-last-train/p1-voice-mu5c9ho2.opt.mp3",
+        "oldKey": "books/lagos-nights-1-the-last-train/p1-voice-mu5c9ho2.mp3",
+        "newKey": "books/lagos-nights-1-the-last-train/p1-voice-mu5c9ho2.opt.mp3",
+        "bytesBefore": 127521,
+        "bytesAfter": 47874,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36a2z600027kogpi03e59k",
+      "pageNum": 2,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/lagos-nights-1-the-last-train/p2-voice-mu5c9unj.mp3",
+        "newUrl": "https://media.animbook.com/books/lagos-nights-1-the-last-train/p2-voice-mu5c9unj.opt.mp3",
+        "oldKey": "books/lagos-nights-1-the-last-train/p2-voice-mu5c9unj.mp3",
+        "newKey": "books/lagos-nights-1-the-last-train/p2-voice-mu5c9unj.opt.mp3",
+        "bytesBefore": 113311,
+        "bytesAfter": 42545,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    },
+    {
+      "pageId": "cmu36a2z600037koge9h9zbmq",
+      "pageNum": 3,
+      "video": null,
+      "audio": {
+        "oldUrl": "https://media.animbook.com/books/lagos-nights-1-the-last-train/p3-voice-mu5cakpx.mp3",
+        "newUrl": "https://media.animbook.com/books/lagos-nights-1-the-last-train/p3-voice-mu5cakpx.opt.mp3",
+        "oldKey": "books/lagos-nights-1-the-last-train/p3-voice-mu5cakpx.mp3",
+        "newKey": "books/lagos-nights-1-the-last-train/p3-voice-mu5cakpx.opt.mp3",
+        "bytesBefore": 125013,
+        "bytesAfter": 46934,
+        "channels": 1,
+        "sampleRate": "44100"
+      },
+      "poster": null
+    }
+  ]
+}
