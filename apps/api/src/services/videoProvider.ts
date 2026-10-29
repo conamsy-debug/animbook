@@ -80,13 +80,14 @@ export async function animateStill(
   imageUrl: string,
   motionPrompt: string,
   durationSeconds = 6,
-  resolution: AnyResolution = "768P"
+  resolution: AnyResolution = "768P",
+  model?: string
 ): Promise<string> {
   if (readProvider() === "runway") {
     return await runway.animateStill(imageUrl, motionPrompt, durationSeconds, resolution as runway.RunwayRatio);
   }
   const minimaxRes: minimax.MinimaxResolution = resolution === "1080P" ? "1080P" : "768P";
-  return await minimax.animateStill(imageUrl, motionPrompt, durationSeconds, minimaxRes);
+  return await minimax.animateStill(imageUrl, motionPrompt, durationSeconds, minimaxRes, model);
 }
 
 export async function generateStillWithFaces(

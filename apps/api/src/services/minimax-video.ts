@@ -286,15 +286,20 @@ export async function animateStill(
   imageUrl: string,
   motionPrompt: string,
   durationSeconds = 6,
-  resolution: MinimaxResolution = "768P"
+  resolution: MinimaxResolution = "768P",
+  model?: string
 ): Promise<string> {
   if (!isFeatureEnabled("MINIMAX_VIDEO")) {
     return STUB_BASE;
   }
   const safe = await inlineImage(imageUrl);
   const body: Record<string, unknown> = {
-    model: appEnv.MINIMAX_VIDEO_MODEL,
-    prompt: motionPrompt.slice(0, 1500),
+    model: model ?? appEnv.MINIMAX_VIDEO_MODEL,
+    prompt: motionPrompt.slice(0, 2000),
+    // The shot prompts state exact body mechanics, counts and camera moves.
+    // MiniMax's prompt optimizer rewrites the prompt behind our back, which
+    // is exactly how a count or a camera command gets lost, so it is off.
+    prompt_optimizer: false,
     first_frame_image: safe,
     duration: durationSeconds,
     resolution

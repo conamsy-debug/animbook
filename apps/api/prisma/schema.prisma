@@ -112,6 +112,25 @@ enum MotionTier {
   STANDARD
 }
 
+/// Lifecycle of ONE shot inside a page's multi-shot sequence.
+///
+/// A page used to be a single ~5s clip that the player looped. It is now a
+/// sequence of shots, each covering its own slice of the page narration, so
+/// the picture keeps moving with the voice instead of looping one image.
+///
+/// PLANNED    = the shot prompt exists, no video requested yet
+/// QUEUED     = a generation job is queued for this shot
+/// GENERATING = the provider is rendering the clip
+/// READY      = clip + poster uploaded to R2
+/// FAILED     = the last generation attempt failed
+enum ShotStatus {
+  PLANNED
+  QUEUED
+  GENERATING
+  READY
+  FAILED
+}
+
 /// Lifecycle of an author's cloned narrator voice.
 enum VoiceStatus {
   NONE
@@ -519,6 +538,7 @@ model Book {
   circles                 Circle[]
   messageThreads          MessageThread[]
   pages                   Page[]
+  shotCharacters          ShotCharacter[]
   libraryEntries          LibraryEntry[]
   brain                   BookBrain?
   studioProject           StudioProject?
@@ -649,10 +669,94 @@ model Page {
   book              Book         @relation(fields: [bookId], references: [id], onDelete: Cascade)
   checkpoints       Checkpoint[]
   notes             PageNote[]
+  shots             Shot[]
 
   @@unique([bookId, pageNum])
   @@index([bookId, status])
   @@map("pages")
+}
+
+/// ONE shot of a page's multi-shot sequence.
+///
+/// The page still owns a single `videoUrl` (the legacy one-clip path). When a
+/// page has Shot rows the player plays them IN ORDER, each covering its own
+/// slice of the narration, and only falls back to `Page.videoUrl` when the
+/// page has no shots at all — so every book published before the shot system
+/// keeps playing exactly as it did.
+///
+/// The narration span is what makes the sequence line up with the voice:
+/// `narrationStartMs`..`narrationEndMs` is the slice of the page audio this
+/// shot is meant to cover, and `narrationText` is the exact words in it.
+model Shot {
+  id               String     @id @default(cuid())
+  pageId           String     @map("page_id")
+  /// 0-based position of this shot inside the page's sequence.
+  order            Int
+  /// Slice of the page narration this shot covers, in milliseconds from the
+  /// start of the page's audio.
+  narrationStartMs Int        @map("narration_start_ms")
+  narrationEndMs   Int        @map("narration_end_ms")
+  /// The exact narration words this shot covers (verbatim from the page).
+  narrationText    String     @map("narration_text") @db.Text
+  /// The motion prompt for the clip: who is in frame, what every body part
+  /// does, what moves in the environment, and how the camera moves.
+  shotPrompt       String     @map("shot_prompt") @db.Text
+  /// The prompt for the FIRST FRAME still the clip is generated from.
+  stillPrompt      String     @map("still_prompt") @db.Text
+  /// Role labels of the characters that are in this shot's frame. Used to
+  /// pass the matching character reference image as subject_reference when
+  /// the first-frame still is generated.
+  charactersInFrame String[]  @default([]) @map("characters_in_frame")
+  /// Intended clip length in seconds (a provider-supported duration).
+  durationSeconds  Int        @map("duration_seconds")
+  /// The generated clip. Null until the shot has been rendered.
+  videoUrl         String?    @map("video_url")
+  /// The first-frame still the clip was generated from.
+  posterUrl        String?    @map("poster_url")
+  /// Which provider rendered (or will render) this shot, e.g. "minimax".
+  provider         String?    @map("provider")
+  status           ShotStatus @default(PLANNED)
+  /// Why the last generation attempt failed, if it did.
+  errorMessage     String?    @map("error_message") @db.Text
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+  page             Page       @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([pageId, order])
+  @@index([pageId, status])
+  @@map("shots")
+}
+
+/// The character bible for a book's shot path.
+///
+/// One row per character that appears in shots. `look` is the EXACT wording
+/// reused, word for word, in every shot prompt of the book, so the same
+/// person looks the same in shot 2 and shot 40. `roleLabel` is how the
+/// character is referred to in prompts — never their name, because naming a
+/// person in a prompt is how you get Adaeze in shot 1 and a different
+/// Adaeze in shot 7.
+model ShotCharacter {
+  id        String   @id @default(cuid())
+  bookId    String   @map("book_id")
+  /// Position in the bible (0-based).
+  order     Int
+  /// How the character is referred to inside prompts, e.g. "the woman in the
+  /// coral headwrap". Never the character's name.
+  roleLabel String   @map("role_label")
+  /// The fixed appearance description, reused verbatim in every shot prompt.
+  look      String   @db.Text
+  /// How this character moves, reused verbatim in every shot prompt.
+  motion    String?  @db.Text
+  /// One reference image of this character, generated once from `look` with
+  /// image-01. Passed as subject_reference when generating every first-frame
+  /// still this character appears in, so she looks the same in every shot.
+  referenceImageUrl String? @map("reference_image_url")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([bookId, roleLabel])
+  @@map("shot_characters")
 }
 
 /// One row per external-cost event: a Runway image/video call, an

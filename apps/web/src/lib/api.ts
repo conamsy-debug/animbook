@@ -140,6 +140,38 @@ export interface PageRecord {
   stillVersion?: number;
   /** Split-pipeline: HERO (10s clip) or STANDARD (10s in Part A, 5s in Part B). */
   motionTier?: "HERO" | "STANDARD" | null;
+  /**
+   * Multi-shot system. When this is non-empty the page is a SEQUENCE of
+   * shots played in order, each covering its own slice of the narration.
+   * When it is empty the page plays `videoUrl` as a single looping clip,
+   * exactly as it always has.
+   */
+  shots?: ShotRecord[];
+}
+
+/** One shot of a page's sequence. */
+export interface ShotRecord {
+  id: string;
+  /** 0-based position of this shot in the page's sequence. */
+  order: number;
+  /** Slice of the page narration this shot covers, in ms from the page start. */
+  narrationStartMs: number;
+  narrationEndMs: number;
+  /** The exact narration words this shot covers. */
+  narrationText: string;
+  /** The motion prompt for the clip. */
+  shotPrompt: string;
+  /** The prompt for the first frame the clip is generated from. */
+  stillPrompt: string;
+  /** Clip length in seconds. */
+  durationSeconds: number;
+  /** The rendered clip. Null until the shot has been generated. */
+  videoUrl: string | null;
+  /** The first-frame still. */
+  posterUrl: string | null;
+  /** Which provider rendered the shot. */
+  provider: string | null;
+  status: "PLANNED" | "QUEUED" | "GENERATING" | "READY" | "FAILED";
 }
 
 export interface LibraryEntry {

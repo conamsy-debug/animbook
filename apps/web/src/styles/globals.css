@@ -2248,6 +2248,18 @@ a.vertical-tile .vertical-count { color: var(--accent); }
 .reader-stage .page.video .video-layer { position: absolute; inset: 0; }
 .reader-stage .page.video .video-layer video,
 .reader-stage .page.video .video-layer .video-poster { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Shot player: two stacked clips. The outgoing shot dissolves into the
+   incoming one over 250ms, so the page changes shot without a black frame
+   and without ever looping a single clip. */
+.reader-stage .page.video .video-layer video.shot-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 250ms linear;
+  will-change: opacity;
+}
 /* Loop crossfade: at the seam of every clip iteration, fade the video
    from 0.55 to 1 over the last ~7% of the loop and back up at the start.
    Works for both 5s STANDARD and 10s HERO clips because the keyframe

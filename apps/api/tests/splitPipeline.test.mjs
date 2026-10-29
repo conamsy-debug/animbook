@@ -21,7 +21,7 @@ const { runStillPageJob, runAnimatePageJob, defaultDeps, pickClipSeconds, estima
  * did without touching a real database.
  * --------------------------------------------------------------------- */
 
-function makeFakePrisma(pageOverrides = {}) {
+function makeFakePrisma(pageOverrides = {}, shots = []) {
   const calls = [];
   const stored = {
     id: "page-1",
@@ -64,7 +64,23 @@ function makeFakePrisma(pageOverrides = {}) {
   };
   return {
     prisma: {
-      page: { findUnique, update }
+      page: { findUnique, update },
+      // The shot path: one clip per shot row, plus the character bible the
+      // reference image is generated from.
+      shot: {
+        findMany: async (args) => {
+          calls.push({ kind: "shot.findMany", args });
+          return shots;
+        },
+        update: async (args) => {
+          calls.push({ kind: "shot.update", args });
+          return args.data;
+        }
+      },
+      shotCharacter: {
+        findMany: async () => [],
+        update: async () => ({})
+      }
     },
     calls,
     stored
@@ -86,7 +102,7 @@ const fakeBrain = {
 };
 
 function makeDeps(overrides = {}) {
-  const fakes = makeFakePrisma(overrides.page);
+  const fakes = makeFakePrisma(overrides.page ?? {}, overrides.shots ?? []);
   const deps = {
     ...fakes.prisma ? { prisma: fakes.prisma } : {},
     generateStill: async () => "https://runway.example/still.png",
@@ -235,6 +251,67 @@ test("ANIMATE_PAGE: APPROVED + posterUrl -> GENERATING -> READY", async () => {
   // Final update must mark READY.
   const finalUpdate = calls.filter((c) => c.kind === "update").slice(-1)[0];
   assert.equal(finalUpdate.args.data.clipStatus, "READY");
+});
+
+test("ANIMATE_PAGE: a page with shot rows renders one clip per shot", async () => {
+  const stills = [];
+  const clips = [];
+  const { deps, stored, calls } = makeDeps({
+    page: {
+      stillStatus: "APPROVED",
+      posterUrl: "https://media.animbook.com/studio/proj-1/p7.png"
+    },
+    shots: [
+      {
+        id: "shot-0",
+        order: 0,
+        shotPrompt: "Exactly one woman in frame. Her right hand comes forward.",
+        stillPrompt: "Exactly one woman in frame. She stands with her hands behind her back.",
+        durationSeconds: 6,
+        charactersInFrame: []
+      },
+      {
+        id: "shot-1",
+        order: 1,
+        shotPrompt: "Exactly one woman in frame. Her hand lowers back to her side.",
+        stillPrompt: "Exactly one woman in frame. Her hand is raised, pointing at a boat.",
+        durationSeconds: 6,
+        charactersInFrame: []
+      }
+    ],
+    deps: {
+      generateStill: async (prompt) => {
+        stills.push(prompt);
+        return "https://minimax.example/still.png";
+      },
+      animateStill: async (_still, motion) => {
+        clips.push(motion);
+        return "https://minimax.example/clip.mp4";
+      }
+    }
+  });
+
+  await runAnimatePageJob(data, 1, 1, deps);
+
+  // One first-frame still and one clip per shot.
+  assert.equal(stills.length, 2);
+  assert.equal(clips.length, 2);
+  assert.match(stills[0], /hands behind her back/);
+  assert.match(clips[1], /lowers back to her side/);
+
+  // Both shot rows are marked READY with their own clip.
+  const shotUpdates = calls.filter((c) => c.kind === "shot.update");
+  assert.equal(shotUpdates.length, 2);
+  for (const update of shotUpdates) {
+    assert.equal(update.args.data.status, "READY");
+    assert.equal(update.args.data.provider, "minimax");
+    assert.ok(update.args.data.videoUrl.includes("/shots/"));
+    assert.ok(update.args.data.posterUrl.includes("/shots/"));
+  }
+
+  // The page's own clipStatus is still the single-clip status, so the old
+  // fallback keeps working for a reader whose page has no playable shot.
+  assert.equal(stored.clipStatus, "READY");
 });
 
 test("ANIMATE_PAGE: throw on attempt < max -> rethrows, doesn't mark FAILED", async () => {

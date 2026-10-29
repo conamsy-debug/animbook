@@ -17,6 +17,8 @@
     "db:reset": "prisma migrate reset --force",
     "clips:seed": "tsx scripts/generate-seed-clips.ts",
     "clips:probe": "tsx scripts/probe-runway-refs.ts",
+    "shots:write": "tsx scripts/write-shots.ts",
+    "shots:render": "tsx scripts/render-book-shots.ts",
     "books:subcategories": "tsx scripts/assign-subcategories.ts",
     "books:archive-tests": "tsx scripts/archive-test-books.ts"
   },

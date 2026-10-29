@@ -770,6 +770,7 @@ export default function ReaderPage() {
             videoFrameRef={videoFrameRef}
             playbackRate={speed}
             loopFade={loopFade}
+            narrationClock={narration.audioEl}
             fullscreenOverlay={
               <FullscreenOverlay
                 active={frameFullscreen}

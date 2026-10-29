@@ -146,7 +146,26 @@ router.get("/:id/pages", async (req: AuthedRequest, res: Response) => {
       clipStatus: true,
       audioStatus: true,
       stillVersion: true,
-      motionTier: true
+      motionTier: true,
+      // Multi-shot system. A page with shots plays them in order; a page
+      // without them keeps using `videoUrl` exactly as before.
+      shots: {
+        orderBy: { order: "asc" },
+        select: {
+          id: true,
+          order: true,
+          narrationStartMs: true,
+          narrationEndMs: true,
+          narrationText: true,
+          shotPrompt: true,
+          stillPrompt: true,
+          durationSeconds: true,
+          videoUrl: true,
+          posterUrl: true,
+          provider: true,
+          status: true
+        }
+      }
     }
   });
   res.json({
@@ -200,7 +219,26 @@ router.get("/:id/pages/:num", async (req: Request, res: Response) => {
       clipStatus: true,
       audioStatus: true,
       stillVersion: true,
-      motionTier: true
+      motionTier: true,
+      // Multi-shot system. A page with shots plays them in order; a page
+      // without them keeps using `videoUrl` exactly as before.
+      shots: {
+        orderBy: { order: "asc" },
+        select: {
+          id: true,
+          order: true,
+          narrationStartMs: true,
+          narrationEndMs: true,
+          narrationText: true,
+          shotPrompt: true,
+          stillPrompt: true,
+          durationSeconds: true,
+          videoUrl: true,
+          posterUrl: true,
+          provider: true,
+          status: true
+        }
+      }
     }
   });
   if (!page) {

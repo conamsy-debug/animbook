@@ -8,6 +8,7 @@ import { generateClip, generateStill, animateStill, currentProvider as currentVi
 import { generateNarration, currentTtsProvider } from "./ttsProvider.js";
 import { mirrorToR2, uploadAsset } from "./cloudflare.js";
 import { posterTransform, videoTransform } from "./mediaPostProcess.js";
+import { ensureCharacterReferences, referencesFor } from "./shotRenderer.js";
 import { safePrompt, stylePrompt, type NamedCharacter } from "./promptSafety.js";
 import { defaultVoiceIdFor, findVoice, pickProviderVoiceId } from "../config/voices.js";
 import { recordUsage, MINIMAX_IMAGE_USD_IMAGE_01 } from "./usageTracking.js";
@@ -421,6 +422,26 @@ async function animatePage(projectId: string, brain: BookBrain, page: PageRow, m
   const count = present.length === 0 ? "" : present.length === 1 ? "Exactly one character in frame. " : `Exactly ${present.length} characters in frame. `;
   const note = page.directionNote ? ` Direction: ${page.directionNote}` : "";
   const still = safePrompt(`${style}. ${count}${scene}${cast ? ` Characters: ${cast}.` : ""}${note}`, characters);
+
+  // THE SHOT PATH.
+  //
+  // A page with shot rows is filmed as a SEQUENCE: one clip per shot, each
+  // from its own first frame and its own prompt. The fixed motion template
+  // below ("Small, natural movement … Slow camera push-in") is deliberately
+  // NOT used on this path - that template is exactly why every page looked
+  // like a moving photograph, and the shot prompts already say what moves,
+  // how it moves and where the camera is.
+  //
+  // Pages WITHOUT shot rows keep the old template and the old single clip, so
+  // every book published before the shot system plays exactly as before.
+  const shots = await prisma.shot.findMany({
+    where: { pageId: page.id, status: { not: "FAILED" } },
+    orderBy: { order: "asc" }
+  });
+  if (shots.length) {
+    return await animatePageShots(projectId, page, shots, userId);
+  }
+
   const motion = safePrompt(
     `${count}Small, natural movement: ${manifest?.primary_action ?? "gentle ambient motion"}. ` +
       `Mood: ${manifest?.emotion ?? page.emotionalRegister ?? "calm"}. Slow camera push-in. No new people or animals enter the frame.${note}`,
@@ -492,6 +513,88 @@ async function animatePage(projectId: string, brain: BookBrain, page: PageRow, m
     await prisma.page.update({ where: { id: page.id }, data: { status: "FLAGGED", qualityScore: 0 } });
     return "failed";
   }
+}
+
+/**
+ * THE SHOT PATH: one clip per shot.
+ *
+ * Each shot carries its own first-frame prompt and its own motion prompt, and
+ * covers its own slice of the page narration. The clip is generated from the
+ * shot's still and animated with the shot's motion prompt - verbatim, with no
+ * template in between - so the page becomes a sequence of distinct shots
+ * instead of one looping clip.
+ *
+ * `Page.videoUrl` is deliberately left alone: it stays the fallback for a
+ * reader whose page has no playable shot.
+ */
+async function animatePageShots(
+  projectId: string,
+  page: PageRow,
+  shots: Array<{
+    id: string;
+    order: number;
+    shotPrompt: string;
+    stillPrompt: string;
+    durationSeconds: number;
+    charactersInFrame: string[];
+  }>,
+  userId: string
+): Promise<"done" | "failed"> {
+  let done = 0;
+  let failed = 0;
+  // The character's ONE reference image, generated on first use and then
+  // attached to every first-frame still she appears in.
+  const references = await ensureCharacterReferences(page.bookId, undefined, `studio/${projectId}/shot-characters`);
+  for (const shot of shots) {
+    try {
+      const result = await generateClip({
+        projectId,
+        pageNum: page.pageNum,
+        // The still prompt is the FIRST FRAME of this shot; the motion prompt
+        // is the shot itself. Both are used verbatim.
+        prompt: shot.stillPrompt,
+        motionPrompt: shot.shotPrompt,
+        negativePrompt: page.negativePrompt ?? undefined,
+        storagePrefix: `studio/${projectId}/shots`,
+        references: referencesFor(shot.charactersInFrame, references),
+        strict: true
+      });
+      await prisma.shot.update({
+        where: { id: shot.id },
+        data: {
+          videoUrl: result.videoUrl,
+          posterUrl: result.posterUrl,
+          provider: currentVideoProvider(),
+          status: "READY"
+        }
+      });
+      await recordUsage({
+        userId,
+        bookId: page.bookId,
+        pageId: page.id,
+        kind: "ANIMATE_KICK",
+        provider: "MINIMAX_VIDEO",
+        units: 1,
+        unitCostUsd: result.creditsEstimate,
+        metadata: {
+          model: appEnv.MINIMAX_VIDEO_MODEL,
+          pageNum: page.pageNum,
+          shotOrder: shot.order,
+          durationSeconds: result.durationSeconds,
+          source: result.source
+        }
+      });
+      done++;
+    } catch (err) {
+      failed++;
+      console.warn(`[pipeline] page ${page.pageNum} shot ${shot.order}: ${(err as Error).message}`);
+      await prisma.shot.update({
+        where: { id: shot.id },
+        data: { status: "FAILED", errorMessage: (err as Error).message.slice(0, 400) }
+      });
+    }
+  }
+  return failed > 0 && done === 0 ? "failed" : "done";
 }
 
 async function runAudioStage(projectId: string, limit?: number): Promise<void> {

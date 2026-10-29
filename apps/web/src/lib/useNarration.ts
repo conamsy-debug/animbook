@@ -62,6 +62,9 @@ export function useNarration(
   const [volume, setVolumeState] = useState(1);
   const [muted, setMutedState] = useState(false);
   const pageIdRef = useRef<string | null>(null);
+  // The narration audio element, published so the shot player can use it as
+  // its master clock: the shots are cut to the narration's timeline.
+  const [audioEl, setAudioEl] = useState<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     const stored = readStoredVolume();
@@ -76,6 +79,7 @@ export function useNarration(
     audio.addEventListener("pause", () => setSpeaking(false));
     audio.addEventListener("play", () => setSpeaking(true));
     audioRef.current = audio;
+    setAudioEl(audio);
     return () => {
       audio.pause();
       audio.src = "";
@@ -272,6 +276,8 @@ export function useNarration(
     recorded: hasRecordedNarration(page),
     preparing,
     voice,
+    /** The narration audio element - the shot player's master clock. */
+    audioEl,
     play,
     pause,
     toggle,

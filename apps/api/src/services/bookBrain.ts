@@ -115,7 +115,7 @@ function extractJson(text: string): BookBrain | null {
   return null;
 }
 
-export async function callAnthropic(prompt: string, systemPrompt: string): Promise<string> {
+export async function callAnthropic(prompt: string, systemPrompt: string, maxTokens = 8192): Promise<string> {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -125,7 +125,7 @@ export async function callAnthropic(prompt: string, systemPrompt: string): Promi
     },
     body: JSON.stringify({
       model: appEnv.ANTHROPIC_BOOK_BRAIN_MODEL,
-      max_tokens: 8192,
+      max_tokens: maxTokens,
       system: systemPrompt,
       messages: [{ role: "user", content: prompt }]
     })

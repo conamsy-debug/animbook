@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, type ReactNode, type Ref } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import { motion } from "framer-motion";
 import { useReaderStore } from "@/lib/store";
-import type { BookSummary, PageRecord } from "@/lib/api";
+import type { BookSummary, PageRecord, ShotRecord } from "@/lib/api";
 
 interface Props {
   book: BookSummary;
@@ -28,6 +28,11 @@ interface Props {
    * prefer the hard cut, others find the dip distracting on bright art.
    */
   loopFade?: boolean;
+  /**
+   * The narration audio element. When a page has playable shots this is the
+   * master clock the shots are cut to.
+   */
+  narrationClock?: HTMLAudioElement | null;
 }
 
 export type ReaderAspect = "16:9" | "4:3" | "3:4" | "1:1" | "9:16";
@@ -63,7 +68,244 @@ function pickAccent(vertical: string): string {
   return map[vertical] ?? "#1B6B8A";
 }
 
-export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false, onWordTap, paletteHint = "default", motionScale = 1, fontSize = 18, paused = false, aspect = "16:9", videoFrameRef, fullscreenOverlay, playbackRate = 1, loopFade = true }: Props) {
+/* --------------------------------------------------------------------- *
+ * The shot player
+ * --------------------------------------------------------------------- */
+
+/** How long one shot dissolves into the next. */
+const SHOT_CROSSFADE_MS = 250;
+
+interface ShotSequenceProps {
+  shots: ShotRecord[];
+  /**
+   * The narration audio element. It is the MASTER CLOCK: the shots are cut
+   * to the narration's timeline, so the picture and the words stay together
+   * even when the audio is paused, resumed or slightly out of sync with the
+   * clips.
+   */
+  clock: HTMLAudioElement | null;
+  paused: boolean;
+  playbackRate: number;
+  lensEnabled: boolean;
+}
+
+/**
+ * Play a page's shots in order, cut to the narration.
+ *
+ * Two stacked video layers: the live shot is on one, the incoming shot is
+ * loaded into the other and crossfaded in over 250ms as the narration reaches
+ * the next shot's span. Nothing loops - a clip is cut at the end of its span
+ * and the last shot holds its final frame until the page turns.
+ */
+function ShotSequence({ shots, clock, paused, playbackRate, lensEnabled }: ShotSequenceProps) {
+  const layerA = useRef<HTMLVideoElement | null>(null);
+  const layerB = useRef<HTMLVideoElement | null>(null);
+  /** Which layer is currently in front. */
+  const [front, setFront] = useState<"A" | "B">("A");
+  const frontRef = useRef<"A" | "B">("A");
+  /** Index of the shot that is live. */
+  const indexRef = useRef(-1);
+  /** Guards against starting a second crossfade while one is in flight. */
+  const switchingRef = useRef(false);
+  /** A local clock for before the narration starts. */
+  const localMsRef = useRef(0);
+  const lastFrameRef = useRef(0);
+  const shotsRef = useRef(shots);
+  shotsRef.current = shots;
+  const clockRef = useRef(clock);
+  clockRef.current = clock;
+
+  /** Load a clip into a layer and resolve once it can play. */
+  const loadClip = useCallback((el: HTMLVideoElement, shot: ShotRecord): Promise<boolean> => {
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        el.removeEventListener("canplay", onCanPlay);
+        el.removeEventListener("error", onError);
+        resolve(ok);
+      };
+      const onCanPlay = () => finish(true);
+      const onError = () => finish(false);
+      el.addEventListener("canplay", onCanPlay);
+      el.addEventListener("error", onError);
+      if (el.getAttribute("src") !== shot.videoUrl) {
+        el.src = shot.videoUrl;
+      }
+      if (shot.posterUrl) el.poster = shot.posterUrl;
+      el.load();
+      if (el.readyState >= 3) finish(true);
+    });
+  }, []);
+
+  /**
+   * The narration's position in the page, in milliseconds.
+   *
+   * Once the narration has started, the audio IS the clock. Before that (the
+   * reader has not pressed Play yet) a local clock keeps the page alive so
+   * the reader sees motion instead of a frozen first frame.
+   */
+  const readClockMs = useCallback((): number => {
+    const audio = clockRef.current;
+    if (audio && audio.readyState >= 2 && (audio.currentTime > 0.05 || !audio.paused)) {
+      return audio.currentTime * 1000;
+    }
+    return localMsRef.current;
+  }, []);
+
+  // Start on the first shot when the sequence mounts, and preload the second.
+  useEffect(() => {
+    const list = shotsRef.current;
+    if (!list.length) return;
+    let cancelled = false;
+    const first = list[0]!;
+    const el = layerA.current;
+    if (!el) return;
+    void (async () => {
+      const ok = await loadClip(el, first);
+      if (cancelled || !ok) return;
+      el.currentTime = 0;
+      void el.play().catch(() => undefined);
+      indexRef.current = 0;
+      const next = list[1];
+      const idle = layerB.current;
+      if (next && idle) {
+        if (idle.getAttribute("src") !== next.videoUrl) idle.src = next.videoUrl;
+        if (next.posterUrl) idle.poster = next.posterUrl;
+        idle.load();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadClip]);
+
+  // The crossfade loop.
+  useEffect(() => {
+    let raf = 0;
+    const tick = (ts: number) => {
+      raf = requestAnimationFrame(tick);
+      const list = shotsRef.current;
+      if (!list.length) return;
+
+      // Advance the local clock.
+      if (lastFrameRef.current) {
+        localMsRef.current += Math.min(200, ts - lastFrameRef.current);
+      }
+      lastFrameRef.current = ts;
+
+      const t = readClockMs();
+      const live = indexRef.current;
+      if (live < 0) return;
+
+      // Which shot should be on screen at this point in the narration?
+      let target = 0;
+      for (let i = 0; i < list.length; i++) {
+        if (t >= list[i]!.narrationStartMs) target = i;
+      }
+
+      // The last shot holds its final frame once its span is over.
+      const lastShot = list[list.length - 1]!;
+      if (live === list.length - 1 && t >= lastShot.narrationEndMs) {
+        const el = frontRef.current === "A" ? layerA.current : layerB.current;
+        if (el && !el.paused) el.pause();
+        return;
+      }
+
+      if (target === live || switchingRef.current) return;
+      const incoming = list[target]!;
+      // Start the dissolve just before the new shot's narration begins.
+      if (t < incoming.narrationStartMs - SHOT_CROSSFADE_MS) return;
+
+      switchingRef.current = true;
+      const idleLayer: "A" | "B" = frontRef.current === "A" ? "B" : "A";
+      const incomingEl = idleLayer === "A" ? layerA.current : layerB.current;
+      const outgoingEl = frontRef.current === "A" ? layerA.current : layerB.current;
+      if (!incomingEl) {
+        switchingRef.current = false;
+        return;
+      }
+      void (async () => {
+        const ok = await loadClip(incomingEl, incoming);
+        if (!ok) {
+          switchingRef.current = false;
+          return;
+        }
+        incomingEl.currentTime = 0;
+        void incomingEl.play().catch(() => undefined);
+        // The dissolve is a CSS opacity transition on the two layers.
+        frontRef.current = idleLayer;
+        setFront(idleLayer);
+        indexRef.current = target;
+        outgoingEl?.pause();
+        // Preload the shot after this one so the next dissolve never waits.
+        const next = list[target + 1];
+        const nextLayer: "A" | "B" = idleLayer === "A" ? "B" : "A";
+        const nextEl = nextLayer === "A" ? layerA.current : layerB.current;
+        if (next && nextEl) {
+          if (nextEl.getAttribute("src") !== next.videoUrl) nextEl.src = next.videoUrl;
+          if (next.posterUrl) nextEl.poster = next.posterUrl;
+          nextEl.load();
+        }
+        switchingRef.current = false;
+      })();
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [loadClip, readClockMs]);
+
+  // Pause and resume with the reader.
+  useEffect(() => {
+    for (const el of [layerA.current, layerB.current]) {
+      if (!el) continue;
+      if (paused) el.pause();
+      else if (indexRef.current >= 0 && el === (frontRef.current === "A" ? layerA.current : layerB.current)) {
+        void el.play().catch(() => undefined);
+      }
+    }
+  }, [paused]);
+
+  // Keep both layers on the reader's chosen playback rate.
+  useEffect(() => {
+    for (const el of [layerA.current, layerB.current]) {
+      if (el) el.playbackRate = playbackRate;
+    }
+  }, [playbackRate, front]);
+
+  const transform = lensEnabled ? { transform: "scale(1.6)", transformOrigin: "center" } : undefined;
+
+  return (
+    <>
+      <video
+        ref={layerA}
+        className="shot-layer"
+        style={{ opacity: front === "A" ? 1 : 0, ...transform }}
+        muted
+        playsInline
+        preload="auto"
+      />
+      <video
+        ref={layerB}
+        className="shot-layer"
+        style={{ opacity: front === "B" ? 1 : 0, ...transform }}
+        muted
+        playsInline
+        preload="auto"
+      />
+    </>
+  );
+}
+
+/** The shots of a page that are actually playable. */
+function playableShots(page: PageRecord | undefined): ShotRecord[] {
+  if (!page?.shots?.length) return [];
+  return page.shots
+    .filter((s) => s.status === "READY" && Boolean(s.videoUrl))
+    .sort((a, b) => a.order - b.order);
+}
+
+export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false, onWordTap, paletteHint = "default", motionScale = 1, fontSize = 18, paused = false, aspect = "16:9", videoFrameRef, fullscreenOverlay, playbackRate = 1, loopFade = true, narrationClock = null }: Props) {
   const { pageIndex, mode, isFlipping, flippingDirection, setBook, flipNext, flipPrev, finishFlip } = useReaderStore();
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -72,6 +314,10 @@ export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false,
   }, [book, pages, setBook]);
 
   const current = pages[pageIndex];
+
+  // A page with playable shots is a SEQUENCE. A page without them keeps the
+  // single looping clip exactly as it always has.
+  const shots = useMemo(() => playableShots(current), [current]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -171,7 +417,15 @@ export function ReaderStage({ book, pages, bedtime = false, lensEnabled = false,
               transition={{ duration: bedtime ? 0.6 : 0.35, ease: "easeOut" }}
               onAnimationComplete={finishFlip}
             >
-              {current.videoUrl && !/\.(png|jpe?g|webp)(\?|$)|placehold\.co/i.test(current.videoUrl) ? (
+              {shots.length ? (
+                <ShotSequence
+                  shots={shots}
+                  clock={narrationClock}
+                  paused={paused}
+                  playbackRate={playbackRate}
+                  lensEnabled={lensEnabled}
+                />
+              ) : current.videoUrl && !/\.(png|jpe?g|webp)(\?|$)|placehold\.co/i.test(current.videoUrl) ? (
                 <video
                   ref={videoRef}
                   src={current.videoUrl}

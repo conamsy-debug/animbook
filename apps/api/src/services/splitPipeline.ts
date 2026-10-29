@@ -40,6 +40,8 @@ import { generateStill as defaultGenerateStill, animateStill as defaultAnimateSt
 import { estimateMinimaxVideoCostUsd } from "./usageTracking.js";
 import { mirrorToR2 as defaultMirrorToR2 } from "./cloudflare.js";
 import { posterTransform, videoTransform } from "./mediaPostProcess.js";
+import { ensureCharacterReferences, renderShot } from "./shotRenderer.js";
+import type { ReferenceImage } from "./runway.js";
 import { move as defaultMove, IllegalTransitionError } from "./pageState.js";
 import { loadBrain as defaultLoadBrain } from "./pipeline.js";
 import { safePrompt as defaultSafePrompt, stylePrompt as defaultStylePrompt } from "./promptSafety.js";
@@ -138,8 +140,14 @@ export interface SplitJobData {
 
 export interface SplitDeps {
   prisma: PrismaClient;
-  generateStill: (prompt: string, ratio: string) => Promise<string>;
-  animateStill: (stillUrl: string, motion: string, seconds: number, ratio: string) => Promise<string>;
+  generateStill: (prompt: string, ratio: string, references?: ReferenceImage[]) => Promise<string>;
+  animateStill: (
+    stillUrl: string,
+    motion: string,
+    seconds: number,
+    resolution: string,
+    model?: string
+  ) => Promise<string>;
   mirrorToR2: (
     sourceUrl: string,
     key: string,
@@ -156,8 +164,8 @@ export interface SplitDeps {
 export function defaultDeps(): SplitDeps {
   return {
     prisma: defaultPrisma,
-    generateStill: defaultGenerateStill,
-    animateStill: defaultAnimateStill,
+    generateStill: defaultGenerateStill as SplitDeps["generateStill"],
+    animateStill: defaultAnimateStill as unknown as SplitDeps["animateStill"],
     mirrorToR2: defaultMirrorToR2 as unknown as SplitDeps["mirrorToR2"],
     loadBrain: defaultLoadBrain as unknown as SplitDeps["loadBrain"],
     stylePrompt: defaultStylePrompt as unknown as SplitDeps["stylePrompt"],
@@ -382,6 +390,82 @@ export async function runAnimatePageJob(
     throw err;
   }
 
+  // THE SHOT PATH.
+  //
+  // A page with shot rows is filmed as a SEQUENCE: one clip per shot, each
+  // from its own first frame and its own prompt. The fixed motion template
+  // below ("Small, natural movement … Slow camera push-in") is deliberately
+  // NOT used on this path - that template is exactly why every page looked
+  // like a moving photograph. Pages without shot rows keep the old template
+  // and the old single clip, so nothing that shipped before changes.
+  const shots = await deps.prisma.shot.findMany({
+    where: { pageId: page.id, status: { not: "FAILED" } },
+    orderBy: { order: "asc" }
+  });
+  if (shots.length) {
+    // The character's ONE reference image is generated on first use and then
+    // attached to every first-frame still she appears in, so she is the same
+    // person in every shot of the book.
+    const references = await ensureCharacterReferences(page.bookId, {
+      prisma: deps.prisma,
+      generateStill: deps.generateStill,
+      animateStill: deps.animateStill,
+      mirrorToR2: deps.mirrorToR2
+    }, `studio/${data.projectId}/shot-characters`);
+
+    for (const shot of shots) {
+      try {
+        const rendered = await renderShot({
+          shot: {
+            id: shot.id,
+            order: shot.order,
+            shotPrompt: shot.shotPrompt,
+            stillPrompt: shot.stillPrompt,
+            durationSeconds: shot.durationSeconds,
+            charactersInFrame: shot.charactersInFrame
+          },
+          pageNum: page.pageNum,
+          prefix: `studio/${data.projectId}`,
+          references,
+          deps: {
+            prisma: deps.prisma,
+            generateStill: deps.generateStill,
+            animateStill: deps.animateStill,
+            mirrorToR2: deps.mirrorToR2
+          }
+        });
+        await deps.prisma.shot.update({
+          where: { id: shot.id },
+          data: {
+            videoUrl: rendered.videoUrl,
+            posterUrl: rendered.posterUrl,
+            provider: "minimax",
+            status: "READY"
+          }
+        });
+      } catch (err) {
+        console.warn(`[split/animate] page ${page.pageNum} shot ${shot.order}: ${(err as Error).message}`);
+        await deps.prisma.shot.update({
+          where: { id: shot.id },
+          data: { status: "FAILED", errorMessage: (err as Error).message.slice(0, 400) }
+        });
+      }
+    }
+    await deps.prisma.page.update({
+      where: { id: page.id },
+      data: { clipStatus: "READY", qualityScore: 0.85 }
+    });
+    emitPipelineEvent(data.projectId, {
+      stage: "ANIMATE_PAGE",
+      status: "running",
+      progress: 80,
+      message: `Page ${page.pageNum} ${shots.length} shots ready`,
+      payload: { pageId: page.id, status: "READY" },
+      at: new Date().toISOString()
+    });
+    return;
+  }
+
   try {
     const brain = (await deps.loadBrain(page.bookId)) as {
       characters?: { name: string; description: string }[];
@@ -462,7 +546,13 @@ export function startSplitWorkers(): { still: Worker<SplitJobData> | null; anima
     const stillOpts: WorkerOptions = { connection: getConnection(), concurrency: STILL_CONCURRENCY };
     stillWorker = new Worker<SplitJobData>(
       SPLIT_QUEUE_NAME,
-      async (job: Job<SplitJobData>) => runStillPageJob(job.data, job.attemptsMade + 1, job.opts.attempts ?? 1),
+      async (job: Job<SplitJobData>) => {
+        // Both workers share one queue, so each has to ignore the other's
+        // jobs. Without this, the still worker can pick up an ANIMATE_PAGE
+        // job and regenerate a still that the author already approved.
+        if (job.name !== "STILL_PAGE") return;
+        return runStillPageJob(job.data, job.attemptsMade + 1, job.opts.attempts ?? 1);
+      },
       stillOpts
     );
   }
@@ -470,7 +560,10 @@ export function startSplitWorkers(): { still: Worker<SplitJobData> | null; anima
     const animateOpts: WorkerOptions = { connection: getConnection(), concurrency: ANIMATE_CONCURRENCY };
     animateWorker = new Worker<SplitJobData>(
       SPLIT_QUEUE_NAME,
-      async (job: Job<SplitJobData>) => runAnimatePageJob(job.data, job.attemptsMade + 1, job.opts.attempts ?? 1),
+      async (job: Job<SplitJobData>) => {
+        if (job.name !== "ANIMATE_PAGE") return;
+        return runAnimatePageJob(job.data, job.attemptsMade + 1, job.opts.attempts ?? 1);
+      },
       animateOpts
     );
   }
