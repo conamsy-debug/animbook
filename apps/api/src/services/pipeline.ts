@@ -8,10 +8,10 @@ import { generateClip, generateStill, animateStill, currentProvider as currentVi
 import { generateNarration, currentTtsProvider } from "./ttsProvider.js";
 import { mirrorToR2, uploadAsset } from "./cloudflare.js";
 import { posterTransform, videoTransform } from "./mediaPostProcess.js";
-import { ensureCharacterReferences, referencesFor } from "./shotRenderer.js";
+import { ensureCharacterReferences, renderShot } from "./shotRenderer.js";
 import { safePrompt, stylePrompt, type NamedCharacter } from "./promptSafety.js";
 import { defaultVoiceIdFor, findVoice, pickProviderVoiceId } from "../config/voices.js";
-import { recordUsage, MINIMAX_IMAGE_USD_IMAGE_01 } from "./usageTracking.js";
+import { recordUsage, estimateMinimaxVideoCostUsd, MINIMAX_IMAGE_USD_IMAGE_01 } from "./usageTracking.js";
 import { splitHookIntoScenes } from "./trailer.js";
 
 const QUEUE_NAME = "animbook-pipeline";
@@ -524,6 +524,10 @@ async function animatePage(projectId: string, brain: BookBrain, page: PageRow, m
  * template in between - so the page becomes a sequence of distinct shots
  * instead of one looping clip.
  *
+ * The shots are filmed IN ORDER, and a shot that CONTINUES the one before it
+ * is generated from the last frame of that clip instead of from a new still,
+ * so the costume, the face and the light carry over from shot to shot.
+ *
  * `Page.videoUrl` is deliberately left alone: it stays the fallback for a
  * reader whose page has no playable shot.
  */
@@ -537,6 +541,7 @@ async function animatePageShots(
     stillPrompt: string;
     durationSeconds: number;
     charactersInFrame: string[];
+    continuesPrevious?: boolean;
   }>,
   userId: string
 ): Promise<"done" | "failed"> {
@@ -545,29 +550,39 @@ async function animatePageShots(
   // The character's ONE reference image, generated on first use and then
   // attached to every first-frame still she appears in.
   const references = await ensureCharacterReferences(page.bookId, undefined, `studio/${projectId}/shot-characters`);
+  // The clip of the shot before this one, as it is NOW. A continuation is
+  // filmed from its last frame, so it has to be the clip that was just
+  // rendered - not the one that was there before.
+  let previousVideoUrl: string | null = null;
   for (const shot of shots) {
     try {
-      const result = await generateClip({
-        projectId,
+      const rendered = await renderShot({
+        shot: {
+          id: shot.id,
+          order: shot.order,
+          shotPrompt: shot.shotPrompt,
+          stillPrompt: shot.stillPrompt,
+          durationSeconds: shot.durationSeconds,
+          charactersInFrame: shot.charactersInFrame,
+          continuesPrevious: shot.continuesPrevious
+        },
         pageNum: page.pageNum,
-        // The still prompt is the FIRST FRAME of this shot; the motion prompt
-        // is the shot itself. Both are used verbatim.
-        prompt: shot.stillPrompt,
-        motionPrompt: shot.shotPrompt,
-        negativePrompt: page.negativePrompt ?? undefined,
-        storagePrefix: `studio/${projectId}/shots`,
-        references: referencesFor(shot.charactersInFrame, references),
-        strict: true
+        prefix: `studio/${projectId}/shots`,
+        references,
+        previousClipUrl: shot.continuesPrevious ? previousVideoUrl : null,
+        negativePrompt: page.negativePrompt ?? null
       });
       await prisma.shot.update({
         where: { id: shot.id },
         data: {
-          videoUrl: result.videoUrl,
-          posterUrl: result.posterUrl,
+          videoUrl: rendered.videoUrl,
+          posterUrl: rendered.posterUrl,
+          chainedFrameUrl: rendered.chainedFrameUrl ?? null,
           provider: currentVideoProvider(),
           status: "READY"
         }
       });
+      previousVideoUrl = rendered.videoUrl;
       await recordUsage({
         userId,
         bookId: page.bookId,
@@ -575,13 +590,18 @@ async function animatePageShots(
         kind: "ANIMATE_KICK",
         provider: "MINIMAX_VIDEO",
         units: 1,
-        unitCostUsd: result.creditsEstimate,
+        unitCostUsd: estimateMinimaxVideoCostUsd({
+          durationSeconds: shot.durationSeconds,
+          resolution: "768P",
+          isFast: false
+        }),
         metadata: {
           model: appEnv.MINIMAX_VIDEO_MODEL,
           pageNum: page.pageNum,
           shotOrder: shot.order,
-          durationSeconds: result.durationSeconds,
-          source: result.source
+          durationSeconds: shot.durationSeconds,
+          source: "minimax",
+          chained: Boolean(rendered.chainedFrameUrl)
         }
       });
       done++;

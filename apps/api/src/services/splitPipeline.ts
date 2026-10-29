@@ -41,7 +41,12 @@ import { generateStill as defaultGenerateStill, animateStill as defaultAnimateSt
 import { estimateMinimaxVideoCostUsd } from "./usageTracking.js";
 import { mirrorToR2 as defaultMirrorToR2 } from "./cloudflare.js";
 import { posterTransform, videoTransform } from "./mediaPostProcess.js";
-import { ensureCharacterReferences, renderShot } from "./shotRenderer.js";
+import {
+  ensureCharacterReferences,
+  renderPageShots,
+  defaultExtractLastFrame,
+  defaultUploadAsset
+} from "./shotRenderer.js";
 import type { ReferenceImage } from "./runway.js";
 import { move as defaultMove, IllegalTransitionError } from "./pageState.js";
 import { loadBrain as defaultLoadBrain } from "./pipeline.js";
@@ -159,6 +164,14 @@ export interface SplitJobData {
   promptOverride?: string;
   /** Direction note from the per-page regenerate input. */
   note?: string;
+  /**
+   * Render ONLY these shots and leave the rest of the page alone. Used when
+   * one clip is regenerated - the other shots keep the clips they have, so
+   * the page is not paid for twice.
+   */
+  shotIds?: string[];
+  /** Render shots that already have a clip as well. */
+  force?: boolean;
 }
 
 /* --------------------------------------------------------------------- *
@@ -187,6 +200,10 @@ export interface SplitDeps {
   stylePrompt: (styleId: string | null | undefined, recommendation: string | null | undefined) => string;
   safePrompt: (prompt: string, characters: { name: string; description: string }[]) => string;
   move: typeof defaultMove;
+  /** Pull the last frame out of a finished clip, for shot chaining. */
+  extractLastFrame?: (videoUrl: string) => Promise<{ body: Buffer; contentType: string } | null>;
+  /** Store bytes we already have (a pulled frame) as an object. */
+  uploadAsset?: (input: { key: string; body: Buffer; contentType: string }) => Promise<{ url: string }>;
 }
 
 export function defaultDeps(): SplitDeps {
@@ -198,7 +215,9 @@ export function defaultDeps(): SplitDeps {
     loadBrain: defaultLoadBrain as unknown as SplitDeps["loadBrain"],
     stylePrompt: defaultStylePrompt as unknown as SplitDeps["stylePrompt"],
     safePrompt: defaultSafePrompt as unknown as SplitDeps["safePrompt"],
-    move: defaultMove
+    move: defaultMove,
+    extractLastFrame: defaultExtractLastFrame,
+    uploadAsset: defaultUploadAsset
   };
 }
 
@@ -441,44 +460,42 @@ export async function runAnimatePageJob(
       mirrorToR2: deps.mirrorToR2
     }, `studio/${data.projectId}/shot-characters`);
 
-    for (const shot of shots) {
-      try {
-        const rendered = await renderShot({
-          shot: {
-            id: shot.id,
-            order: shot.order,
-            shotPrompt: shot.shotPrompt,
-            stillPrompt: shot.stillPrompt,
-            durationSeconds: shot.durationSeconds,
-            charactersInFrame: shot.charactersInFrame
-          },
-          pageNum: page.pageNum,
-          prefix: `studio/${data.projectId}`,
-          references,
-          deps: {
-            prisma: deps.prisma,
-            generateStill: deps.generateStill,
-            animateStill: deps.animateStill,
-            mirrorToR2: deps.mirrorToR2
-          }
-        });
-        await deps.prisma.shot.update({
-          where: { id: shot.id },
-          data: {
-            videoUrl: rendered.videoUrl,
-            posterUrl: rendered.posterUrl,
-            provider: "minimax",
-            status: "READY"
-          }
-        });
-      } catch (err) {
-        console.warn(`[split/animate] page ${page.pageNum} shot ${shot.order}: ${(err as Error).message}`);
-        await deps.prisma.shot.update({
-          where: { id: shot.id },
-          data: { status: "FAILED", errorMessage: (err as Error).message.slice(0, 400) }
-        });
+    // The shots are filmed IN ORDER. A continuation is generated from the last
+    // frame of the clip before it, so that clip has to exist first - and a
+    // shot that is skipped still hands its clip to the shot after it.
+    const result = await renderPageShots({
+      pageId: page.id,
+      pageNum: page.pageNum,
+      prefix: `studio/${data.projectId}`,
+      references,
+      onlyShotIds: data.shotIds ?? null,
+      force: data.force === true,
+      deps: {
+        prisma: deps.prisma,
+        generateStill: deps.generateStill,
+        animateStill: deps.animateStill,
+        mirrorToR2: deps.mirrorToR2,
+        extractLastFrame: deps.extractLastFrame,
+        uploadAsset: deps.uploadAsset
       }
+    });
+
+    if (result.failed) {
+      await deps.prisma.page.update({
+        where: { id: page.id },
+        data: { clipStatus: "FAILED" }
+      });
+      emitPipelineEvent(data.projectId, {
+        stage: "ANIMATE_PAGE",
+        status: "failed",
+        progress: 0,
+        message: `Page ${page.pageNum}: ${result.failed} shot(s) failed`,
+        payload: { pageId: page.id, status: "FAILED" },
+        at: new Date().toISOString()
+      });
+      return;
     }
+
     await deps.prisma.page.update({
       where: { id: page.id },
       data: { clipStatus: "READY", qualityScore: 0.85 }

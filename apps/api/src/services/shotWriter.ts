@@ -69,6 +69,13 @@ export interface ShotDraft {
   shotPrompt: string;
   /** The prompt for the first frame the clip is generated from. */
   stillPrompt: string;
+  /**
+   * True when this shot CONTINUES the shot before it on the same page: the
+   * same scene, the same characters, no cut away. A continuation is generated
+   * from the LAST FRAME of the previous clip instead of from a new still, so
+   * the costume, the face and the light carry over from shot to shot.
+   */
+  continuesPrevious: boolean;
 }
 
 /** A validated shot, with its narration span resolved. */
@@ -82,6 +89,8 @@ export interface ShotPlan {
   /** Role labels of the characters visible in this shot. */
   charactersInFrame: string[];
   durationSeconds: number;
+  /** True when this shot continues the previous shot on the same page. */
+  continuesPrevious: boolean;
 }
 
 /* --------------------------------------------------------------------- *
@@ -118,12 +127,13 @@ Return ONE JSON object: {"characters": [...]}.
 
 Each entry:
   "roleLabel" - how this character is referred to inside shot prompts. A ROLE LABEL, never a name: "the woman in the coral headwrap", "the fisherman in the blue coat". It must be unmistakable in a list of similar people.
-  "look"      - ONE sentence fixing exactly how this character looks: age, build, skin tone, hair, one signature garment. Nothing else. Never mention their name. Never pair "young" with "male" or "female". Do not describe the body in a way that contradicts the story.
+  "look"      - ONE sentence fixing EXACTLY how this character looks AND wears. The COSTUME has to be written in precise, repeatable detail, because this wording is copied word for word into every shot prompt and into the one reference image the whole book is filmed against. Name every garment in order from the head down, and for each one give: its COLOUR, its PATTERN (solid / striped / checked / printed / plain), its FABRIC (cotton / linen / wax print / silk / leather), how it is TIED or FASTENED, and the FOOTWEAR. Say it so that two people reading the sentence would dress the character the same way. Never write "similar" or "matching", never leave a colour out, never describe the body in a way that contradicts the story. Never mention their name.
   "motion"    - ONE sentence fixing how this character moves: their posture, their pace, their habitual gesture, the way they hold their hands.
 
 Rules:
 - One entry per character who APPEARS on screen. Do not include people who are only mentioned in the narration.
 - The same look and motion wording will be copied word for word into every shot prompt in this book, so it must be specific enough that no two characters could be confused.
+- The look must cover the WHOLE costume, headwear to footwear. A character described only down to the waist is a character whose skirt changes in every shot.
 - Never write a name anywhere in this output.
 - Return valid JSON only. No prose.`;
 
@@ -164,6 +174,7 @@ Return ONE JSON object and NOTHING else. The ONLY keys you may use are:
   {"shots": [
      {"narration_text": "...",
       "characters_in_frame": ["..."],
+      "continues_previous": true,
       "shot_prompt": "...",
       "still_prompt": "..."}
   ]}
@@ -172,6 +183,7 @@ Do not add beat_number, beat_text, narration_seconds, shot_description, characte
 
   narration_text      - the beat text, copied VERBATIM back to you.
   characters_in_frame - the role labels of the characters visible in this shot, chosen from the character bible you are given. Empty list for a shot with no people.
+  continues_previous  - true when this shot CONTINUES the shot before it on this page; false when it is a NEW SETUP. The first shot of a page is always false.
   shot_prompt         - the prompt for the clip.
   still_prompt        - the prompt for the FIRST FRAME the clip is generated from.
 
@@ -196,6 +208,16 @@ THE SHOT PROMPT MUST CONTAIN, IN THIS ORDER:
 9. WHAT ENTERS. If nothing new enters the frame, say so in as many words: "Nothing enters the frame." If something does enter, the shot must call for it and describe it.
 
 10. NO TEXT. Never mention text, letters, words, titles, captions, subtitles, signs, logos or watermarks, and never ask for any.
+
+11. A WALKING CHARACTER IS DESCRIBED FROM THE LEGS UP. If the camera tracks or follows a character who is walking, or the narration says the character walks, the prompt MUST describe what the legs do - the feet planting, the knee swinging through, the weight shifting, the hips counter-rotating, the stride length. "She walks" and "the camera follows her" are not enough: a clip whose legs are not described is a clip where the feet slide. Give the leg mechanics in the same sentence as the walking, and describe the feet and knees, not just the direction of travel.
+
+SHOT CONTINUITY. Every shot after the first on a page is either a CONTINUATION of the shot before it or a NEW SETUP. Decide which, and say so in continues_previous.
+
+- A shot CONTINUES the previous one when the same scene carries on with no cut away: the same place, the same characters, no change of hour. Set "continues_previous": true.
+- A shot is a NEW SETUP when the story moves - a new place, a new time, a new cast, a jump forward, or a change of light that the narration explains. Set "continues_previous": false. A new setup gets its own first-frame still.
+- The first shot of a page is always a new setup: "continues_previous": false.
+
+A CONTINUATION IS FILMED FROM THE LAST FRAME OF THE PREVIOUS CLIP, so its prompt must OPEN in exactly the state the previous shot ended in - the same pose, the same position of every limb, the same place, the same light. Say what is still true as the shot opens ("she is still walking along the quay, both hands clasped behind her back"), and only then say what changes. Never begin a continuation from a different pose than the previous shot ended in: if the previous shot ended with her hands behind her back, the continuation opens with her hands behind her back, and her hand comes forward later in the shot.
 
 PACE THE ACTION TO THE VISIBLE SPAN. Each beat comes with the number of seconds of narration it covers. That is how long the shot is actually ON SCREEN, and the whole visible action must fit inside it: the gesture must FINISH before the narration ends. If the span is 4 seconds, write an action that completes in about 4 seconds. Do not plan a sequence of movements that needs longer than the span, and do not begin an action that cannot finish.
 
@@ -225,6 +247,27 @@ THE FIRST FRAME IS THE INSTANT BEFORE THE CLIP'S FIRST MOVEMENT. The clip is gen
 Keep everything else exactly as it was: the same time of day, the same light, the same objects in the same places, the same camera angle, and the character's look word for word. Change ONLY the body pose.
 
 The prompt is a photograph, so it contains no movement, no camera move and nothing entering the frame. It must open with the count phrase, exactly as the clip opens: "Exactly one woman in frame." / "No people or animals in frame."
+
+Return valid JSON only. No prose.`;
+
+/**
+ * The continuation rewriter.
+ *
+ * A shot that continues the previous one is filmed from the LAST FRAME of the
+ * previous clip. If its prompt opens in a different pose, the clip snaps into
+ * that pose on frame one and the chain breaks. This rewrites the ONE opening
+ * that is wrong, with the previous shot's prompt in front of it.
+ */
+export const CONTINUATION_REWRITER_SYSTEM = `You are the AnimBook shot writer. You rewrite ONE shot prompt so that it OPENS exactly where the previous shot's clip ENDS.
+
+Return ONE JSON object and NOTHING else:
+  {"shot_prompt": "..."}
+
+THE CLIP IS GENERATED FROM THE LAST FRAME OF THE PREVIOUS CLIP. So the shot you write must OPEN in the state that frame shows: the same pose, the same position of every limb, the same place, the same light, the same camera angle. Say what is STILL true as the shot opens, and only then say what changes.
+
+If the previous clip ends with her hands clasped behind her back, the continuation opens with her hands clasped behind her back, and her right hand comes forward LATER in the shot. If the previous clip ends with her finger extended pointing at a boat, the continuation opens with her finger still pointing at that boat.
+
+Keep everything else word for word: the time of day, the light, the objects in their places, the camera, the character's look, and the movement the shot ends on. Change ONLY the opening so it starts where the previous clip ends.
 
 Return valid JSON only. No prose.`;
 
@@ -752,6 +795,51 @@ function openingState(shotText: string): { start: string[]; reach: string[] } {
   }
   return { start: [...start], reach: [...reach] };
 }
+
+/**
+ * Where the body is AT THE END of a shot.
+ *
+ * The clip ends on the LAST thing the body did, so the positions of the last
+ * clause that describes the body are the positions the last frame shows. A
+ * position that was HELD (rather than travelled to) is still true at the end,
+ * so those are kept as well - the union is the pose the next shot has to
+ * carry over.
+ */
+function closingState(shotText: string): string[] {
+  let last: string[] = [];
+  const held = new Set<string>();
+  for (const clause of clauses(shotText)) {
+    if (isCameraClause(clause)) continue;
+    const moves = hasWord(clause, MOVE_VERBS);
+    const holds = hasWord(clause, HOLD_VERBS);
+    // Cut the "from ..." source phrase out: "from behind her back" says where
+    // the hand WAS, not where it ends up.
+    let rest = clause;
+    for (const source of SOURCE_PATTERNS) {
+      const match = clause.match(source.re);
+      if (match) rest = rest.replace(match[0], " ");
+    }
+    const found = positionsIn(rest);
+    if (!found.length) continue;
+    last = found;
+    if (holds && !moves) for (const id of found) held.add(id);
+  }
+  return [...new Set([...last, ...held])];
+}
+
+/**
+ * The positions the FIRST clause about the body asserts.
+ *
+ * This is the pose a clip opens on, so it is what a continuation has to match.
+ */
+function openingPositions(text: string): string[] {
+  for (const clause of clauses(text)) {
+    if (isCameraClause(clause)) continue;
+    const found = positionsIn(clause);
+    if (found.length) return found;
+  }
+  return [];
+}
 /**
  * Does the prompt describe a character doing something RIGHT NOW? A first
  * frame is a photograph, so an action in progress means the still is not the
@@ -831,6 +919,17 @@ export function validateShotPrompt(
     habitMotion?: string | null;
     /** The narration words this shot covers. */
     narrationText?: string;
+    /**
+     * True when this shot CONTINUES the shot before it on the same page. A
+     * continuation is filmed from the last frame of the previous clip, so it
+     * has to open in the pose that clip ends in.
+     */
+    continuesPrevious?: boolean;
+    /**
+     * The prompt of the shot this one continues. Used to check that the
+     * continuation opens where the previous clip ends.
+     */
+    previousShotPrompt?: string | null;
   }
 ): ShotViolation[] {
   const problems: ShotViolation[] = [];
@@ -975,6 +1074,66 @@ export function validateShotPrompt(
         rule: "frame-entry",
         detail: "the prompt must say what enters the frame (or that nothing does)"
       });
+    }
+
+    // 10. A walking character is described from the legs up. When the camera
+    // tracks or follows somebody who is walking - or the narration says they
+    // walk - the prompt has to say what the legs do. A clip whose legs are
+    // not described is a clip where the feet slide over the ground.
+    if (ctx.charactersInFrame.length > 0) {
+      const narration = ctx.narrationText ?? "";
+      const walksInNarration = hasWord(narration, ["walk", "walks", "walked", "walking"]);
+      const cameraFollows =
+        /\b(?:tracking\s+shot|tracking\s+left|tracking\s+right|tracks\s+(?:her|him|them|along)|follows\s+(?:her|him|them|along)|camera\s+(?:tracks|follows|pans?\s+with|moves?\s+with))\b/i.test(
+          text
+        );
+      if (walksInNarration || cameraFollows) {
+        const legParts = ["leg", "legs", "knee", "knees", "foot", "feet", "heel", "heels", "ankle", "ankles", "toe", "toes", "stride", "thigh", "thighs"];
+        const hasLegPart = hasWord(text, legParts);
+        const hasStrideVerb = hasWord(text, [
+          "walk", "walks", "walked", "walking", "stride", "strides", "striding", "step", "steps", "stepped", "stepping"
+        ]);
+        if (!hasLegPart || !hasStrideVerb) {
+          problems.push({
+            rule: "walking-legs",
+            detail:
+              "the character walks (or the camera follows them while they walk), so the prompt must describe the leg mechanics - " +
+              "the feet planting, the knee swinging through, the weight shifting, the hips counter-rotating - " +
+              `not just the direction of travel (${hasLegPart ? "legs are named" : "no legs are named"}, ` +
+              `${hasStrideVerb ? "the walk is named" : "the walk is not named"})`
+          });
+        }
+      }
+    }
+
+    // 11. A CONTINUATION opens where the previous clip ends. The clip is
+    // generated from the last frame of the previous one, so the continuation
+    // has to open in the pose that frame shows - not in a new pose.
+    if (ctx.continuesPrevious && ctx.previousShotPrompt) {
+      const previousEnd = closingState(ctx.previousShotPrompt);
+      const opens = openingPositions(text);
+      if (previousEnd.length && opens.length) {
+        const carried = opens.filter((id) => previousEnd.includes(id));
+        if (!carried.length) {
+          problems.push({
+            rule: "continuation-start",
+            detail:
+              `this shot continues the previous clip, so it has to open in the pose the previous clip ends in ` +
+              `(${previousEnd.map(positionLabel).join(" and ")}); it opens with ${opens.map(positionLabel).join(" and ")} instead`
+          });
+        }
+      }
+      // A continuation cannot jump to another hour: it is the same moment.
+      const previousTime = timeFamilies(ctx.previousShotPrompt);
+      const shotTime = timeFamilies(text);
+      if (previousTime.size && shotTime.size && !familiesAgree(previousTime, shotTime)) {
+        problems.push({
+          rule: "continuation-light",
+          detail:
+            `this shot continues the previous clip, so it stays at the same time of day ` +
+            `(${[...previousTime].join(", ")}); it says ${[...shotTime].join(", ")}`
+        });
+      }
     }
   } else {
     // A STILL is the opening frame of the clip, so it must describe that
@@ -1693,7 +1852,15 @@ async function writePageShots(input: {
         "visible_seconds is how long the shot is actually on screen. The whole visible action must finish inside it.",
       motion_note:
         "The bible's motion is the character's DEFAULT habit. When the narration describes a specific action, the action overrides the habit and the habit must not be repeated.",
-      light_note: "Every shot on this page must share the same time of day and the same light."
+      light_note: "Every shot on this page must share the same time of day and the same light.",
+      continuity_note:
+        "Decide for every shot after the first whether it continues the previous shot or is a new setup, " +
+        "and set continues_previous accordingly. A continuation is filmed from the last frame of the previous " +
+        "clip, so it has to open in the pose that clip ends in - say what is still true as the shot opens, then " +
+        "say what changes.",
+      leg_note:
+        "If a character walks, or the camera tracks or follows them while they walk, describe the legs: the " +
+        "feet planting, the knee swinging through, the weight shifting, the hips counter-rotating."
     }
   });
 
@@ -1710,6 +1877,7 @@ async function writePageShots(input: {
       previous_attempt: drafts.map((d) => ({
         narration_text: d.narrationText,
         characters_in_frame: d.charactersInFrame,
+        continues_previous: d.continuesPrevious,
         shot_prompt: d.shotPrompt,
         still_prompt: d.stillPrompt
       })),
@@ -1735,6 +1903,11 @@ async function writePageShots(input: {
         "The still_prompt shows the body BEFORE the shot's first movement: if the shot's first action " +
         "brings her right hand forward from behind her back, the still shows that hand STILL BEHIND " +
         "HER BACK - not already raised and pointing. " +
+        "A shot marked continues_previous true is filmed from the LAST FRAME of the previous clip, so it " +
+        "has to OPEN in the pose the previous shot ended in - say what is still true as the shot opens, " +
+        "then say what changes. " +
+        "If the character walks, describe the legs: the feet planting, the knee swinging through, the " +
+        "weight shifting. " +
         "The shot_prompt needs every one of them."
     });
     const retry = await requestShots(retryPrompt);
@@ -1760,6 +1933,11 @@ async function writePageShots(input: {
     const narrationText = span.text;
     const habitMotion = inFrame.length === 1 ? inFrame[0]!.motion ?? null : null;
 
+    // A shot only continues the one before it when the writer says so, and
+    // never the first shot of a page.
+    const continuesPrevious = i > 0 && (draft?.continuesPrevious ?? false);
+    const previousShotPrompt = continuesPrevious ? plans[i - 1]?.shotPrompt ?? null : null;
+
     let shotPrompt = "";
     let stillPrompt = "";
     let draftProblems: ShotViolation[] = [];
@@ -1772,7 +1950,9 @@ async function writePageShots(input: {
         charactersInFrame: draft.charactersInFrame,
         forbiddenNames,
         habitMotion,
-        narrationText
+        narrationText,
+        continuesPrevious,
+        previousShotPrompt
       });
       // A still has no movement in it, so the character's movement wording must
       // not leak into the first-frame prompt.
@@ -1799,19 +1979,67 @@ async function writePageShots(input: {
     } else {
       if (draftProblems.length) {
         const repaired = repairPrompt(draft.shotPrompt, draftProblems, inFrame.map((c) => c.look), [], camera);
-        const stillBroken = repaired.text
-          ? validateShotPrompt(repaired.text, {
-              kind: "shot",
-              requiredLooks: inFrame.map((c) => c.look),
-              charactersInFrame: draft.charactersInFrame,
-              forbiddenNames,
-              habitMotion,
-              narrationText
-            })
-          : [{ rule: "empty", detail: "nothing to repair" }];
-        shotPrompt = stillBroken.length
-          ? buildFallbackShot({ narrationText, characters: inFrame, setting, camera }).shotPrompt
-          : repaired.text;
+        const validate = (text: string) =>
+          validateShotPrompt(text, {
+            kind: "shot",
+            requiredLooks: inFrame.map((c) => c.look),
+            charactersInFrame: draft.charactersInFrame,
+            forbiddenNames,
+            habitMotion,
+            narrationText,
+            continuesPrevious,
+            previousShotPrompt
+          });
+        let broken = repaired.text ? validate(repaired.text) : [{ rule: "empty", detail: "nothing to repair" }];
+
+        // A continuation that opens in the wrong pose cannot be fixed
+        // mechanically - the pose the previous clip ends in lives in the
+        // previous clip's LAST FRAME, not in any text. So the opening is
+        // rewritten with that prompt in front of the Brain.
+        const continuityProblem = broken.find(
+          (p) => p.rule === "continuation-start" || p.rule === "continuation-light"
+        );
+        if (continuityProblem && continuesPrevious && previousShotPrompt) {
+          const rewritten = await rewriteContinuation({
+            previousShotPrompt,
+            shotPrompt: repaired.text,
+            violation: continuityProblem.detail,
+            looks: inFrame.map((c) => c.look)
+          });
+          if (rewritten) {
+            const rechecked = validate(rewritten);
+            const stillWrong = rechecked.some(
+              (p) => p.rule === "continuation-start" || p.rule === "continuation-light"
+            );
+            console.warn(
+              `[shot-writer] continuation rewrite: ${stillWrong ? "still wrong" : rechecked.length ? rechecked.map((p) => p.rule).join(", ") : "clean"}`
+            );
+            if (!stillWrong) {
+              // The opening is right now. The rest of the prompt is the
+              // Brain's own wording, which is worth more than the
+              // deterministic builder - so it is kept even if something else
+              // in it is still off.
+              shotPrompt = rewritten;
+              broken = [];
+            } else {
+              // Still wrong. Keep the Brain's prompt: the deterministic
+              // builder knows nothing about the previous shot and would break
+              // the chain anyway.
+              console.warn("[shot-writer] the continuation still does not open where the previous clip ends");
+              shotPrompt = repaired.text;
+              broken = [];
+            }
+          } else {
+            console.warn("[shot-writer] continuation rewrite returned nothing");
+            shotPrompt = repaired.text;
+            broken = [];
+          }
+        }
+        if (!shotPrompt) {
+          shotPrompt = broken.length
+            ? buildFallbackShot({ narrationText, characters: inFrame, setting, camera }).shotPrompt
+            : repaired.text;
+        }
       }
       if (stillProblems.length) {
         const repaired = repairPrompt(
@@ -1881,7 +2109,8 @@ async function writePageShots(input: {
       shotPrompt,
       stillPrompt,
       charactersInFrame: (draft?.charactersInFrame ?? []).filter((r) => bible.some((c) => c.roleLabel === r)),
-      durationSeconds: spanMs > MAX_SHOT_NARRATION_MS ? SHOT_CLIP_SECONDS_LONG : SHOT_CLIP_SECONDS
+      durationSeconds: spanMs > MAX_SHOT_NARRATION_MS ? SHOT_CLIP_SECONDS_LONG : SHOT_CLIP_SECONDS,
+      continuesPrevious
     });
   }
 
@@ -1931,6 +2160,44 @@ async function rewriteStill(input: {
   return still && still.trim() ? still.trim() : null;
 }
 
+/**
+ * Rewrite ONE continuation prompt so it opens where the previous clip ends.
+ *
+ * The pose a continuation has to open in is the pose the previous clip's LAST
+ * FRAME shows - which is not in the text of the prompts, it is in the video.
+ * So the previous shot's prompt is handed to the Brain as the description of
+ * that frame, and only the opening of the continuation is rewritten.
+ */
+async function rewriteContinuation(input: {
+  previousShotPrompt: string;
+  shotPrompt: string;
+  violation: string;
+  looks: string[];
+}): Promise<string | null> {
+  const userPrompt = JSON.stringify({
+    task: "Rewrite this shot prompt so it OPENS where the previous clip ends.",
+    rules_broken: [input.violation],
+    previous_shot_prompt: input.previousShotPrompt,
+    shot_prompt: input.shotPrompt,
+    character_looks: input.looks,
+    instruction:
+      "The clip is generated from the LAST FRAME of the previous clip, so this shot has to open in the " +
+      "state that frame shows - the same pose, the same position of every limb, the same light, the same " +
+      "camera angle. Say what is still true as the shot opens, then say what changes. " +
+      'Return ONE JSON object: {"shot_prompt": "..."}. Nothing else.'
+  });
+  let raw: string;
+  try {
+    raw = await callAnthropic(userPrompt, CONTINUATION_REWRITER_SYSTEM, 2_000);
+  } catch (err) {
+    console.warn(`[shot-writer] continuation rewrite failed: ${(err as Error).message.slice(0, 160)}`);
+    return null;
+  }
+  const parsed = extractJson(raw);
+  const shot = firstString((parsed ?? {}) as Record<string, unknown>, ["shot_prompt", "shotPrompt", "prompt"]);
+  return shot && shot.trim() ? shot.trim() : null;
+}
+
 /** Ask the Brain for the shots of one page and normalise the shape. */
 async function requestShots(userPrompt: string): Promise<ShotDraft[]> {
   let raw: string;
@@ -1966,7 +2233,8 @@ async function requestShots(userPrompt: string): Promise<ShotDraft[]> {
           ? (s["charactersInFrame"] as unknown[]).map(String)
           : [],
       shotPrompt,
-      stillPrompt
+      stillPrompt,
+      continuesPrevious: readBoolean(s, ["continues_previous", "continuesPrevious", "continuation"])
     });
   }
   if (!drafts.length) {
@@ -1982,6 +2250,27 @@ function firstString(source: Record<string, unknown>, keys: string[]): string | 
     if (typeof value === "string" && value.trim()) return value.trim();
   }
   return null;
+}
+
+/**
+ * The first of several possible keys that holds a boolean.
+ *
+ * The Brain sometimes writes "true" as a string, so a string is read as a
+ * boolean too. Anything that is not clearly true is false - a shot that is
+ * not marked as a continuation gets its own first-frame still, which is the
+ * safe default.
+ */
+function readBoolean(source: Record<string, unknown>, keys: string[]): boolean {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      const v = value.trim().toLowerCase();
+      if (v === "true" || v === "yes") return true;
+      if (v === "false" || v === "no") return false;
+    }
+  }
+  return false;
 }
 
 /**
@@ -2095,9 +2384,14 @@ function validateDrafts(
     problems.push({ rule: "shots", detail: "the Brain returned no shots for this page" });
     return problems;
   }
-  for (const draft of drafts) {
+  for (let i = 0; i < drafts.length; i++) {
+    const draft = drafts[i]!;
     const inFrame = ctx.bible.filter((c) => draft.charactersInFrame.includes(c.roleLabel));
     const habitMotion = inFrame.length === 1 ? inFrame[0]!.motion ?? null : null;
+    // A shot continues the one before it when the writer says so, and never
+    // the first shot of a page.
+    const continuesPrevious = i > 0 && draft.continuesPrevious;
+    const previousShotPrompt = continuesPrevious ? drafts[i - 1]!.shotPrompt : null;
     problems.push(
       ...validateShotPrompt(draft.shotPrompt, {
         kind: "shot",
@@ -2105,7 +2399,9 @@ function validateDrafts(
         charactersInFrame: draft.charactersInFrame,
         forbiddenNames: ctx.forbiddenNames,
         habitMotion,
-        narrationText: draft.narrationText
+        narrationText: draft.narrationText,
+        continuesPrevious,
+        previousShotPrompt
       })
     );
     problems.push(
@@ -2246,9 +2542,30 @@ export async function writeShotsForBook(
           stillPrompt: s.stillPrompt,
           charactersInFrame: s.charactersInFrame,
           durationSeconds: s.durationSeconds,
-          status: "PLANNED" as const
+          status: "PLANNED" as const,
+          // A continuation is filmed from the last frame of the shot before
+          // it, so the flag has to survive into the row.
+          continuesPrevious: s.continuesPrevious
         }))
       });
+
+      // The link to the previous shot is written in a second pass: the ids
+      // only exist once the rows are in. Only the rows this run wrote are
+      // considered - a page can still hold shots that were rendered before.
+      const written = await prisma.shot.findMany({
+        where: { pageId: page.id, status: "PLANNED" },
+        orderBy: { order: "asc" },
+        select: { id: true, order: true, continuesPrevious: true }
+      });
+      for (const row of written) {
+        if (!row.continuesPrevious) continue;
+        const previous = written.find((r) => r.order === row.order - 1);
+        if (!previous) continue;
+        await prisma.shot.update({
+          where: { id: row.id },
+          data: { previousShotId: previous.id }
+        });
+      }
       result.written += shots.length;
     }
   }

@@ -163,7 +163,10 @@ router.get("/:id/pages", async (req: AuthedRequest, res: Response) => {
           videoUrl: true,
           posterUrl: true,
           provider: true,
-          status: true
+          status: true,
+          // A continuation is filmed from the last frame of the clip before
+          // it, so a reader can tell a chained shot from a fresh setup.
+          continuesPrevious: true
         }
       }
     }
@@ -236,7 +239,10 @@ router.get("/:id/pages/:num", async (req: Request, res: Response) => {
           videoUrl: true,
           posterUrl: true,
           provider: true,
-          status: true
+          status: true,
+          // A continuation is filmed from the last frame of the clip before
+          // it, so a reader can tell a chained shot from a fresh setup.
+          continuesPrevious: true
         }
       }
     }

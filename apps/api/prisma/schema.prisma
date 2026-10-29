@@ -709,6 +709,16 @@ model Shot {
   charactersInFrame String[]  @default([]) @map("characters_in_frame")
   /// Intended clip length in seconds (a provider-supported duration).
   durationSeconds  Int        @map("duration_seconds")
+  /// True when this shot CONTINUES the shot before it on the same page: the
+  /// same scene, the same characters, no cut away. A continuation is NOT given
+  /// a new first-frame still - it is generated from the LAST FRAME of the
+  /// previous shot's finished clip, so the costume, the face and the light
+  /// carry over instead of being re-invented.
+  continuesPrevious Boolean  @default(false) @map("continues_previous")
+  /// The shot this one continues (the previous shot on the same page).
+  previousShotId    String?   @map("previous_shot_id")
+  /// The last frame of the previous clip, used as this clip's first frame.
+  chainedFrameUrl   String?   @map("chained_frame_url")
   /// The generated clip. Null until the shot has been rendered.
   videoUrl         String?    @map("video_url")
   /// The first-frame still the clip was generated from.

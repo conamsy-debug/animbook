@@ -172,6 +172,8 @@ export interface ShotRecord {
   /** Which provider rendered the shot. */
   provider: string | null;
   status: "PLANNED" | "QUEUED" | "GENERATING" | "READY" | "FAILED";
+  /** True when the shot is filmed from the last frame of the clip before it. */
+  continuesPrevious?: boolean;
 }
 
 export interface LibraryEntry {

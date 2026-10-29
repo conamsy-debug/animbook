@@ -344,9 +344,177 @@ test("a still that shows the pose the clip starts from is accepted when the clip
 });
 
 /* --------------------------------------------------------------------- *
- * Names never appear in a prompt
+ * Shot chaining
  * --------------------------------------------------------------------- */
 
+/** The shot before the continuation: she is walking with her hands behind
+ *  her back when the clip ends, in the low afternoon sun. */
+const PREVIOUS_SHOT = [
+  "Exactly one woman in frame.",
+  LOOK,
+  "Her right hand comes forward from behind her back, her right index finger extends and points at a fishing boat moored near the quay, her left hand remains clasped behind her back.",
+  "Gentle waves roll in and break against the concrete quay because the swell pushes them ashore.",
+  "Three fishing boats rock slowly on their moorings as the waves lift and lower them.",
+  "The low afternoon sun angling from the west casts long shadows across the waterfront.",
+  "Tracking shot moving left alongside her as she walks.",
+  "Nothing enters the frame."
+].join(" ");
+
+test("a continuation that opens in a different pose is rejected", () => {
+  const continuation = [
+    "Exactly one woman in frame.",
+    LOOK,
+    "Her right hand is raised in front of her with the index finger pointing at a boat, her left hand at her side.",
+    "Gentle waves roll in and break against the concrete quay because the swell pushes them ashore.",
+    "Three fishing boats rock slowly on their moorings as the waves lift and lower them.",
+    "Slow pan right.",
+    "Nothing enters the frame."
+  ].join(" ");
+  const problems = validateShotPrompt(continuation, {
+    kind: "shot",
+    requiredLooks: [LOOK],
+    charactersInFrame: ["the woman"],
+    forbiddenNames: [],
+    continuesPrevious: true,
+    previousShotPrompt: PREVIOUS_SHOT
+  });
+  assert.ok(rulesOf(problems).includes("continuation-start"), "a continuation that opens in the wrong pose is rejected");
+});
+
+test("a continuation that opens where the previous clip ends is accepted", () => {
+  const continuation = [
+    "Exactly one woman in frame.",
+    LOOK,
+    "She is still walking along the quay with both hands clasped behind her back, the yellow wrapper swinging against her shins.",
+    "Gentle waves roll in and break against the concrete quay because the swell pushes them ashore.",
+    "Three fishing boats rock slowly on their moorings as the waves lift and lower them.",
+    "Slow pan right.",
+    "Nothing enters the frame."
+  ].join(" ");
+  const problems = validateShotPrompt(continuation, {
+    kind: "shot",
+    requiredLooks: [LOOK],
+    charactersInFrame: ["the woman"],
+    forbiddenNames: [],
+    continuesPrevious: true,
+    previousShotPrompt: PREVIOUS_SHOT
+  });
+  assert.ok(!rulesOf(problems).includes("continuation-start"), "the pose the previous clip ends in is accepted");
+});
+
+test("a continuation cannot jump to another time of day", () => {
+  const continuation = [
+    "Exactly one woman in frame.",
+    LOOK,
+    "She is still walking along the quay with both hands clasped behind her back.",
+    "Gentle waves roll in and break against the concrete quay because the swell pushes them ashore.",
+    "Three fishing boats rock slowly on their moorings as the waves lift and lower them.",
+    "Slow pan right.",
+    "Nothing enters the frame."
+  ].join(" ");
+  const midnight = continuation.replace(
+    "along the quay",
+    "along the quay at midnight under moonlight"
+  );
+  const problems = validateShotPrompt(midnight, {
+    kind: "shot",
+    requiredLooks: [LOOK],
+    charactersInFrame: ["the woman"],
+    forbiddenNames: [],
+    continuesPrevious: true,
+    previousShotPrompt: PREVIOUS_SHOT
+  });
+  assert.ok(rulesOf(problems).includes("continuation-light"), "a continuation that changes the hour is rejected");
+});
+
+test("a new setup is not held to the previous shot's pose", () => {
+  const newSetup = [
+    "Exactly one woman in frame.",
+    LOOK,
+    "Her right hand is raised in front of her with the index finger pointing at a boat, her left hand at her side.",
+    "Gentle waves roll in and break against the concrete quay because the swell pushes them ashore.",
+    "Three fishing boats rock slowly on their moorings as the waves lift and lower them.",
+    "Slow pan right.",
+    "Nothing enters the frame."
+  ].join(" ");
+  const problems = validateShotPrompt(newSetup, {
+    kind: "shot",
+    requiredLooks: [LOOK],
+    charactersInFrame: ["the woman"],
+    forbiddenNames: [],
+    continuesPrevious: false,
+    previousShotPrompt: PREVIOUS_SHOT
+  });
+  assert.ok(!rulesOf(problems).includes("continuation-start"), "a new setup may open in any pose");
+});
+
+/* --------------------------------------------------------------------- *
+ * A walking character is described from the legs up
+ * --------------------------------------------------------------------- */
+
+test("a shot whose camera follows a walking character has to describe the legs", () => {
+  const shot = [
+    "Exactly one woman in frame.",
+    LOOK,
+    "Her right hand comes forward from behind her back and points at a fishing boat, her head turns to follow the line of boats.",
+    "Gentle waves roll in and break against the concrete quay because the swell pushes them ashore.",
+    "Three fishing boats rock slowly on their moorings as the waves lift and lower them.",
+    "Tracking shot moving left alongside her as she walks.",
+    "Nothing enters the frame."
+  ].join(" ");
+  const problems = validateShotPrompt(shot, {
+    kind: "shot",
+    requiredLooks: [LOOK],
+    charactersInFrame: ["the woman"],
+    forbiddenNames: [],
+    narrationText: "Adaeze walked along the Marina waterfront, counting"
+  });
+  assert.ok(rulesOf(problems).includes("walking-legs"), "a tracking shot without leg mechanics is rejected");
+});
+
+test("the narration saying the character walks also demands the leg mechanics", () => {
+  const shot = [
+    "Exactly one woman in frame.",
+    LOOK,
+    "Her right hand comes forward from behind her back and points at a fishing boat.",
+    "Gentle waves roll in and break against the concrete quay because the swell pushes them ashore.",
+    "Three fishing boats rock slowly on their moorings as the waves lift and lower them.",
+    "Locked-off static shot.",
+    "Nothing enters the frame."
+  ].join(" ");
+  const problems = validateShotPrompt(shot, {
+    kind: "shot",
+    requiredLooks: [LOOK],
+    charactersInFrame: ["the woman"],
+    forbiddenNames: [],
+    narrationText: "Adaeze walked along the Marina waterfront, counting"
+  });
+  assert.ok(rulesOf(problems).includes("walking-legs"), "walking in the narration is enough to demand the leg mechanics");
+});
+
+test("a walking character described from the legs up is accepted", () => {
+  const shot = [
+    "Exactly one woman in frame.",
+    LOOK,
+    "She walks along the quay: her left foot plants flat on the concrete, her right knee swings forward and the foot plants a stride behind it, her hips counter-rotate with each step, her right hand comes forward from behind her back and points at a fishing boat.",
+    "Gentle waves roll in and break against the concrete quay because the swell pushes them ashore.",
+    "Three fishing boats rock slowly on their moorings as the waves lift and lower them.",
+    "Tracking shot moving left alongside her as she walks.",
+    "Nothing enters the frame."
+  ].join(" ");
+  const problems = validateShotPrompt(shot, {
+    kind: "shot",
+    requiredLooks: [LOOK],
+    charactersInFrame: ["the woman"],
+    forbiddenNames: [],
+    narrationText: "Adaeze walked along the Marina waterfront, counting"
+  });
+  assert.ok(!rulesOf(problems).includes("walking-legs"), "leg mechanics are accepted");
+});
+
+/* --------------------------------------------------------------------- *
+ * Names never appear in a prompt
+ * --------------------------------------------------------------------- */
 test("a character name is never allowed in a prompt", () => {
   const names = collectProperNames(["Adaeze walked along the Marina waterfront."]);
   assert.ok(names.includes("Adaeze"));

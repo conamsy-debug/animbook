@@ -2,12 +2,18 @@
  * Queue a book's shots for rendering.
  *
  *   npx tsx apps/api/scripts/render-book-shots.ts <slug> [--dry-run]
+ *   npx tsx apps/api/scripts/render-book-shots.ts <slug> --shot <shotId> [--shot <shotId>]
  *
  * The video provider credentials live on the API server, not on a laptop, so
  * the clips are rendered by the server's Bull worker: this script puts the
  * page on the split-pipeline queue exactly the way the Studio UI does, and
  * the worker generates the first-frame stills (with the character's reference
  * image attached) and the clips.
+ *
+ * `--shot` renders ONLY the shots named and leaves the rest of the page
+ * exactly as it is. That is how one clip is regenerated - and how a
+ * continuation shot is filmed from the last frame of the clip before it -
+ * without paying for the whole page again.
  *
  * It only touches books that already have PLANNED shots, so it can never
  * start generating video for a book that was not put on the shot path.
@@ -79,9 +85,15 @@ prepareDatabaseUrl();
 const args = process.argv.slice(2);
 const slug = args.find((a) => !a.startsWith("--"));
 const dryRun = args.includes("--dry-run");
+const force = args.includes("--force");
+// `--shot <id>` may be given more than once.
+const shotIds: string[] = [];
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--shot" && args[i + 1]) shotIds.push(args[i + 1]!);
+}
 
 if (!slug) {
-  console.error("usage: npx tsx apps/api/scripts/render-book-shots.ts <slug> [--dry-run]");
+  console.error("usage: npx tsx apps/api/scripts/render-book-shots.ts <slug> [--dry-run] [--shot <shotId>] [--force]");
   process.exit(2);
 }
 
@@ -134,7 +146,11 @@ try {
   const projectId = `books/${book.slug}`;
 
   for (const page of pages) {
-    const pending = page.shots.filter((s) => s.status !== "READY" || !s.videoUrl);
+    // With --shot, only the named shots are rendered. Without it, a page is
+    // rendered when it still has a shot without a clip.
+    const pending = shotIds.length
+      ? page.shots.filter((s) => shotIds.includes(s.id))
+      : page.shots.filter((s) => s.status !== "READY" || !s.videoUrl);
     console.log(
       `\npage ${page.pageNum}: ${page.shots.length} shot(s), ${pending.length} to render ` +
         `(stillStatus=${page.stillStatus}, clipStatus=${page.clipStatus})`
@@ -156,7 +172,13 @@ try {
 
     const job = await queue.add(
       "ANIMATE_PAGE",
-      { projectId, pageId: page.id, stillVersion: page.stillVersion },
+      {
+        projectId,
+        pageId: page.id,
+        stillVersion: page.stillVersion,
+        shotIds: shotIds.length ? pending.map((s) => s.id) : undefined,
+        force: force || undefined
+      },
       {
         jobId: `animate:${page.id}:shots-${Date.now().toString(36)}`,
         attempts: 2,
@@ -166,6 +188,9 @@ try {
       }
     );
     console.log(`  queued job ${job.id}`);
+    for (const shot of pending) {
+      console.log(`    shot ${shot.order} (${shot.id})`);
+    }
   }
 
   console.log("\nDone. The server worker renders the clips; poll the DB for status READY.");

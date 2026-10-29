@@ -314,6 +314,245 @@ test("ANIMATE_PAGE: a page with shot rows renders one clip per shot", async () =
   assert.equal(stored.clipStatus, "READY");
 });
 
+/* --------------------------------------------------------------------- *
+ * Shot chaining
+ *
+ * A shot that continues the one before it is filmed from the LAST FRAME of
+ * the previous clip, so the costume, the face and the light carry over
+ * instead of being re-invented by a new still.
+ * --------------------------------------------------------------------- */
+
+/** A 16x16 PNG - the shape of the frame a clip ends on. */
+const FRAME_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAACXBIWXMAAAABAAAAAQBPJcTWAAAAFklEQVR4nGPY2mFPEmIY1TCqYfhqAAB7KnwQdSMYygAAAABJRU5ErkJggg==",
+  "base64"
+);
+
+function chainedDeps(overrides = {}) {
+  const extracted = [];
+  const uploaded = [];
+  const animated = [];
+  return {
+    extracted,
+    uploaded,
+    animated,
+    deps: {
+      generateStill: async () => {
+        throw new Error("a continuation must not generate a still");
+      },
+      animateStill: async (firstFrame, motion) => {
+        animated.push({ firstFrame, motion });
+        return `https://minimax.example/clip-${animated.length}.mp4`;
+      },
+      extractLastFrame: async (videoUrl) => {
+        extracted.push(videoUrl);
+        return { body: FRAME_PNG, contentType: "image/png" };
+      },
+      uploadAsset: async (input) => {
+        uploaded.push(input);
+        return { url: `https://media.animbook.com/${input.key}` };
+      },
+      ...overrides
+    }
+  };
+}
+
+test("ANIMATE_PAGE: a continuation is filmed from the last frame of the previous clip, with no new still", async () => {
+  const { deps: extra, extracted, uploaded, animated } = chainedDeps();
+  const { deps, calls } = makeDeps({
+    page: {
+      stillStatus: "APPROVED",
+      posterUrl: "https://media.animbook.com/studio/proj-1/p7.png"
+    },
+    shots: [
+      {
+        id: "shot-0",
+        order: 0,
+        status: "READY",
+        videoUrl: "https://media.animbook.com/studio/proj-1/shots/p7-s0.mp4",
+        continuesPrevious: false,
+        shotPrompt: "Exactly one woman in frame. She walks along the quay.",
+        stillPrompt: "Exactly one woman in frame. She stands with her hands behind her back.",
+        durationSeconds: 6,
+        charactersInFrame: []
+      },
+      {
+        id: "shot-1",
+        order: 1,
+        status: "PLANNED",
+        continuesPrevious: true,
+        shotPrompt: "Exactly one woman in frame. Her right hand comes forward and points.",
+        stillPrompt: "Exactly one woman in frame. She stands with her hands behind her back.",
+        durationSeconds: 6,
+        charactersInFrame: []
+      }
+    ],
+    deps: extra
+  });
+
+  await runAnimatePageJob(data, 1, 1, deps);
+
+  // The frame came out of the clip before it.
+  assert.equal(extracted.length, 1);
+  assert.match(extracted[0], /p7-s0\.mp4$/);
+
+  // No still was generated for the continuation: the clip opens on the
+  // previous clip's last frame. The frame is stored twice - lossless PNG for
+  // the video API, light WebP for the poster.
+  assert.equal(uploaded.length, 2);
+  assert.match(uploaded[0].key, /p7-s1-chain-.*\.png$/);
+  assert.equal(uploaded[0].contentType, "image/png");
+  assert.match(uploaded[1].key, /p7-s1-chain-.*\.webp$/);
+
+  // And that frame is what the clip was animated from.
+  assert.equal(animated.length, 1);
+  assert.match(animated[0].firstFrame, /p7-s1-chain-/);
+
+  // The row records the frame it was chained onto.
+  const shotUpdates = calls.filter((c) => c.kind === "shot.update");
+  assert.equal(shotUpdates.length, 1);
+  assert.match(shotUpdates[0].args.data.chainedFrameUrl, /p7-s1-chain-/);
+  assert.equal(shotUpdates[0].args.data.status, "READY");
+});
+
+test("ANIMATE_PAGE: the shots of a page are rendered in order, so a continuation waits for the clip before it", async () => {
+  const { deps: extra, extracted, animated } = chainedDeps();
+  const { deps } = makeDeps({
+    page: {
+      stillStatus: "APPROVED",
+      posterUrl: "https://media.animbook.com/studio/proj-1/p7.png"
+    },
+    shots: [
+      {
+        id: "shot-0",
+        order: 0,
+        status: "PLANNED",
+        continuesPrevious: false,
+        shotPrompt: "Exactly one woman in frame. She walks along the quay.",
+        stillPrompt: "Exactly one woman in frame. She stands with her hands behind her back.",
+        durationSeconds: 6,
+        charactersInFrame: []
+      },
+      {
+        id: "shot-1",
+        order: 1,
+        status: "PLANNED",
+        continuesPrevious: true,
+        shotPrompt: "Exactly one woman in frame. Her right hand comes forward and points.",
+        stillPrompt: "Exactly one woman in frame. She stands with her hands behind her back.",
+        durationSeconds: 6,
+        charactersInFrame: []
+      }
+    ],
+    deps: {
+      ...extra,
+      generateStill: async () => "https://minimax.example/still.png"
+    }
+  });
+
+  await runAnimatePageJob(data, 1, 1, deps);
+
+  // Both clips, in order.
+  assert.equal(animated.length, 2);
+  // The continuation was chained onto the clip that had JUST been rendered,
+  // not onto one that was there before.
+  assert.equal(extracted.length, 1);
+  assert.match(extracted[0], /p7-s0-/);
+});
+
+test("ANIMATE_PAGE: only the named shot is rendered, so one clip can be regenerated on its own", async () => {
+  const { deps: extra, animated } = chainedDeps();
+  const { deps, calls } = makeDeps({
+    page: {
+      stillStatus: "APPROVED",
+      posterUrl: "https://media.animbook.com/studio/proj-1/p7.png"
+    },
+    shots: [
+      {
+        id: "shot-0",
+        order: 0,
+        status: "READY",
+        videoUrl: "https://media.animbook.com/studio/proj-1/shots/p7-s0.mp4",
+        continuesPrevious: false,
+        shotPrompt: "Exactly one woman in frame. She walks along the quay.",
+        stillPrompt: "Exactly one woman in frame. She stands with her hands behind her back.",
+        durationSeconds: 6,
+        charactersInFrame: []
+      },
+      {
+        id: "shot-1",
+        order: 1,
+        status: "READY",
+        videoUrl: "https://media.animbook.com/studio/proj-1/shots/p7-s1.mp4",
+        continuesPrevious: true,
+        shotPrompt: "Exactly one woman in frame. Her right hand comes forward and points.",
+        stillPrompt: "Exactly one woman in frame. She stands with her hands behind her back.",
+        durationSeconds: 6,
+        charactersInFrame: []
+      }
+    ],
+    deps: extra
+  });
+
+  await runAnimatePageJob({ ...data, shotIds: ["shot-1"], force: true }, 1, 1, deps);
+
+  // One clip, and it is the one that was asked for.
+  assert.equal(animated.length, 1);
+  const shotUpdates = calls.filter((c) => c.kind === "shot.update");
+  assert.equal(shotUpdates.length, 1);
+  assert.match(shotUpdates[0].args.data.videoUrl, /p7-s1/);
+});
+
+test("ANIMATE_PAGE: a continuation whose previous clip is missing falls back to its own still", async () => {
+  const { deps: extra, animated } = chainedDeps({
+    extractLastFrame: async () => null
+  });
+  const { deps } = makeDeps({
+    page: {
+      stillStatus: "APPROVED",
+      posterUrl: "https://media.animbook.com/studio/proj-1/p7.png"
+    },
+    shots: [
+      {
+        id: "shot-0",
+        order: 0,
+        status: "READY",
+        videoUrl: "https://media.animbook.com/studio/proj-1/shots/p7-s0.mp4",
+        continuesPrevious: false,
+        shotPrompt: "Exactly one woman in frame. She walks along the quay.",
+        stillPrompt: "Exactly one woman in frame. She stands with her hands behind her back.",
+        durationSeconds: 6,
+        charactersInFrame: []
+      },
+      {
+        id: "shot-1",
+        order: 1,
+        status: "PLANNED",
+        continuesPrevious: true,
+        shotPrompt: "Exactly one woman in frame. Her right hand comes forward and points.",
+        stillPrompt: "Exactly one woman in frame. She stands with her hands behind her back.",
+        durationSeconds: 6,
+        charactersInFrame: []
+      }
+    ],
+    deps: {
+      ...extra,
+      generateStill: async () => "https://minimax.example/still.png"
+    }
+  });
+
+  await runAnimatePageJob(data, 1, 1, deps);
+
+  // The clip was still made - from a fresh still, because there was no frame
+  // to chain onto.
+  assert.equal(animated.length, 1);
+  assert.equal(animated[0].firstFrame, "https://minimax.example/still.png");
+});
+
+/* --------------------------------------------------------------------- *
+ * ANIMATE_PAGE: throw on attempt < max -> rethrows, doesn't mark FAILED
+ * --------------------------------------------------------------------- */
+
 test("ANIMATE_PAGE: throw on attempt < max -> rethrows, doesn't mark FAILED", async () => {
   const { deps, stored } = makeDeps({
     page: {
