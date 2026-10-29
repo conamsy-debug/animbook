@@ -162,9 +162,10 @@ Notes:
 - **Per-page parallel workers.** The current pipeline uses a single Bull
   worker (`animbook-pipeline`) with `Promise.all` over pages inside one
   processor. The brief asks for *Bull jobs per page* so pages run in
-  parallel without blocking one another. We'll add a second queue
-  (`animbook-split-pipeline`) with two named workers (`STILL_PAGE`,
-  `ANIMATE_PAGE`). The legacy worker is untouched.
+  parallel without blocking one another. We'll add two queues
+  (`animbook-split-still`, `animbook-split-animate`), one per job type, so
+  the `STILL_PAGE` and `ANIMATE_PAGE` workers can never race for each
+  other's jobs. The legacy worker is untouched.
 - **`jobId` includes `stillVersion`.** Bull jobIds must be unique; we use
   `still:<pageId>:v<stillVersion>` and `animate:<pageId>:v<stillVersion>`.
   A second click with the same version is a no-op (Bull rejects duplicate

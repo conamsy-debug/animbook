@@ -13,7 +13,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 const splitModule = await import("../dist/services/splitPipeline.js");
-const { runStillPageJob, runAnimatePageJob, defaultDeps, pickClipSeconds, estimateClipCostUsd } = splitModule;
+const { runStillPageJob, runAnimatePageJob, defaultDeps, pickClipSeconds, estimateClipCostUsd, splitQueueName } = splitModule;
 
 /* --------------------------------------------------------------------- *
  * Test fixture builders. We construct a fake Prisma that records every
@@ -410,4 +410,27 @@ test("defaultDeps returns an object with every SplitDeps key", () => {
   assert.equal(typeof deps.stylePrompt, "function");
   assert.equal(typeof deps.safePrompt, "function");
   assert.equal(typeof deps.move, "function");
+});
+
+/* --------------------------------------------------------------------- *
+ * The still job and the animate job run on DIFFERENT queues.
+ *
+ * BullMQ hands a waiting job to whichever worker asks for it first, so two
+ * workers on one queue race for each other's jobs. A worker that "ignores" a
+ * job it picked up still lets BullMQ mark it complete and remove it - the
+ * clip is then never rendered and nothing says so. One queue per job type
+ * removes the race, and this test is what stops it coming back.
+ * --------------------------------------------------------------------- */
+
+test("the still job and the animate job run on different queues", () => {
+  const still = splitQueueName("STILL_PAGE");
+  const animate = splitQueueName("ANIMATE_PAGE");
+  assert.ok(still, "the still job has a queue");
+  assert.ok(animate, "the animate job has a queue");
+  assert.notEqual(still, animate, "the two job types must not share a queue");
+});
+
+test("the queue routing is stable", () => {
+  assert.equal(splitQueueName("STILL_PAGE"), "animbook-split-still");
+  assert.equal(splitQueueName("ANIMATE_PAGE"), "animbook-split-animate");
 });

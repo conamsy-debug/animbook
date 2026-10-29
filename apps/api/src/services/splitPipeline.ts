@@ -1,9 +1,10 @@
 /**
  * Split-pipeline workers — STILL_PAGE and ANIMATE_PAGE.
  *
- * Runs on its own Bull queue (`animbook-split-pipeline`) with one job per
- * page so pages run in parallel instead of one after another. Concurrency
- * is tuned by env (`STILL_PAGE_CONCURRENCY` default 4, `ANIMATE_PAGE_CONCURRENCY`
+ * Runs on its own Bull queues - one per job type (`animbook-split-still` and
+ * `animbook-split-animate`) with one job per page, so pages run in parallel
+ * instead of one after another. Concurrency is tuned by env
+ * (`STILL_PAGE_CONCURRENCY` default 4, `ANIMATE_PAGE_CONCURRENCY`
  * default 2) — keep it low enough for Runway's per-account rate limits.
  *
  * Hard gates from the brief:
@@ -47,7 +48,30 @@ import { loadBrain as defaultLoadBrain } from "./pipeline.js";
 import { safePrompt as defaultSafePrompt, stylePrompt as defaultStylePrompt } from "./promptSafety.js";
 import type { MotionTier } from "@prisma/client";
 
-const SPLIT_QUEUE_NAME = "animbook-split-pipeline";
+/**
+ * The split pipeline runs ONE QUEUE PER JOB TYPE.
+ *
+ * BullMQ hands every waiting job to whichever worker asks for it first, so
+ * two workers on ONE queue race for each other's jobs. The still worker used
+ * to "ignore" an ANIMATE_PAGE job it picked up, which stopped it
+ * regenerating an approved still - but BullMQ still marked that job COMPLETE
+ * and removed it, so the clip was never rendered and nothing said so. One
+ * queue per job type removes the race: a worker only ever sees the jobs it
+ * is allowed to run.
+ */
+const SPLIT_STILL_QUEUE_NAME = "animbook-split-still";
+const SPLIT_ANIMATE_QUEUE_NAME = "animbook-split-animate";
+
+/**
+ * The Bull queue a job type runs on.
+ *
+ * Exported so the routing can be asserted: if the two job types ever share a
+ * queue again, the workers race for each other's jobs and a job can be
+ * swallowed without a trace.
+ */
+export function splitQueueName(job: SplitJobName): string {
+  return job === "STILL_PAGE" ? SPLIT_STILL_QUEUE_NAME : SPLIT_ANIMATE_QUEUE_NAME;
+}
 
 /* --------------------------------------------------------------------- *
  * Concurrency knobs. Tuned for Runway's per-account rate limits; can be
@@ -107,10 +131,14 @@ function getConnection(): IORedis {
   return connection;
 }
 
-let splitQueue: Queue<SplitJobData> | null = null;
-function getSplitQueue(): Queue<SplitJobData> {
-  if (!splitQueue) splitQueue = new Queue<SplitJobData>(SPLIT_QUEUE_NAME, { connection: getConnection() });
-  return splitQueue;
+const splitQueues = new Map<string, Queue<SplitJobData>>();
+function getSplitQueue(name: string): Queue<SplitJobData> {
+  let queue = splitQueues.get(name);
+  if (!queue) {
+    queue = new Queue<SplitJobData>(name, { connection: getConnection() });
+    splitQueues.set(name, queue);
+  }
+  return queue;
 }
 
 /* --------------------------------------------------------------------- *
@@ -180,7 +208,7 @@ export function defaultDeps(): SplitDeps {
  * --------------------------------------------------------------------- */
 
 export async function enqueueStillJob(data: SplitJobData): Promise<string> {
-  const job = await getSplitQueue().add(
+  const job = await getSplitQueue(splitQueueName("STILL_PAGE")).add(
     "STILL_PAGE",
     data,
     {
@@ -195,7 +223,7 @@ export async function enqueueStillJob(data: SplitJobData): Promise<string> {
 }
 
 export async function enqueueAnimateJob(data: SplitJobData): Promise<string> {
-  const job = await getSplitQueue().add(
+  const job = await getSplitQueue(splitQueueName("ANIMATE_PAGE")).add(
     "ANIMATE_PAGE",
     data,
     {
@@ -545,12 +573,11 @@ export function startSplitWorkers(): { still: Worker<SplitJobData> | null; anima
   if (!stillWorker) {
     const stillOpts: WorkerOptions = { connection: getConnection(), concurrency: STILL_CONCURRENCY };
     stillWorker = new Worker<SplitJobData>(
-      SPLIT_QUEUE_NAME,
+      SPLIT_STILL_QUEUE_NAME,
       async (job: Job<SplitJobData>) => {
-        // Both workers share one queue, so each has to ignore the other's
-        // jobs. Without this, the still worker can pick up an ANIMATE_PAGE
-        // job and regenerate a still that the author already approved.
-        if (job.name !== "STILL_PAGE") return;
+        // This queue only carries STILL_PAGE jobs. If that ever stops being
+        // true, throw - a silently skipped job is a job that never happens.
+        if (job.name !== "STILL_PAGE") throw new Error(`unexpected job ${job.name} on the still queue`);
         return runStillPageJob(job.data, job.attemptsMade + 1, job.opts.attempts ?? 1);
       },
       stillOpts
@@ -559,9 +586,9 @@ export function startSplitWorkers(): { still: Worker<SplitJobData> | null; anima
   if (!animateWorker) {
     const animateOpts: WorkerOptions = { connection: getConnection(), concurrency: ANIMATE_CONCURRENCY };
     animateWorker = new Worker<SplitJobData>(
-      SPLIT_QUEUE_NAME,
+      SPLIT_ANIMATE_QUEUE_NAME,
       async (job: Job<SplitJobData>) => {
-        if (job.name !== "ANIMATE_PAGE") return;
+        if (job.name !== "ANIMATE_PAGE") throw new Error(`unexpected job ${job.name} on the animate queue`);
         return runAnimatePageJob(job.data, job.attemptsMade + 1, job.opts.attempts ?? 1);
       },
       animateOpts
@@ -587,10 +614,8 @@ export async function shutdownSplitPipeline(): Promise<void> {
   await Promise.all([stillWorker?.close(), animateWorker?.close()]);
   stillWorker = null;
   animateWorker = null;
-  if (splitQueue) {
-    await splitQueue.close();
-    splitQueue = null;
-  }
+  await Promise.all([...splitQueues.values()].map((queue) => queue.close()));
+  splitQueues.clear();
   if (connection) {
     await connection.quit();
     connection = null;

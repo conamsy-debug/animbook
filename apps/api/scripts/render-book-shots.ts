@@ -87,7 +87,8 @@ if (!slug) {
 
 const { prisma } = await import("../src/db.js");
 
-const SPLIT_QUEUE_NAME = "animbook-split-pipeline";
+/** The split pipeline keeps one queue per job type; clips are animated. */
+const SPLIT_QUEUE_NAME = "animbook-split-animate";
 const connection = new IORedis(readRedisUrl(), {
   maxRetriesPerRequest: null,
   enableReadyCheck: false
